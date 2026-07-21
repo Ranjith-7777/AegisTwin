@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -90,3 +90,73 @@ class TelemetryEventRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     run: Mapped[SimulationRunRecord] = relationship(back_populates="events")
+
+
+class DetectionModelRecord(Base):
+    __tablename__ = "detection_models"
+
+    model_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    model_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    feature_schema_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    calibration_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    artifact_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    configuration_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    dataset_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    random_state: Mapped[int] = mapped_column(Integer, nullable=False)
+    target_false_positive_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    calibrated_threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    threshold_percentile: Mapped[float] = mapped_column(Float, nullable=False)
+    training_event_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    validation_event_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class AnomalyAssessmentRecord(Base):
+    __tablename__ = "anomaly_assessments"
+    __table_args__ = (UniqueConstraint("model_id", "event_id", name="uq_assessment_model_event"),)
+
+    assessment_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    model_id: Mapped[str] = mapped_column(
+        ForeignKey("detection_models.model_id"), nullable=False, index=True
+    )
+    simulation_run_id: Mapped[str] = mapped_column(
+        ForeignKey("simulation_runs.simulation_run_id"), nullable=False, index=True
+    )
+    event_id: Mapped[str] = mapped_column(
+        ForeignKey("telemetry_events.event_id"), nullable=False, index=True
+    )
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    raw_score: Mapped[float] = mapped_column(Float, nullable=False)
+    anomaly_score: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    classification: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    contributing_signals_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ModelEvaluationRecord(Base):
+    __tablename__ = "model_evaluations"
+
+    evaluation_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    model_id: Mapped[str] = mapped_column(
+        ForeignKey("detection_models.model_id"), nullable=False, index=True
+    )
+    configuration_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    normal_event_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    suspicious_scenario_event_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    true_positive: Mapped[int] = mapped_column(Integer, nullable=False)
+    false_positive: Mapped[int] = mapped_column(Integer, nullable=False)
+    true_negative: Mapped[int] = mapped_column(Integer, nullable=False)
+    false_negative: Mapped[int] = mapped_column(Integer, nullable=False)
+    precision: Mapped[float] = mapped_column(Float, nullable=False)
+    recall: Mapped[float] = mapped_column(Float, nullable=False)
+    f1_score: Mapped[float] = mapped_column(Float, nullable=False)
+    false_positive_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    roc_auc: Mapped[float | None] = mapped_column(Float)
+    average_precision: Mapped[float | None] = mapped_column(Float)
+    baseline_metrics_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

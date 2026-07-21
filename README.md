@@ -6,7 +6,7 @@
 
 ## Current phase
 
-Phase 3B adds controlled real-time playback of persisted synthetic telemetry. The backend exposes a run-scoped WebSocket with start, pause, resume, stop, heartbeat, completion, and reconnect support; the dashboard creates or reopens deterministic runs and renders their events incrementally. Anomaly detection, incident correlation, ATT&CK mapping, prediction, agents, and response orchestration remain intentionally deferred.
+Phase 4A adds reproducible offline IsolationForest training, empirical normal-validation calibration, persisted model artifacts, idempotent run scoring, explainable contributing signals, and held-out synthetic evaluation. Live anomaly streaming and frontend assessment integration remain deferred to Phase 4B; incident correlation, ATT&CK mapping, prediction, agents, and response orchestration remain later-phase work.
 
 ## Repository structure
 
@@ -83,6 +83,8 @@ Compose starts the backend on port 8000 and the frontend on port 5173. The front
 
 Phase 3B adds `GET /api/v1/simulation/runs/{run_id}/playback` and `WS /api/v1/ws/simulation/runs/{run_id}?after_sequence=0` alongside the existing health, safety, simulation, and telemetry interfaces.
 
+Phase 4A adds versioned `/api/v1/detection` model training, model metadata, offline run scoring, paginated assessments, and evaluation endpoints. See [docs/PHASE_4A_ANOMALY_DETECTION.md](docs/PHASE_4A_ANOMALY_DETECTION.md). An anomaly is unusual synthetic behaviour, not a confirmed attack.
+
 - `GET /api/health` — application and real database connectivity.
 - `GET /api/system/status` — static foundation status; incident and agent counts remain zero.
 - `GET /api/safety` — explicit simulation-only safety posture.
@@ -131,5 +133,5 @@ Create focused feature branches, review `git status` before and after work, run 
 
 ## Current limitations
 
-The backend remains single-process and SQLite-backed. Playback ownership is connection-local, so reconnecting creates a fresh controller and resumes from an explicit event index. Authentication, production observability, anomaly detection, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.
+The backend remains synchronous, single-process, and SQLite-backed; model artifacts use the local filesystem. Phase 4A scoring is offline and does not alter WebSocket playback or the dashboard. Authentication, production observability, live anomaly streaming, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.
 

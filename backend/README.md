@@ -2,7 +2,7 @@
 
 Python 3.11+ is required. The service refuses to start unless simulation-only mode is enabled. Run commands from the `backend` directory.
 
-Phase 3B adds run-scoped, connection-local playback of the persisted Phase 3A telemetry. It does not score anomalies, confirm attacks, correlate incidents, map ATT&CK techniques, execute commands, contact devices, scan networks, or perform response actions.
+Phase 4A adds offline IsolationForest training, normal-validation calibration, persisted artifacts, synthetic run scoring, and evaluation. Anomalous means unusual relative to synthetic normal training; it never means a confirmed attack. Live anomaly streaming, incident correlation, ATT&CK mapping, commands, device contact, scanning, and response actions are absent.
 
 ## Windows CMD
 
@@ -88,9 +88,18 @@ GET  /api/v1/simulation/runs/{run_id}/playback
 GET  /api/v1/telemetry/events
 GET  /api/v1/telemetry/events/{event_id}
 WS   /api/v1/ws/simulation/runs/{run_id}?after_sequence=0
+POST /api/v1/detection/models/train
+GET  /api/v1/detection/models
+GET  /api/v1/detection/models/{model_id}
+POST /api/v1/detection/runs/{run_id}/score
+GET  /api/v1/detection/runs/{run_id}/assessments
+POST /api/v1/detection/models/{model_id}/evaluate
+GET  /api/v1/detection/evaluations/{evaluation_id}
 ```
 
 The playback socket first emits `connection_ack` and `playback_snapshot`. Clients then send `start`, `pause`, `resume`, `stop`, or `ping`. Server envelopes are ordered and explicitly marked `synthetic: true`. Timing uses persisted timestamp deltas divided by run speed. Each connection owns its controller, so one client cannot pause another.
+
+Detection artifacts default to `artifacts/models` and can be relocated with `MODEL_ARTIFACT_DIR`. Training seed ranges, validation seed ranges, evaluation seed ranges, model random state, and target false-positive rate are request-configurable and reproducible. Apply Alembic before using detection APIs. Full feature, calibration, evaluation, and REST documentation is in `docs/PHASE_4A_ANOMALY_DETECTION.md`.
 
 Telemetry query parameters are `page`, `page_size`, `simulation_run_id`, `event_type`, `source_id`, `user_id`, and `minimum_severity`.
 

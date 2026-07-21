@@ -10,8 +10,10 @@ requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.14,<2.0",
     "fastapi>=0.115,<1.0",
+    "joblib>=1.4,<2.0",
     "pydantic>=2.10,<3.0",
     "pydantic-settings>=2.7,<3.0",
+    "scikit-learn>=1.5,<2.0",
     "sqlalchemy>=2.0.36,<3.0",
     "uvicorn[standard]>=0.34,<1.0",
 ]
@@ -23,6 +25,9 @@ include = ["app*"]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore:Setting the shape on a NumPy array has been deprecated:DeprecationWarning:joblib.numpy_pickle",
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -33,10 +38,11 @@ extend-exclude = ["alembic/versions"]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.14"
 strict = true
 plugins = ["pydantic.mypy"]
 exclude = ["alembic/"]
+mypy_path = ["typings"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"

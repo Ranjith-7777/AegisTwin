@@ -19,6 +19,7 @@ def settings(tmp_path: Path) -> Settings:
         _env_file=None,
         DATABASE_URL=f"sqlite:///{(tmp_path / 'test.db').as_posix()}",
         DEBUG=False,
+        MODEL_ARTIFACT_DIR=tmp_path / "artifacts",
     )
 
 

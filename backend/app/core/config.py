@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Any
 
 from pydantic import Field, field_validator
@@ -28,6 +29,9 @@ class Settings(BaseSettings):
     )
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     simulation_only: bool = Field(default=True, validation_alias="SIMULATION_ONLY")
+    model_artifact_dir: Path = Field(
+        default=Path("artifacts/models"), validation_alias="MODEL_ARTIFACT_DIR"
+    )
 
     @field_validator("api_prefix")
     @classmethod

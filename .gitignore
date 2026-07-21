@@ -18,6 +18,8 @@ htmlcov/
 
 # Databases and generated output
 *.db
+*.joblib
+backend/artifacts/
 *.sqlite
 *.sqlite3
 *.joblib
