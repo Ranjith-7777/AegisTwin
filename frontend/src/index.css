@@ -284,6 +284,103 @@ a:focus-visible {
   border-left: 2px solid rgba(34, 211, 238, 0.28);
   padding: 0.25rem 0 0.25rem 0.8rem;
 }
+.simulation-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.8rem;
+  align-items: end;
+}
+.simulation-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.simulation-form input,
+.simulation-form select {
+  min-height: 2.35rem;
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 0.45rem;
+  background: rgba(2, 6, 23, 0.62);
+  padding: 0.45rem 0.6rem;
+  color: #e2e8f0;
+  font: inherit;
+}
+.simulation-form input:focus-visible,
+.simulation-form select:focus-visible {
+  border-color: #22d3ee;
+  outline: 2px solid rgba(34, 211, 238, 0.22);
+}
+.simulation-form button {
+  white-space: nowrap;
+}
+.playback-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.playback-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+.playback-facts div {
+  border: 1px solid rgba(51, 65, 85, 0.7);
+  border-radius: 0.55rem;
+  background: rgba(2, 6, 23, 0.3);
+  padding: 0.65rem;
+}
+.playback-facts span,
+.run-history-row dt {
+  display: block;
+  color: #64748b;
+  font-size: 0.68rem;
+}
+.playback-facts strong,
+.run-history-row dd {
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.event-stream-list {
+  display: grid;
+  gap: 0.8rem;
+  overflow-y: auto;
+  padding-right: 0.3rem;
+}
+.event-item.is-current {
+  border-left-color: #22d3ee;
+  background: linear-gradient(90deg, rgba(8, 145, 178, 0.09), transparent);
+}
+.run-history-list {
+  display: grid;
+  gap: 0.65rem;
+}
+.run-history-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(0, 2fr) auto;
+  gap: 1rem;
+  align-items: center;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.55);
+  padding: 0.75rem 0;
+}
+.run-history-row:last-child {
+  border: 0;
+}
+.run-history-row dl {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.run-history-row dd {
+  margin: 0.15rem 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .timeline-placeholder {
   display: grid;
   gap: 0.7rem;
@@ -361,6 +458,9 @@ a:focus-visible {
     flex: 0 0 auto;
     transform: none;
   }
+  .playback-facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 @media (min-width: 1024px) {
   .app-sidebar {
@@ -404,6 +504,12 @@ a:focus-visible {
   .simulation-banner {
     align-items: flex-start;
     justify-content: flex-start;
+  }
+  .run-history-row {
+    grid-template-columns: 1fr;
+  }
+  .run-history-row dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (prefers-reduced-motion: reduce) {

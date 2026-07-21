@@ -22,6 +22,14 @@ def _aware(value: datetime) -> datetime:
 
 
 class TelemetryService:
+    def list_run_events(self, session: Session, run_id: str) -> list[TelemetryEvent]:
+        statement = (
+            select(TelemetryEventRecord)
+            .where(TelemetryEventRecord.simulation_run_id == run_id)
+            .order_by(TelemetryEventRecord.timestamp, TelemetryEventRecord.event_id)
+        )
+        return [self._to_schema(record) for record in session.scalars(statement)]
+
     def query_events(
         self,
         session: Session,

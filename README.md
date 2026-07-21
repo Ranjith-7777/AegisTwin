@@ -6,7 +6,7 @@
 
 ## Current phase
 
-Phase 3A adds typed telemetry contracts and a deterministic synthetic simulation engine to the Phase 2A backend and Phase 2B dashboard foundation. Two seeded scenarios, a synthetic infrastructure inventory, SQLite persistence, and versioned query APIs are implemented. Anomaly detection, incident correlation, ATT&CK mapping, prediction, agents, and response orchestration remain intentionally deferred.
+Phase 3B adds controlled real-time playback of persisted synthetic telemetry. The backend exposes a run-scoped WebSocket with start, pause, resume, stop, heartbeat, completion, and reconnect support; the dashboard creates or reopens deterministic runs and renders their events incrementally. Anomaly detection, incident correlation, ATT&CK mapping, prediction, agents, and response orchestration remain intentionally deferred.
 
 ## Repository structure
 
@@ -81,6 +81,8 @@ Compose starts the backend on port 8000 and the frontend on port 5173. The front
 
 ## Current interfaces
 
+Phase 3B adds `GET /api/v1/simulation/runs/{run_id}/playback` and `WS /api/v1/ws/simulation/runs/{run_id}?after_sequence=0` alongside the existing health, safety, simulation, and telemetry interfaces.
+
 - `GET /api/health` — application and real database connectivity.
 - `GET /api/system/status` — static foundation status; incident and agent counts remain zero.
 - `GET /api/safety` — explicit simulation-only safety posture.
@@ -92,7 +94,7 @@ Compose starts the backend on port 8000 and the frontend on port 5173. The front
 - `GET /api/v1/simulation/runs` and `GET /api/v1/simulation/runs/{run_id}` — persisted runs.
 - `GET /api/v1/telemetry/events` and `GET /api/v1/telemetry/events/{event_id}` — paginated synthetic telemetry.
 
-## Phase 3A quick start
+## Phase 3B quick start
 
 Start the migrated backend using the existing backend setup, then create a deterministic run:
 
@@ -107,6 +109,8 @@ $request = @{
 $run = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/api/v1/simulation/runs' -ContentType 'application/json' -Body $request
 Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/telemetry/events?simulation_run_id=$($run.simulation_run_id)"
 ```
+
+Open the dashboard and choose a scenario, seed, UTC start time, and speed. The browser creates the run over REST and opens the run-scoped WebSocket only after the user presses **Start Synthetic Simulation**. Protocol and test details are in [docs/PHASE_3B_REALTIME_PLAYBACK.md](docs/PHASE_3B_REALTIME_PLAYBACK.md).
 
 All returned identities, assets, IP addresses, relationships, and events are synthetic. IP addresses use documentation-only ranges. The simulator never executes commands, scans networks, connects to devices, or performs containment.
 
@@ -127,5 +131,5 @@ Create focused feature branches, review `git status` before and after work, run 
 
 ## Current limitations
 
-The backend remains single-process and SQLite-backed. Scenario execution currently generates the full sequence immediately rather than replaying events over wall-clock time. WebSocket connections are unchanged and do not stream telemetry. The frontend is unchanged and does not query the new telemetry APIs. Authentication, production observability, anomaly detection, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.
+The backend remains single-process and SQLite-backed. Playback ownership is connection-local, so reconnecting creates a fresh controller and resumes from an explicit event index. Authentication, production observability, anomaly detection, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.
 

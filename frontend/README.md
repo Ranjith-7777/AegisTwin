@@ -1,8 +1,8 @@
 # AegisTwin Frontend Dashboard Foundation
 
-Phase 2B provides a React, TypeScript, Vite, Tailwind CSS, shadcn/ui-style component, React Router, Axios, Lucide, and Recharts dashboard foundation. It is dark by default, responsive, and permanently identifies itself as a simulation environment.
+Phase 3B connects the React dashboard foundation to deterministic synthetic simulation runs and controlled real-time playback. It is dark by default, responsive, and permanently identifies itself as a simulation environment.
 
-The dashboard reads `GET /api/health`, `GET /api/system/status`, and `GET /api/safety`. It remains usable when the backend is offline and does not present fallback values as live data. The typed WebSocket client supports only connection acknowledgement and ping/pong; it does not auto-connect or display telemetry.
+The dashboard reads health and safety status, loads synthetic scenarios and run history, creates runs over REST, and opens a typed run-scoped WebSocket only after an explicit user action. It renders no fabricated anomaly, incident, MTTD, or MTTR values.
 
 ## Windows CMD
 
@@ -55,4 +55,4 @@ The component approach is adapted from the open-source shadcn/ui conventions and
 
 ## Current limitations
 
-No attack simulation, real-time event workflow, anomaly detection, incident correlation, MITRE mapping, React Flow topology, prediction, agent, or response orchestration exists. Sample chart and event data are deterministic, isolated in `src/mocks/`, and visibly labelled illustrative.
+Playback streams only persisted synthetic events and keeps at most 200 rendered rows. There is no anomaly detection, incident correlation, MITRE mapping, React Flow topology, prediction, agent, or response orchestration.

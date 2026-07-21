@@ -2,7 +2,7 @@
 
 Python 3.11+ is required. The service refuses to start unless simulation-only mode is enabled. Run commands from the `backend` directory.
 
-Phase 3A adds typed telemetry contracts, eight synthetic assets, two deterministic scenarios, and SQLite persistence. It does not score anomalies, confirm attacks, correlate incidents, map ATT&CK techniques, execute commands, contact devices, scan networks, or perform response actions.
+Phase 3B adds run-scoped, connection-local playback of the persisted Phase 3A telemetry. It does not score anomalies, confirm attacks, correlate incidents, map ATT&CK techniques, execute commands, contact devices, scan networks, or perform response actions.
 
 ## Windows CMD
 
@@ -84,9 +84,13 @@ GET  /api/v1/simulation/scenarios/{scenario_id}
 POST /api/v1/simulation/runs
 GET  /api/v1/simulation/runs
 GET  /api/v1/simulation/runs/{run_id}
+GET  /api/v1/simulation/runs/{run_id}/playback
 GET  /api/v1/telemetry/events
 GET  /api/v1/telemetry/events/{event_id}
+WS   /api/v1/ws/simulation/runs/{run_id}?after_sequence=0
 ```
+
+The playback socket first emits `connection_ack` and `playback_snapshot`. Clients then send `start`, `pause`, `resume`, `stop`, or `ping`. Server envelopes are ordered and explicitly marked `synthetic: true`. Timing uses persisted timestamp deltas divided by run speed. Each connection owns its controller, so one client cannot pause another.
 
 Telemetry query parameters are `page`, `page_size`, `simulation_run_id`, `event_type`, `source_id`, `user_id`, and `minimum_severity`.
 

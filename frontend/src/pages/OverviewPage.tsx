@@ -1,7 +1,8 @@
 import { useSystemData } from '../hooks/useSystemData'
 import { ErrorState } from '../components/common/ErrorState'
 import { DigitalTwinPlaceholder } from '../components/dashboard/DigitalTwinPlaceholder'
-import { EventStreamPlaceholder } from '../components/dashboard/EventStreamPlaceholder'
+import { LiveEventStream } from '../components/simulation/LiveEventStream'
+import { SimulationControlPanel } from '../components/simulation/SimulationControlPanel'
 import { MetricCard } from '../components/dashboard/MetricCard'
 import { MitreTimelinePlaceholder } from '../components/dashboard/MitreTimelinePlaceholder'
 import { ResponseRecommendationPlaceholder } from '../components/dashboard/ResponseRecommendationPlaceholder'
@@ -38,9 +39,10 @@ export function OverviewPage() {
         ))}
       </section>
       <section className="dashboard-grid">
+        <SimulationControlPanel />
+        <LiveEventStream />
         <DigitalTwinPlaceholder />
         <SystemStatusCard health={health} />
-        <EventStreamPlaceholder />
         <ThreatActivityChart />
         <MitreTimelinePlaceholder />
         <ResponseRecommendationPlaceholder />

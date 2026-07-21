@@ -3,10 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { renderApp } from './test-utils'
+import * as simulationApi from '../services/simulationApi'
 import * as systemApi from '../services/systemApi'
 import { parseConnectionAck } from '../types/websocket'
 
 vi.mock('../services/systemApi')
+vi.mock('../services/simulationApi')
 
 const health = {
   status: 'healthy',
@@ -33,6 +35,8 @@ beforeEach(() => {
   vi.mocked(systemApi.getHealth).mockResolvedValue(health)
   vi.mocked(systemApi.getSystemStatus).mockResolvedValue(system)
   vi.mocked(systemApi.getSafetyStatus).mockResolvedValue(safety)
+  vi.mocked(simulationApi.getScenarios).mockResolvedValue([])
+  vi.mocked(simulationApi.getSimulationRuns).mockResolvedValue([])
 })
 
 describe('AegisTwin dashboard foundation', () => {
@@ -82,10 +86,10 @@ describe('AegisTwin dashboard foundation', () => {
     for (const label of ['Active Incidents', 'Global Risk Score', 'MTTD', 'MTTR', 'Agents Online'])
       expect(screen.getByLabelText(label)).toBeInTheDocument()
   })
-  it('renders dashboard placeholder panels', () => {
+  it('renders dashboard panels', () => {
     renderApp()
     expect(screen.getByText('Cyber Digital Twin')).toBeInTheDocument()
-    expect(screen.getByText('Live Event Stream')).toBeInTheDocument()
+    expect(screen.getByText('Live Synthetic Event Stream')).toBeInTheDocument()
     expect(screen.getByText('MITRE ATT&CK Timeline')).toBeInTheDocument()
   })
   it('navigates to a polished placeholder route', async () => {

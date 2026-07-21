@@ -1,4 +1,5 @@
-export type WebSocketConnectionState = 'idle' | 'connecting' | 'connected' | 'disconnected'
+export type WebSocketConnectionState =
+  'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
 
 export interface ConnectionAckMessage {
   type: 'connection.ack'

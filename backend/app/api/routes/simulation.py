@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_database_session
+from app.schemas.playback import PlaybackMetadata
 from app.schemas.simulation import (
     InfrastructureAsset,
     SimulationRun,
@@ -11,6 +12,7 @@ from app.schemas.simulation import (
     SimulationScenario,
 )
 from app.services.infrastructure_service import inventory_service
+from app.services.playback_service import playback_service
 from app.services.scenario_service import scenario_service
 from app.services.simulation_service import simulation_run_service
 
@@ -46,3 +48,8 @@ def list_runs(session: DatabaseSession) -> list[SimulationRun]:
 @router.get("/runs/{run_id}", response_model=SimulationRun)
 def get_run(run_id: str, session: DatabaseSession) -> SimulationRun:
     return simulation_run_service.get_run(session, run_id)
+
+
+@router.get("/runs/{run_id}/playback", response_model=PlaybackMetadata)
+def get_playback_metadata(run_id: str, session: DatabaseSession) -> PlaybackMetadata:
+    return playback_service.get_metadata(session, run_id)

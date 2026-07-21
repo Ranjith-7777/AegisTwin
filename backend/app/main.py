@@ -15,6 +15,7 @@ from app.core.logging import configure_logging
 from app.core.middleware import CorrelationIdMiddleware
 from app.database.session import Database
 from app.websocket.manager import ConnectionManager
+from app.websocket.playback_routes import router as playback_websocket_router
 from app.websocket.routes import router as websocket_router
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.include_router(api_router, prefix=active_settings.api_prefix)
     application.include_router(websocket_router)
+    application.include_router(playback_websocket_router)
     register_exception_handlers(application)
     return application
 
