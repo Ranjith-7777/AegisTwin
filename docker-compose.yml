@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      APP_NAME: AegisTwin API
+      ENVIRONMENT: development
+      DEBUG: "false"
+      API_PREFIX: /api
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: "8000"
+      DATABASE_URL: sqlite:////data/aegistwin.db
+      CORS_ORIGINS: http://localhost:5173
+      LOG_LEVEL: INFO
+      SIMULATION_ONLY: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - aegistwin-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  aegistwin-data:
+
