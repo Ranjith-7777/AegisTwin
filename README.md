@@ -6,7 +6,7 @@
 
 ## Current phase
 
-Phase 2B adds the frontend dashboard foundation to the Phase 2A backend. The overview, responsive application shell, typed backend status integration, safety UX, route placeholders, tests, CI, and container foundation are implemented. Cybersecurity intelligence features remain intentionally deferred.
+Phase 3A adds typed telemetry contracts and a deterministic synthetic simulation engine to the Phase 2A backend and Phase 2B dashboard foundation. Two seeded scenarios, a synthetic infrastructure inventory, SQLite persistence, and versioned query APIs are implemented. Anomaly detection, incident correlation, ATT&CK mapping, prediction, agents, and response orchestration remain intentionally deferred.
 
 ## Repository structure
 
@@ -15,7 +15,7 @@ backend/       FastAPI, SQLAlchemy, Alembic, tests, and container files
 datasets/      Synthetic/licensed dataset policy placeholder
 docs/          Architecture and delivery planning
 frontend/      React and TypeScript dashboard foundation
-simulator/     Phase 3 placeholder
+simulator/     Reserved fixtures and simulator-boundary guidance
 scripts/       Reserved for safe developer helpers
 .github/       Backend and frontend continuous integration
 ```
@@ -86,6 +86,29 @@ Compose starts the backend on port 8000 and the frontend on port 5173. The front
 - `GET /api/safety` — explicit simulation-only safety posture.
 - `WS /ws/events` — connection acknowledgement and `ping`/`pong` only.
 - OpenAPI UI: `GET /docs`.
+- `GET /api/v1/simulation/infrastructure` — eight synthetic infrastructure assets and relationships.
+- `GET /api/v1/simulation/scenarios` — deterministic scenario definitions.
+- `POST /api/v1/simulation/runs` — generate and persist a complete seeded run.
+- `GET /api/v1/simulation/runs` and `GET /api/v1/simulation/runs/{run_id}` — persisted runs.
+- `GET /api/v1/telemetry/events` and `GET /api/v1/telemetry/events/{event_id}` — paginated synthetic telemetry.
+
+## Phase 3A quick start
+
+Start the migrated backend using the existing backend setup, then create a deterministic run:
+
+```powershell
+$request = @{
+  scenario_id = 'credential-compromise'
+  seed = 42
+  start_time = '2026-07-21T01:30:00Z'
+  playback_speed = 1.0
+} | ConvertTo-Json
+
+$run = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/api/v1/simulation/runs' -ContentType 'application/json' -Body $request
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/telemetry/events?simulation_run_id=$($run.simulation_run_id)"
+```
+
+All returned identities, assets, IP addresses, relationships, and events are synthetic. IP addresses use documentation-only ranges. The simulator never executes commands, scans networks, connects to devices, or performs containment.
 
 ## Current frontend routes
 
@@ -104,5 +127,5 @@ Create focused feature branches, review `git status` before and after work, run 
 
 ## Current limitations
 
-The backend remains single-process and SQLite-backed. WebSocket connections are in-memory and have no durable replay. The frontend displays deterministic illustrative samples, not detected activity. Authentication, production observability, telemetry generation, anomaly detection, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.
+The backend remains single-process and SQLite-backed. Scenario execution currently generates the full sequence immediately rather than replaying events over wall-clock time. WebSocket connections are unchanged and do not stream telemetry. The frontend is unchanged and does not query the new telemetry APIs. Authentication, production observability, anomaly detection, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.
 

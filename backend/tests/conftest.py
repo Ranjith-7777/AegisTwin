@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from pathlib import Path
+from typing import cast
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
+from app.database.base import Base
 from app.main import create_app
 
 
@@ -28,4 +30,6 @@ def app(settings: Settings) -> FastAPI:
 @pytest.fixture
 def client(app: FastAPI) -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
+        application = cast(FastAPI, test_client.app)
+        Base.metadata.create_all(application.state.database.engine)
         yield test_client

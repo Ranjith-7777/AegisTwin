@@ -1,6 +1,8 @@
-# AegisTwin Backend Foundation
+# AegisTwin Backend and Synthetic Telemetry Foundation
 
 Python 3.11+ is required. The service refuses to start unless simulation-only mode is enabled. Run commands from the `backend` directory.
+
+Phase 3A adds typed telemetry contracts, eight synthetic assets, two deterministic scenarios, and SQLite persistence. It does not score anomalies, confirm attacks, correlate incidents, map ATT&CK techniques, execute commands, contact devices, scan networks, or perform response actions.
 
 ## Windows CMD
 
@@ -61,4 +63,55 @@ Apply committed migrations with `python -m alembic upgrade head`. Generate a fut
 ## Configuration
 
 Settings are read from environment variables and an optional local `.env`. `CORS_ORIGINS` accepts a comma-separated string or JSON array. Never commit `.env`. `SIMULATION_ONLY=false` is prohibited and prevents startup.
+
+## Telemetry event contract
+
+Every event contains `event_id`, `scenario_id`, `simulation_run_id`, UTC `timestamp`, `event_type`, `action`, `outcome`, `severity`, source/destination identifiers and documentation-range IPs, optional synthetic user/device/process context, privilege level, failed-attempt and byte counts, typed metadata, and `created_at`. Metadata always contains `synthetic: true` and the scenario-step number. There is no anomaly score, attack verdict, or real target information.
+
+## Available scenarios
+
+- `normal-operations`: office-hours login, portal access, application request, database query, small transfer, and logout.
+- `credential-compromise`: suspicious-looking synthetic failures, unusual-hour login, unseen synthetic device, privilege change, internal access, and large transfer to a simulation sink. This is exercise data, not a confirmed attack.
+
+The same scenario, seed, UTC start time, and playback speed produce the same run ID and exact event sequence. Repeating an identical request returns the already persisted deterministic run.
+
+## Phase 3A API
+
+```text
+GET  /api/v1/simulation/infrastructure
+GET  /api/v1/simulation/scenarios
+GET  /api/v1/simulation/scenarios/{scenario_id}
+POST /api/v1/simulation/runs
+GET  /api/v1/simulation/runs
+GET  /api/v1/simulation/runs/{run_id}
+GET  /api/v1/telemetry/events
+GET  /api/v1/telemetry/events/{event_id}
+```
+
+Telemetry query parameters are `page`, `page_size`, `simulation_run_id`, `event_type`, `source_id`, `user_id`, and `minimum_severity`.
+
+### Windows CMD example
+
+```bat
+cd /d D:\Ranjith\ET_2.0\AegisTwin\backend
+.venv\Scripts\activate.bat
+python -m alembic upgrade head
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+curl.exe -X POST http://127.0.0.1:8000/api/v1/simulation/runs -H "Content-Type: application/json" -d "{\"scenario_id\":\"normal-operations\",\"seed\":7,\"start_time\":\"2026-07-21T09:00:00Z\",\"playback_speed\":1.0}"
+```
+
+### PowerShell example
+
+```powershell
+Set-Location 'D:\Ranjith\ET_2.0\AegisTwin\backend'
+.\.venv\Scripts\Activate.ps1
+python -m alembic upgrade head
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+$body = @{ scenario_id = 'normal-operations'; seed = 7; start_time = '2026-07-21T09:00:00Z'; playback_speed = 1.0 } | ConvertTo-Json
+$run = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/api/v1/simulation/runs' -ContentType 'application/json' -Body $body
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/telemetry/events?simulation_run_id=$($run.simulation_run_id)&page=1&page_size=50"
+```
+
+All generated data is synthetic and confined to the local application database.
 

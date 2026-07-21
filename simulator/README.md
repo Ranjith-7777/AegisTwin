@@ -1,4 +1,4 @@
 # AegisTwin Simulator
 
-Deterministic synthetic telemetry generation and the compromised-account scenario are intentionally deferred to Phase 3. No live infrastructure integration belongs here.
+Phase 3A implements the deterministic simulation engine inside the backend application so generation and persistence share typed service boundaries. This directory remains reserved for future standalone scenario fixtures or replay tooling. Anything added here must remain synthetic, deterministic, and free of operating-system execution, network access, scanning, or real response behavior.
 
