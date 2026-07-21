@@ -21,6 +21,7 @@ TRAINING_REQUEST = {
     "evaluation_seed_range": {"start": 11, "end": 13},
     "random_state": 17,
     "target_false_positive_rate": 0.1,
+    "n_estimators": 100,
 }
 TARGET_FALSE_POSITIVE_RATE = 0.1
 
@@ -95,7 +96,7 @@ def test_training_is_idempotent_and_artifact_reloads(client: TestClient) -> None
     assert body["training_event_count"] == 30
     assert body["validation_event_count"] == 30
     artifact = model_artifact_service.load(body["artifact_path"])
-    assert artifact.feature_schema_version == "synthetic-behaviour-v1"
+    assert artifact.feature_schema_version == "synthetic-behaviour-v2"
     assert Path(body["artifact_path"]).is_file()
 
 

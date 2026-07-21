@@ -94,6 +94,7 @@ class AssessmentQueryService:
             threshold=assessment.threshold,
             classification=assessment.classification,
             contributing_signals=assessment.contributing_signals_json,
+            component_scores=assessment.component_scores_json,
             scored_at=_aware(assessment.scored_at),
             synthetic=assessment.synthetic,
         )

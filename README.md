@@ -6,7 +6,7 @@
 
 ## Current phase
 
-Phase 4A adds reproducible offline IsolationForest training, empirical normal-validation calibration, persisted model artifacts, idempotent run scoring, explainable contributing signals, and held-out synthetic evaluation. Live anomaly streaming and frontend assessment integration remain deferred to Phase 4B; incident correlation, ATT&CK mapping, prediction, agents, and response orchestration remain later-phase work.
+Phase 4A.1 hardens offline detection with causal behavioural context, separate evaluation-only benchmark truth, calibration comparison, auditable hybrid components, and event-level plus run-level diagnostics. IsolationForest remains the primary detector. Live anomaly streaming and frontend assessment integration remain deferred to Phase 4B; incident correlation, ATT&CK mapping, prediction, agents, and response orchestration remain later-phase work.
 
 ## Repository structure
 
@@ -84,6 +84,8 @@ Compose starts the backend on port 8000 and the frontend on port 5173. The front
 Phase 3B adds `GET /api/v1/simulation/runs/{run_id}/playback` and `WS /api/v1/ws/simulation/runs/{run_id}?after_sequence=0` alongside the existing health, safety, simulation, and telemetry interfaces.
 
 Phase 4A adds versioned `/api/v1/detection` model training, model metadata, offline run scoring, paginated assessments, and evaluation endpoints. See [docs/PHASE_4A_ANOMALY_DETECTION.md](docs/PHASE_4A_ANOMALY_DETECTION.md). An anomaly is unusual synthetic behaviour, not a confirmed attack.
+
+Phase 4A.1 keeps those endpoints backward-compatible while enriching model artifacts, assessments, and evaluations. See [docs/PHASE_4A1_DETECTION_HARDENING.md](docs/PHASE_4A1_DETECTION_HARDENING.md) and the frozen [v1 diagnostic](docs/PHASE_4A1_V1_DIAGNOSTIC.json).
 
 - `GET /api/health` — application and real database connectivity.
 - `GET /api/system/status` — static foundation status; incident and agent counts remain zero.

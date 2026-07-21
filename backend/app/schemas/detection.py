@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -32,6 +32,15 @@ class DetectionTrainingRequest(BaseModel):
     evaluation_seed_range: SeedRange = SeedRange(start=31, end=40)
     random_state: int = 42
     target_false_positive_rate: Annotated[float, Field(gt=0, lt=0.5)] = 0.02
+    calibration_method: Literal[
+        "empirical-quantile-v2",
+        "interpolated-ecdf-v2",
+        "validation-fp-count-v2",
+    ] = "interpolated-ecdf-v2"
+    use_hybrid_score: bool = True
+    n_estimators: Annotated[int, Field(ge=100, le=500)] = 300
+    max_samples_fraction: Annotated[float, Field(gt=0, le=1)] = 1.0
+    max_features: Annotated[float, Field(gt=0, le=1)] = 1.0
 
     @model_validator(mode="after")
     def disjoint_splits(self) -> DetectionTrainingRequest:
@@ -53,6 +62,7 @@ class DetectionModel(BaseModel):
     model_version: str
     feature_schema_version: str
     calibration_version: str
+    calibration_method: str
     artifact_path: str
     configuration_json: dict[str, object]
     dataset_fingerprint: str
@@ -108,6 +118,7 @@ class AnomalyAssessment(BaseModel):
     threshold: float
     classification: Classification
     contributing_signals: list[str]
+    component_scores: dict[str, float]
     scored_at: datetime
     synthetic: bool
 
@@ -142,5 +153,17 @@ class ModelEvaluation(BaseModel):
     normal_events_incorrectly_flagged: int
     suspicious_scenario_events_flagged: int
     baseline_metrics: dict[str, object]
+    feature_schema_version: str
+    calibration_method: str
+    evaluation_label_mode: str
+    event_level_metrics: dict[str, object]
+    scenario_wide_metrics: dict[str, object]
+    run_level_metrics: dict[str, object]
+    per_step_metrics: dict[str, object]
+    score_distribution_summary: dict[str, object]
+    calibration_comparison: dict[str, object]
+    pure_isolation_metrics: dict[str, object]
+    hybrid_metrics: dict[str, object]
+    diagnostic_report: dict[str, object]
     created_at: datetime
     synthetic: bool

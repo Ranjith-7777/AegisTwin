@@ -2,7 +2,7 @@
 
 Python 3.11+ is required. The service refuses to start unless simulation-only mode is enabled. Run commands from the `backend` directory.
 
-Phase 4A adds offline IsolationForest training, normal-validation calibration, persisted artifacts, synthetic run scoring, and evaluation. Anomalous means unusual relative to synthetic normal training; it never means a confirmed attack. Live anomaly streaming, incident correlation, ATT&CK mapping, commands, device contact, scanning, and response actions are absent.
+Phase 4A.1 hardens offline IsolationForest detection with causal context features, a separate synthetic benchmark manifest, three normal-only calibration methods, auditable hybrid scoring, and run-level diagnostics. Anomalous means unusual relative to synthetic normal training; it never means a confirmed attack. Live anomaly streaming, incident correlation, ATT&CK mapping, commands, device contact, scanning, and response actions are absent.
 
 ## Windows CMD
 
@@ -100,6 +100,8 @@ GET  /api/v1/detection/evaluations/{evaluation_id}
 The playback socket first emits `connection_ack` and `playback_snapshot`. Clients then send `start`, `pause`, `resume`, `stop`, or `ping`. Server envelopes are ordered and explicitly marked `synthetic: true`. Timing uses persisted timestamp deltas divided by run speed. Each connection owns its controller, so one client cannot pause another.
 
 Detection artifacts default to `artifacts/models` and can be relocated with `MODEL_ARTIFACT_DIR`. Training seed ranges, validation seed ranges, evaluation seed ranges, model random state, and target false-positive rate are request-configurable and reproducible. Apply Alembic before using detection APIs. Full feature, calibration, evaluation, and REST documentation is in `docs/PHASE_4A_ANOMALY_DETECTION.md`.
+
+The default feature schema is `synthetic-behaviour-v2` and the default calibration is `interpolated-ecdf-v2`. Training also accepts bounded estimator, sample-fraction, feature-fraction, calibration-method, and hybrid-score settings. Migration `20260721_0004` adds component-score audit fields and structured evaluation diagnostics. See `docs/PHASE_4A1_DETECTION_HARDENING.md`.
 
 Telemetry query parameters are `page`, `page_size`, `simulation_run_id`, `event_type`, `source_id`, `user_id`, and `minimum_severity`.
 

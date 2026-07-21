@@ -17,6 +17,7 @@ from app.services.score_calibration_service import score_calibration_service
 from app.services.telemetry_service import telemetry_service
 
 ASSESSMENT_NAMESPACE = UUID("ad668afe-0559-4c4b-a03e-993e56dff72a")
+ScoreTuple = tuple[TelemetryEvent, float, float, Classification, list[str], dict[str, float]]
 
 
 class DetectionScoringService:
@@ -33,19 +34,30 @@ class DetectionScoringService:
 
     def score_events(
         self, artifact: DetectionArtifact, events: list[TelemetryEvent]
-    ) -> list[tuple[TelemetryEvent, float, float, Classification, list[str]]]:
+    ) -> list[ScoreTuple]:
         rows = feature_pipeline_service.extract(events, artifact.baselines)
         raw_scores = artifact.pipeline.decision_function(rows)
-        results: list[tuple[TelemetryEvent, float, float, Classification, list[str]]] = []
+        results: list[ScoreTuple] = []
         for event, row, raw_score in zip(events, rows, raw_scores, strict=True):
+            isolation_rank = score_calibration_service.normalise(
+                -float(raw_score), artifact.pure_isolation_reference
+            )
+            components = feature_pipeline_service.hybrid_components(event, row, artifact.baselines)
+            components["isolation_forest"] = isolation_rank
+            hybrid_raw = sum(
+                artifact.hybrid_weights[name] * value for name, value in components.items()
+            )
+            final_raw = hybrid_raw if artifact.use_hybrid_score else -float(raw_score)
             anomaly_score = score_calibration_service.normalise(
-                -float(raw_score), artifact.calibration_scores
+                final_raw, artifact.calibration_scores
             )
             classification = (
                 Classification.ANOMALOUS
-                if anomaly_score >= artifact.calibrated_threshold
+                if final_raw >= artifact.raw_threshold
                 else Classification.NORMAL
             )
+            components["hybrid_raw"] = hybrid_raw
+            components["normalised_final"] = anomaly_score
             results.append(
                 (
                     event,
@@ -53,6 +65,7 @@ class DetectionScoringService:
                     anomaly_score,
                     classification,
                     feature_pipeline_service.contributing_signals(event, row, artifact.baselines),
+                    components,
                 )
             )
         return results
@@ -96,7 +109,9 @@ class DetectionScoringService:
         events = telemetry_service.list_run_events(session, run_id)
         scored = self.score_events(artifact, events)
         scored_at = datetime.now(UTC)
-        for sequence, (event, raw, anomaly, classification, signals) in enumerate(scored, 1):
+        for sequence, (event, raw, anomaly, classification, signals, components) in enumerate(
+            scored, 1
+        ):
             session.add(
                 AnomalyAssessmentRecord(
                     assessment_id=str(uuid5(ASSESSMENT_NAMESPACE, f"{model_id}:{event.event_id}")),
@@ -109,6 +124,7 @@ class DetectionScoringService:
                     threshold=artifact.calibrated_threshold,
                     classification=classification.value,
                     contributing_signals_json=signals,
+                    component_scores_json=components,
                     scored_at=scored_at,
                     synthetic=True,
                 )

@@ -100,6 +100,9 @@ class DetectionModelRecord(Base):
     model_version: Mapped[str] = mapped_column(String(30), nullable=False)
     feature_schema_version: Mapped[str] = mapped_column(String(30), nullable=False)
     calibration_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    calibration_method: Mapped[str] = mapped_column(
+        String(60), nullable=False, default="empirical-quantile-v1"
+    )
     artifact_path: Mapped[str] = mapped_column(String(500), nullable=False)
     configuration_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     dataset_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -133,6 +136,9 @@ class AnomalyAssessmentRecord(Base):
     threshold: Mapped[float] = mapped_column(Float, nullable=False)
     classification: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     contributing_signals_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    component_scores_json: Mapped[dict[str, float]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
     scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
@@ -158,5 +164,41 @@ class ModelEvaluationRecord(Base):
     roc_auc: Mapped[float | None] = mapped_column(Float)
     average_precision: Mapped[float | None] = mapped_column(Float)
     baseline_metrics_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    feature_schema_version: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="synthetic-behaviour-v1"
+    )
+    calibration_method: Mapped[str] = mapped_column(
+        String(60), nullable=False, default="empirical-quantile-v1"
+    )
+    evaluation_label_mode: Mapped[str] = mapped_column(
+        String(60), nullable=False, default="scenario-wide"
+    )
+    event_level_metrics_json: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    scenario_wide_metrics_json: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    run_level_metrics_json: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    per_step_metrics_json: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    score_distribution_json: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    calibration_comparison_json: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    pure_isolation_metrics_json: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    hybrid_metrics_json: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    diagnostic_report_json: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

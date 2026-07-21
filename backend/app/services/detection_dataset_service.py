@@ -37,7 +37,11 @@ class DetectionDatasetService:
             "normal-operations", request.validation_seed_range, "validation"
         )
         material = {
-            "configuration": request.model_dump(mode="json"),
+            "configuration": {
+                "training_seed_range": request.training_seed_range.model_dump(),
+                "validation_seed_range": request.validation_seed_range.model_dump(),
+                "scenario_id": "normal-operations",
+            },
             "training_runs": training.run_ids,
             "validation_runs": validation.run_ids,
             "events": [

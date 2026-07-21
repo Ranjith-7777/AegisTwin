@@ -17,6 +17,13 @@ class DetectionArtifact:
     calibrated_threshold: float
     feature_schema_version: str
     calibration_version: str
+    calibration_method: str
+    raw_threshold: float
+    pure_isolation_reference: list[float]
+    pure_isolation_raw_threshold: float
+    hybrid_weights: dict[str, float]
+    use_hybrid_score: bool
+    calibration_candidates: dict[str, dict[str, float | int | str]]
 
 
 class ModelArtifactService:
