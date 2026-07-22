@@ -19,6 +19,7 @@ import type {
 } from '../../types/topology'
 import type { LiveTopologyOverlay } from '../../types/liveTopology'
 import type { ResponseImpactSimulation } from '../../types/response'
+import type { SyntheticExecution } from '../../types/orchestration'
 
 const positions: Record<string, { x: number; y: number }> = {
   'employee-laptop-01': { x: 40, y: 30 },
@@ -54,6 +55,7 @@ export function CyberDigitalTwin({
   liveOverlay = null,
   animationPaused = false,
   responseImpact = null,
+  syntheticExecution = null,
 }: {
   topology: TopologySnapshot
   runState: RunTopologyState | null
@@ -63,6 +65,7 @@ export function CyberDigitalTwin({
   liveOverlay?: LiveTopologyOverlay | null
   animationPaused?: boolean
   responseImpact?: ResponseImpactSimulation | null
+  syntheticExecution?: SyntheticExecution | null
 }) {
   const nodes = useMemo<AssetFlowNode[]>(
     () =>
@@ -74,41 +77,49 @@ export function CyberDigitalTwin({
           label: item.display_name,
           assetType: item.asset_type,
           criticality: item.criticality,
-          state: responseImpact?.changed_node_ids.includes(item.asset_id)
-            ? 'simulated-response-impact'
-            : stateFor(item.asset_id, runState, liveOverlay),
+          state: syntheticExecution?.changed_node_ids.includes(item.asset_id)
+            ? syntheticExecution.execution_state === 'rolled_back_simulated'
+              ? 'synthetic-rollback-restored'
+              : 'synthetic-execution-applied'
+            : responseImpact?.changed_node_ids.includes(item.asset_id)
+              ? 'simulated-response-impact'
+              : stateFor(item.asset_id, runState, liveOverlay),
           synthetic: true,
         },
       })),
-    [liveOverlay, responseImpact, topology.nodes, runState],
+    [liveOverlay, responseImpact, topology.nodes, runState, syntheticExecution],
   )
   const edges = useMemo<RelationshipFlowEdge[]>(
     () =>
       topology.edges.map((item) => {
         const liveEdge = liveOverlay?.edges[item.edge_id]
-        const state = responseImpact?.changed_edge_ids.includes(item.edge_id)
-          ? 'simulated-response-impact'
-          : liveEdge?.current_focus
-            ? 'current-focus'
-            : liveEdge?.anomalous_observed
-              ? 'anomalous-observed'
-              : liveEdge?.correlated
-                ? 'correlated'
-                : liveEdge?.predicted
-                  ? 'predicted'
-                  : liveEdge?.unexpected
-                    ? 'unexpected-observed'
-                    : liveEdge?.observed
-                      ? 'observed'
-                      : runState?.predicted_edge_ids.includes(item.edge_id)
-                        ? 'predicted'
-                        : runState?.correlated_edge_ids.includes(item.edge_id)
-                          ? 'correlated'
-                          : runState?.observed_edge_ids.includes(item.edge_id)
-                            ? 'observed'
-                            : item.relationship_type.includes('external')
-                              ? 'simulation-only-external'
-                              : 'expected'
+        const state = syntheticExecution?.changed_edge_ids.includes(item.edge_id)
+          ? syntheticExecution.execution_state === 'rolled_back_simulated'
+            ? 'synthetic-rollback-restored'
+            : 'synthetic-execution-applied'
+          : responseImpact?.changed_edge_ids.includes(item.edge_id)
+            ? 'simulated-response-impact'
+            : liveEdge?.current_focus
+              ? 'current-focus'
+              : liveEdge?.anomalous_observed
+                ? 'anomalous-observed'
+                : liveEdge?.correlated
+                  ? 'correlated'
+                  : liveEdge?.predicted
+                    ? 'predicted'
+                    : liveEdge?.unexpected
+                      ? 'unexpected-observed'
+                      : liveEdge?.observed
+                        ? 'observed'
+                        : runState?.predicted_edge_ids.includes(item.edge_id)
+                          ? 'predicted'
+                          : runState?.correlated_edge_ids.includes(item.edge_id)
+                            ? 'correlated'
+                            : runState?.observed_edge_ids.includes(item.edge_id)
+                              ? 'observed'
+                              : item.relationship_type.includes('external')
+                                ? 'simulation-only-external'
+                                : 'expected'
         return {
           id: item.edge_id,
           source: item.source_asset_id,
@@ -118,7 +129,7 @@ export function CyberDigitalTwin({
           animated: state === 'predicted',
         }
       }),
-    [compact, liveOverlay, responseImpact, runState, topology.edges],
+    [compact, liveOverlay, responseImpact, runState, syntheticExecution, topology.edges],
   )
   const onNodeClick: NodeMouseHandler<AssetFlowNode> = (_event, node) => {
     const asset = topology.nodes.find((item) => item.asset_id === node.id)

@@ -9,6 +9,8 @@ import type { PredictionSnapshot } from '../types/prediction'
 import { getResponseSummary } from '../services/responseApi'
 import type { ResponseRunSummary } from '../types/response'
 import { Link } from 'react-router-dom'
+import { listOrchestrations } from '../services/orchestrationApi'
+import type { Orchestration } from '../types/orchestration'
 
 export function IncidentsPage() {
   const [runs, setRuns] = useState<SimulationRun[]>([])
@@ -20,6 +22,7 @@ export function IncidentsPage() {
   const [priorityFilter, setPriorityFilter] = useState('')
   const [prediction, setPrediction] = useState<PredictionSnapshot | null>(null)
   const [responseSummary, setResponseSummary] = useState<ResponseRunSummary | null>(null)
+  const [orchestration, setOrchestration] = useState<Orchestration | null>(null)
   useEffect(() => {
     void getSimulationRuns().then(setRuns)
   }, [])
@@ -46,6 +49,16 @@ export function IncidentsPage() {
       .then(setResponseSummary)
       .catch(() => {
         setResponseSummary(null)
+      })
+    void listOrchestrations()
+      .then((items) => {
+        setOrchestration(
+          items.find((item) => item.incident_candidate_id === selected.incident_candidate_id) ??
+            null,
+        )
+      })
+      .catch(() => {
+        setOrchestration(null)
       })
   }, [selected])
   const shown = candidates.filter(
@@ -208,6 +221,25 @@ export function IncidentsPage() {
                 </p>
                 <Link className="text-cyan-300" to="/response-centre">
                   Open Response Centre
+                </Link>
+              </div>
+            ) : null}
+            {orchestration ? (
+              <div className="mt-4 rounded border border-violet-900 p-3">
+                <h3 className="font-semibold">Synthetic response orchestration</h3>
+                <p>State: {orchestration.current_state.replaceAll('_', ' ')}</p>
+                <p>Approval: {orchestration.approvals[0]?.approval_state ?? 'simulation policy'}</p>
+                <p>Execution: {orchestration.executions[0]?.execution_state ?? 'not started'}</p>
+                <p>
+                  Verification:{' '}
+                  {orchestration.verifications[0]?.verification_status ?? 'not available'}
+                </p>
+                <Link className="text-cyan-300" to="/response-operations">
+                  Open Response Operations
+                </Link>
+                {' · '}
+                <Link className="text-cyan-300" to="/audit-trail">
+                  Open Audit Trail
                 </Link>
               </div>
             ) : null}

@@ -1,5 +1,7 @@
 # AegisTwin Backend and Synthetic Telemetry Foundation
 
+Phase 7B adds deterministic simulation agents, approval gates, persisted synthetic execution, verification, rollback, and SHA-256 audit-chain verification. It performs no real action.
+
 Phase 6A exposes the repository-defined infrastructure as a versioned directed topology under `/api/v1/topology`, including sequence-bounded path and run-state queries.
 
 Phase 5B exposes versioned prediction snapshots, ranked hypotheses, staged-demo evaluation, and causally ordered playback under `/api/v1/prediction`.

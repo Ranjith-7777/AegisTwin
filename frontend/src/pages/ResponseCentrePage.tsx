@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
 import { getDetectionModels } from '../services/detectionApi'
 import { analyzeResponses, getResponsePlaybooks } from '../services/responseApi'
 import { getSimulationRuns } from '../services/simulationApi'
+import { createOrchestration } from '../services/orchestrationApi'
 import type { DetectionModel } from '../types/detection'
 import type {
   DefensivePlaybook,
@@ -28,6 +30,7 @@ export function ResponseCentrePage() {
   const [analysis, setAnalysis] = useState<ResponseAnalysisResult | null>(null)
   const [selected, setSelected] = useState<ResponseRecommendation | null>(null)
   const [busy, setBusy] = useState(false)
+  const [orchestrationId, setOrchestrationId] = useState('')
   const [error, setError] = useState<string | null>(null)
   const errorRef = useRef<HTMLParagraphElement>(null)
 
@@ -50,6 +53,7 @@ export function ResponseCentrePage() {
     setAnalysis(null)
     setSelected(null)
     setError(null)
+    setOrchestrationId('')
   }
 
   async function analyze() {
@@ -219,6 +223,34 @@ export function ResponseCentrePage() {
               <h2 className="panel-title">Recommendation evidence and policy</h2>
             </CardHeader>
             <CardContent>
+              <div className="button-row mb-3">
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true)
+                    void createOrchestration(selected.run_id, {
+                      model_id: selected.model_id,
+                      incident_candidate_id: selected.incident_candidate_id,
+                      selected_recommendation_id: selected.recommendation_id,
+                      through_sequence_number: selected.through_sequence_number,
+                    })
+                      .then((item) => {
+                        setOrchestrationId(item.orchestration_id)
+                      })
+                      .catch(() => {
+                        setError('Synthetic orchestration creation failed.')
+                      })
+                      .finally(() => {
+                        setBusy(false)
+                      })
+                  }}
+                >
+                  Create Synthetic Response Orchestration
+                </Button>
+                {orchestrationId ? (
+                  <Link to="/response-operations">Open Response Operations</Link>
+                ) : null}
+              </div>
               <p>
                 <strong>{playbook?.description}</strong>
               </p>

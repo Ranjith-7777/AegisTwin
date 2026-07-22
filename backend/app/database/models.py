@@ -489,3 +489,153 @@ class ResponseImpactSimulationRecord(Base):
     warnings_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ResponseOrchestrationRecord(Base):
+    __tablename__ = "response_orchestrations"
+    __table_args__ = (
+        UniqueConstraint(
+            "simulation_run_id",
+            "model_id",
+            "incident_candidate_id",
+            "selected_recommendation_id",
+            "through_sequence_number",
+            name="uq_response_orchestration_input",
+        ),
+    )
+    orchestration_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    simulation_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    incident_candidate_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    through_sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    orchestration_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    current_state: Mapped[str] = mapped_column(String(60), nullable=False)
+    selected_recommendation_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    required_approval_tier: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ResponsePlanStepRecord(Base):
+    __tablename__ = "response_plan_steps"
+    __table_args__ = (UniqueConstraint("orchestration_id", "step_number", name="uq_plan_step"),)
+    plan_step_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    orchestration_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    step_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    playbook_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    recommendation_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(220), nullable=False)
+    required_approval_tier: Mapped[str] = mapped_column(String(40), nullable=False)
+    reversibility: Mapped[str] = mapped_column(String(30), nullable=False)
+    rationale: Mapped[str] = mapped_column(String(1000), nullable=False)
+    expected_mutation_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    current_status: Mapped[str] = mapped_column(String(50), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class AgentDecisionRecord(Base):
+    __tablename__ = "agent_decisions"
+    agent_decision_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    orchestration_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    agent_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    agent_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    decision_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    input_reference_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    output_summary: Mapped[str] = mapped_column(String(1000), nullable=False)
+    decision: Mapped[str] = mapped_column(String(80), nullable=False)
+    ranking_score: Mapped[float | None] = mapped_column(Float)
+    rationale: Mapped[str] = mapped_column(String(1000), nullable=False)
+    warnings_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    next_agent: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ApprovalRequestRecord(Base):
+    __tablename__ = "approval_requests"
+    approval_request_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    orchestration_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    plan_step_id: Mapped[str | None] = mapped_column(String(36))
+    required_role: Mapped[str] = mapped_column(String(30), nullable=False)
+    approval_state: Mapped[str] = mapped_column(String(30), nullable=False)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[str | None] = mapped_column(String(120))
+    decision_reason: Mapped[str | None] = mapped_column(String(1000))
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class SyntheticExecutionRecord(Base):
+    __tablename__ = "synthetic_executions"
+    __table_args__ = (
+        UniqueConstraint("orchestration_id", "plan_step_id", name="uq_execution_step"),
+    )
+    execution_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    orchestration_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    plan_step_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    playbook_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(220), nullable=False)
+    execution_state: Mapped[str] = mapped_column(String(40), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    mutation_summary_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    changed_node_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    changed_edge_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    pre_execution_state_reference: Mapped[str] = mapped_column(String(80), nullable=False)
+    post_execution_state_reference: Mapped[str | None] = mapped_column(String(80))
+    simulated_failure_reason: Mapped[str | None] = mapped_column(String(300))
+    reversible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ResponseVerificationRecord(Base):
+    __tablename__ = "response_verifications"
+    verification_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    orchestration_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    execution_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    verification_status: Mapped[str] = mapped_column(String(50), nullable=False)
+    metrics_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    unintended_effects_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class RollbackRecord(Base):
+    __tablename__ = "rollback_records"
+    rollback_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    orchestration_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    execution_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    reason: Mapped[str] = mapped_column(String(1000), nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    approval_request_id: Mapped[str | None] = mapped_column(String(36))
+    state: Mapped[str] = mapped_column(String(50), nullable=False)
+    restored_state_reference: Mapped[str | None] = mapped_column(String(80))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verification_summary_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class AuditEventRecord(Base):
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        UniqueConstraint("orchestration_id", "sequence_number", name="uq_audit_sequence"),
+    )
+    audit_event_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    orchestration_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    actor_display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    previous_event_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonical_payload_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

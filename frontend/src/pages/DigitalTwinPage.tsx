@@ -21,6 +21,8 @@ import type { SimulationRun } from '../types/simulation'
 import type { TopologyPathType } from '../types/topology'
 import { getResponseSummary } from '../services/responseApi'
 import type { ResponseImpactSimulation } from '../types/response'
+import { listOrchestrations } from '../services/orchestrationApi'
+import type { SyntheticExecution } from '../types/orchestration'
 
 export function DigitalTwinPage() {
   const playback = useSimulationPlayback()
@@ -37,6 +39,7 @@ export function DigitalTwinPage() {
   const [followLive, setFollowLive] = useState(true)
   const [reducedMotion, setReducedMotion] = useState(false)
   const [responseImpact, setResponseImpact] = useState<ResponseImpactSimulation | null>(null)
+  const [syntheticExecution, setSyntheticExecution] = useState<SyntheticExecution | null>(null)
   const visibleRunState = useMemo(() => {
     const state = topologyState.runState
     if (!state) return null
@@ -65,6 +68,7 @@ export function DigitalTwinPage() {
     setModelId('')
     setSequence(1)
     setResponseImpact(null)
+    setSyntheticExecution(null)
     if (value) void topologyState.loadRunState(value, undefined, 1)
   }
 
@@ -189,6 +193,19 @@ export function DigitalTwinPage() {
                     Clear simulated response impact
                   </button>
                 ) : null}
+                <button
+                  className="text-violet-300"
+                  disabled={!runId}
+                  onClick={() => {
+                    void listOrchestrations().then((rows) => {
+                      const execution = rows.find((item) => item.simulation_run_id === runId)
+                        ?.executions[0]
+                      setSyntheticExecution(execution ?? null)
+                    })
+                  }}
+                >
+                  Show applied synthetic execution
+                </button>
               </div>
               <TopologyControls
                 nodes={topologyState.topology.nodes}
@@ -218,7 +235,18 @@ export function DigitalTwinPage() {
             liveOverlay={playback.liveTopology}
             animationPaused={playback.playbackState === 'paused' || reducedMotion}
             responseImpact={responseImpact}
+            syntheticExecution={syntheticExecution}
           />
+          {syntheticExecution ? (
+            <p className="text-sm text-violet-200" aria-live="polite">
+              {syntheticExecution.execution_state === 'rolled_back_simulated'
+                ? 'Restored by synthetic rollback'
+                : 'Applied in synthetic twin'}
+              : {syntheticExecution.changed_node_ids.length} nodes and{' '}
+              {syntheticExecution.changed_edge_ids.length} relationships. The immutable base
+              topology is unchanged.
+            </p>
+          ) : null}
           {responseImpact ? (
             <p className="text-sm text-emerald-200" aria-live="polite">
               Simulated response impact overlay: hypothetically restricted{' '}

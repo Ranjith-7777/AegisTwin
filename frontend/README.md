@@ -1,5 +1,7 @@
 # AegisTwin Frontend Dashboard Foundation
 
+Phase 7B adds Response Operations, a functional Audit Trail, incident workflow context, and distinct applied/rollback synthetic-twin overlays.
+
 Phase 6A replaces the Digital Twin placeholder with a reusable React Flow topology, asset and relationship inspectors, layer controls, and cautious path inspection.
 
 Phase 6B drives that topology from ordered playback messages. The Overview card and full Digital Twin share reducer state, expose event history and evidence details, separate observed/correlated/predicted semantics, and recover an exact sequence prefix before WebSocket resume. See `../docs/PHASE_6B_LIVE_DIGITAL_TWIN.md`.

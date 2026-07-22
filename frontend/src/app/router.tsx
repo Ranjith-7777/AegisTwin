@@ -9,6 +9,7 @@ import { NotFoundPage } from '../pages/NotFoundPage'
 import { OverviewPage } from '../pages/OverviewPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { TelemetryPage } from '../pages/TelemetryPage'
+import { ResponseOperationsPage } from '../pages/ResponseOperationsPage'
 
 const DigitalTwinPage = lazy(() =>
   import('../pages/DigitalTwinPage').then((module) => ({ default: module.DigitalTwinPage })),
@@ -56,6 +57,7 @@ export function AppRoutes() {
           }
         />
         <Route path="audit-trail" element={<AuditTrailPage />} />
+        <Route path="response-operations" element={<ResponseOperationsPage />} />
         <Route
           path="model-analytics"
           element={
