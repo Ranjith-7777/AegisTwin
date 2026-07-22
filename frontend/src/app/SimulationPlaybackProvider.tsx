@@ -4,7 +4,14 @@ import { SimulationPlaybackContext, type StartSimulationInput } from './simulati
 import { toClientApiError } from '../services/apiClient'
 import { PlaybackWebSocketClient } from '../services/playbackWebSocketClient'
 import { createSimulationRun, getScenarios, getSimulationRuns } from '../services/simulationApi'
-import { getSnapshotPayload, getTelemetryPayload, type PlaybackEnvelope } from '../types/playback'
+import {
+  getAssessmentPayload,
+  getSnapshotPayload,
+  getTelemetryPayload,
+  type PlaybackEnvelope,
+} from '../types/playback'
+import { getDetectionModels, scoreSimulationRun } from '../services/detectionApi'
+import type { AnomalyAssessment, DetectionModel, ScoringStatus } from '../types/detection'
 import type {
   PlaybackState,
   SimulationRun,
@@ -27,6 +34,18 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
   const [loadingScenarios, setLoadingScenarios] = useState(true)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [models, setModels] = useState<DetectionModel[]>([])
+  const [modelsLoading, setModelsLoading] = useState(true)
+  const [detectionEnabled, setDetectionEnabled] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<DetectionModel | null>(null)
+  const [scoringStatus, setScoringStatus] = useState<ScoringStatus>('idle')
+  const [detectionError, setDetectionError] = useState<string | null>(null)
+  const [assessmentsByEventId, setAssessmentsByEventId] = useState<
+    Record<string, AnomalyAssessment>
+  >({})
+  const [assessmentTimeline, setAssessmentTimeline] = useState<AnomalyAssessment[]>([])
+  const pendingRunRef = useRef<SimulationRun | null>(null)
+  const detectionStartRef = useRef<{ enabled: boolean; modelId?: string }>({ enabled: false })
   const clientRef = useRef<PlaybackWebSocketClient | null>(null)
 
   useEffect(() => {
@@ -43,59 +62,103 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       .finally(() => {
         if (active) setLoadingScenarios(false)
       })
+    void getDetectionModels()
+      .then((modelData) => {
+        if (active) setModels(modelData.filter((model) => model.synthetic))
+      })
+      .catch(() => {
+        if (active) setModels([])
+      })
+      .finally(() => {
+        if (active) setModelsLoading(false)
+      })
     return () => {
       active = false
       clientRef.current?.disconnect()
     }
   }, [])
 
-  const handleMessage = useCallback((message: PlaybackEnvelope) => {
-    setError(null)
-    if (message.message_type === 'connection_ack') {
-      clientRef.current?.sendControl('start')
-      return
-    }
-    const snapshot = getSnapshotPayload(message)
-    if (snapshot) {
-      setTotalEventCount(snapshot.total_event_count)
-      setCurrentEventIndex(snapshot.starting_after_sequence)
-      return
-    }
-    const telemetry = getTelemetryPayload(message)
-    if (telemetry) {
-      setEvents((current) => [...current, telemetry.event].slice(-MAX_RENDERED_EVENTS))
-      setCurrentEventIndex(telemetry.event_index)
-      setTotalEventCount(telemetry.total_event_count)
-      return
-    }
-    const stateByMessage: Partial<Record<PlaybackEnvelope['message_type'], PlaybackState>> = {
-      playback_started: 'playing',
-      playback_paused: 'paused',
-      playback_resumed: 'playing',
-      playback_stopped: 'stopped',
-      playback_completed: 'completed',
-      error: 'error',
-    }
-    const nextState = stateByMessage[message.message_type]
-    if (nextState) setPlaybackState(nextState)
-    if (message.message_type === 'error') {
-      const detail = message.payload.message
-      setError(typeof detail === 'string' ? detail : 'Synthetic playback reported an error.')
-    }
-    if (
-      message.message_type === 'playback_stopped' ||
-      message.message_type === 'playback_completed'
-    ) {
-      clientRef.current?.disconnect()
-    }
-  }, [])
+  const handleMessage = useCallback(
+    (message: PlaybackEnvelope) => {
+      setError(null)
+      if (message.message_type === 'connection_ack') {
+        clientRef.current?.sendControl('start', undefined, {
+          detectionEnabled: detectionStartRef.current.enabled,
+          modelId: detectionStartRef.current.modelId,
+        })
+        return
+      }
+      const snapshot = getSnapshotPayload(message)
+      if (snapshot) {
+        setTotalEventCount(snapshot.total_event_count)
+        setCurrentEventIndex(snapshot.starting_after_sequence)
+        return
+      }
+      const telemetry = getTelemetryPayload(message)
+      if (telemetry) {
+        setEvents((current) => [...current, telemetry.event].slice(-MAX_RENDERED_EVENTS))
+        setCurrentEventIndex(telemetry.event_index)
+        setTotalEventCount(telemetry.total_event_count)
+        return
+      }
+      const assessment = getAssessmentPayload(message)
+      if (assessment) {
+        if (
+          message.run_id !== pendingRunRef.current?.simulation_run_id &&
+          message.run_id !== activeRun?.simulation_run_id
+        )
+          return
+        setAssessmentsByEventId((current) => ({ ...current, [assessment.event_id]: assessment }))
+        setAssessmentTimeline((current) =>
+          current.some((item) => item.assessment_id === assessment.assessment_id)
+            ? current
+            : [...current, assessment],
+        )
+        return
+      }
+      if (message.message_type === 'detection_ready') setScoringStatus('ready')
+      if (
+        message.message_type === 'detection_error' ||
+        message.message_type === 'detection_warning'
+      ) {
+        const detail = message.payload.message
+        setDetectionError(
+          typeof detail === 'string' ? detail : 'Synthetic assessment is unavailable.',
+        )
+        setScoringStatus('error')
+      }
+      const stateByMessage: Partial<Record<PlaybackEnvelope['message_type'], PlaybackState>> = {
+        playback_started: 'playing',
+        playback_paused: 'paused',
+        playback_resumed: 'playing',
+        playback_stopped: 'stopped',
+        playback_completed: 'completed',
+        error: 'error',
+      }
+      const nextState = stateByMessage[message.message_type]
+      if (nextState) setPlaybackState(nextState)
+      if (message.message_type === 'error') {
+        const detail = message.payload.message
+        setError(typeof detail === 'string' ? detail : 'Synthetic playback reported an error.')
+      }
+      if (
+        message.message_type === 'playback_stopped' ||
+        message.message_type === 'playback_completed'
+      ) {
+        clientRef.current?.disconnect()
+      }
+    },
+    [activeRun?.simulation_run_id],
+  )
 
   const openRun = useCallback(
-    (run: SimulationRun, afterSequence: number) => {
+    (run: SimulationRun, afterSequence: number, detection = detectionStartRef.current) => {
       clientRef.current?.disconnect()
       setActiveRun(run)
       setError(null)
       setPlaybackState('idle')
+      detectionStartRef.current = detection
+      pendingRunRef.current = run
       setConnectionState('disconnected')
       const client = new PlaybackWebSocketClient({
         onConnectionState: setConnectionState,
@@ -113,6 +176,9 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       setStarting(true)
       setError(null)
       setEvents([])
+      setAssessmentsByEventId({})
+      setAssessmentTimeline([])
+      setDetectionError(null)
       setCurrentEventIndex(0)
       try {
         const startTime = input.startTime.endsWith('Z') ? input.startTime : `${input.startTime}:00Z`
@@ -127,7 +193,32 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
           run,
           ...current.filter((item) => item.simulation_run_id !== run.simulation_run_id),
         ])
-        openRun(run, 0)
+        const model = input.detectionEnabled
+          ? (models.find((item) => item.model_id === input.modelId) ?? null)
+          : null
+        setDetectionEnabled(input.detectionEnabled)
+        setSelectedModel(model)
+        pendingRunRef.current = run
+        if (input.detectionEnabled && model) {
+          setScoringStatus('scoring')
+          try {
+            const result = await scoreSimulationRun(run.simulation_run_id, model.model_id)
+            if (result.assessment_count !== run.event_count) {
+              throw new Error('Persisted assessment count does not match the run event count.')
+            }
+            setScoringStatus('ready')
+            openRun(run, 0, { enabled: true, modelId: model.model_id })
+          } catch (reason) {
+            setScoringStatus('error')
+            setDetectionError(
+              reason instanceof Error ? reason.message : toClientApiError(reason).message,
+            )
+            setActiveRun(run)
+          }
+        } else {
+          setScoringStatus('idle')
+          openRun(run, 0, { enabled: false })
+        }
       } catch (reason) {
         setError(toClientApiError(reason).message)
         setConnectionState('error')
@@ -135,7 +226,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
         setStarting(false)
       }
     },
-    [openRun],
+    [models, openRun],
   )
 
   const replayRun = useCallback(
@@ -165,6 +256,39 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
   const retry = useCallback(() => {
     if (activeRun) openRun(activeRun, currentEventIndex)
   }, [activeRun, currentEventIndex, openRun])
+  const retryScoring = useCallback(async () => {
+    const run = pendingRunRef.current
+    if (!run || !selectedModel) return
+    setScoringStatus('scoring')
+    setDetectionError(null)
+    try {
+      const result = await scoreSimulationRun(run.simulation_run_id, selectedModel.model_id, true)
+      if (result.assessment_count !== run.event_count)
+        throw new Error('Persisted assessment count does not match the run event count.')
+      setScoringStatus('ready')
+      openRun(run, 0, { enabled: true, modelId: selectedModel.model_id })
+    } catch (reason) {
+      setScoringStatus('error')
+      setDetectionError(reason instanceof Error ? reason.message : toClientApiError(reason).message)
+    }
+  }, [openRun, selectedModel])
+  const continueTelemetryOnly = useCallback(() => {
+    const run = pendingRunRef.current
+    if (!run) return
+    setDetectionEnabled(false)
+    setSelectedModel(null)
+    setDetectionError(null)
+    setScoringStatus('idle')
+    openRun(run, 0, { enabled: false })
+  }, [openRun])
+  const refreshModels = useCallback(async () => {
+    setModelsLoading(true)
+    try {
+      setModels((await getDetectionModels()).filter((model) => model.synthetic))
+    } finally {
+      setModelsLoading(false)
+    }
+  }, [])
 
   const simulatedElapsedSeconds = useMemo(() => {
     const latest = events.at(-1)
@@ -186,6 +310,15 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       loadingScenarios,
       starting,
       error,
+      detectionEnabled,
+      selectedModel,
+      models,
+      modelsLoading,
+      scoringStatus,
+      detectionError,
+      assessmentsByEventId,
+      assessmentTimeline,
+      currentAssessment: assessmentTimeline.at(-1) ?? null,
       startSimulation,
       replayRun,
       pause,
@@ -193,6 +326,9 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       stop,
       resetView,
       retry,
+      retryScoring,
+      continueTelemetryOnly,
+      refreshModels,
     }),
     [
       scenarios,
@@ -207,6 +343,14 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       loadingScenarios,
       starting,
       error,
+      detectionEnabled,
+      selectedModel,
+      models,
+      modelsLoading,
+      scoringStatus,
+      detectionError,
+      assessmentsByEventId,
+      assessmentTimeline,
       startSimulation,
       replayRun,
       pause,
@@ -214,6 +358,9 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       stop,
       resetView,
       retry,
+      retryScoring,
+      continueTelemetryOnly,
+      refreshModels,
     ],
   )
   return (

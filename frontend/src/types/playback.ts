@@ -1,4 +1,5 @@
 import type { PlaybackState, SimulationRun, TelemetryEvent } from './simulation'
+import type { AnomalyAssessment } from './detection'
 
 export type PlaybackMessageType =
   | 'connection_ack'
@@ -10,6 +11,10 @@ export type PlaybackMessageType =
   | 'playback_stopped'
   | 'playback_completed'
   | 'heartbeat'
+  | 'detection_ready'
+  | 'anomaly_assessment'
+  | 'detection_warning'
+  | 'detection_error'
   | 'error'
 
 export interface PlaybackEnvelope {
@@ -46,6 +51,10 @@ const MESSAGE_TYPES = new Set<PlaybackMessageType>([
   'playback_stopped',
   'playback_completed',
   'heartbeat',
+  'detection_ready',
+  'anomaly_assessment',
+  'detection_warning',
+  'detection_error',
   'error',
 ])
 
@@ -79,7 +88,40 @@ export function parsePlaybackEnvelope(value: unknown): PlaybackEnvelope | null {
       return null
     }
   }
+  if (value.message_type === 'anomaly_assessment' && !isAnomalyAssessment(value.payload)) {
+    return null
+  }
   return value as unknown as PlaybackEnvelope
+}
+
+function isAnomalyAssessment(
+  value: Record<string, unknown>,
+): value is Record<string, unknown> & AnomalyAssessment {
+  return (
+    typeof value.assessment_id === 'string' &&
+    typeof value.model_id === 'string' &&
+    typeof value.event_id === 'string' &&
+    typeof value.sequence_number === 'number' &&
+    typeof value.feature_schema_version === 'string' &&
+    typeof value.calibration_method === 'string' &&
+    typeof value.detector_type === 'string' &&
+    typeof value.raw_isolation_forest_score === 'number' &&
+    typeof value.isolation_forest_rank === 'number' &&
+    typeof value.hybrid_anomaly_score === 'number' &&
+    typeof value.threshold === 'number' &&
+    (value.classification === 'normal' || value.classification === 'anomalous') &&
+    Array.isArray(value.contributing_signals) &&
+    value.contributing_signals.every((signal) => typeof signal === 'string') &&
+    isRecord(value.component_scores) &&
+    Object.values(value.component_scores).every((score) => typeof score === 'number') &&
+    value.synthetic === true
+  )
+}
+
+export function getAssessmentPayload(message: PlaybackEnvelope): AnomalyAssessment | null {
+  return message.message_type === 'anomaly_assessment'
+    ? (message.payload as unknown as AnomalyAssessment)
+    : null
 }
 
 export function getTelemetryPayload(message: PlaybackEnvelope): TelemetryEventPayload | null {

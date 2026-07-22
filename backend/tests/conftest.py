@@ -11,6 +11,14 @@ from fastapi.testclient import TestClient
 from app.core.config import Settings
 from app.database.base import Base
 from app.main import create_app
+from app.services.model_artifact_service import model_artifact_service
+
+
+@pytest.fixture(autouse=True)
+def isolate_model_cache() -> Generator[None, None, None]:
+    model_artifact_service.clear_cache()
+    yield
+    model_artifact_service.clear_cache()
 
 
 @pytest.fixture

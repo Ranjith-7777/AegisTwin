@@ -4,3 +4,5 @@ Phase 4A builds isolated in-memory normal training and validation datasets from 
 
 Phase 4A.1 adds a separate evaluation-only step manifest so routine events inside an exercise scenario are not automatically benchmark positives. The manifest never enters telemetry persistence, feature extraction, model fitting, or calibration. V2 contextual features consume only the current and preceding events within each synthetic run.
 
+Phase 4B keeps scoring offline and persists every synthetic assessment before playback. The run-scoped WebSocket only synchronises stored event/assessment pairs; it does not contain a detector. Anomaly is deviation from the synthetic baseline, never proof of an attack.
+

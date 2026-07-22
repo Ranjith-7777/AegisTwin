@@ -166,3 +166,92 @@ def test_playback_metadata_endpoint(client: TestClient) -> None:
     assert body["total_events"] == 7
     assert body["simulated_duration_seconds"] == 310
     assert body["synthetic"] is True
+
+
+def create_scored_model(client: TestClient, run_id: str) -> str:
+    trained = client.post(
+        "/api/v1/detection/models/train",
+        json={
+            "training_seed_range": {"start": 1, "end": 1},
+            "validation_seed_range": {"start": 2, "end": 2},
+            "evaluation_seed_range": {"start": 3, "end": 3},
+            "random_state": 17,
+            "target_false_positive_rate": 0.1,
+            "n_estimators": 100,
+        },
+    )
+    assert trained.status_code == 201
+    model_id = str(trained.json()["model_id"])
+    scored = client.post(
+        f"/api/v1/detection/runs/{run_id}/score",
+        json={"model_id": model_id},
+    )
+    assert scored.status_code == 200
+    return model_id
+
+
+def test_detection_playback_streams_event_then_persisted_assessment(client: TestClient) -> None:
+    set_delay(client, immediate_delay)
+    run = create_run(client)
+    run_id = str(run["simulation_run_id"])
+    model_id = create_scored_model(client, run_id)
+    with client.websocket_connect(f"/api/v1/ws/simulation/runs/{run_id}") as websocket:
+        websocket.receive_json()
+        websocket.receive_json()
+        websocket.send_json(
+            {"message_type": "start", "detection_enabled": True, "model_id": model_id}
+        )
+        assert websocket.receive_json()["message_type"] == "detection_ready"
+        assert websocket.receive_json()["message_type"] == "playback_started"
+        pairs = [(websocket.receive_json(), websocket.receive_json()) for _ in range(7)]
+        assert websocket.receive_json()["message_type"] == "playback_completed"
+    for event_message, assessment_message in pairs:
+        assert event_message["message_type"] == "telemetry_event"
+        assert assessment_message["message_type"] == "anomaly_assessment"
+        assessment = assessment_message["payload"]
+        assert assessment["event_id"] == event_message["payload"]["event"]["event_id"]
+        assert assessment["model_id"] == model_id
+        assert assessment["synthetic"] is True
+        assert "attack_probability" not in assessment
+
+
+def test_detection_reconnect_skips_prior_event_assessment_pairs(client: TestClient) -> None:
+    set_delay(client, immediate_delay)
+    run = create_run(client)
+    run_id = str(run["simulation_run_id"])
+    model_id = create_scored_model(client, run_id)
+    with client.websocket_connect(
+        f"/api/v1/ws/simulation/runs/{run_id}?after_sequence=5"
+    ) as websocket:
+        websocket.receive_json()
+        snapshot = websocket.receive_json()
+        assert snapshot["payload"]["starting_after_sequence"] == 5
+        websocket.send_json(
+            {"message_type": "start", "detection_enabled": True, "model_id": model_id}
+        )
+        websocket.receive_json()
+        websocket.receive_json()
+        messages = [websocket.receive_json() for _ in range(4)]
+    assert [item["message_type"] for item in messages] == [
+        "telemetry_event",
+        "anomaly_assessment",
+        "telemetry_event",
+        "anomaly_assessment",
+    ]
+    assert [messages[0]["payload"]["event_index"], messages[2]["payload"]["event_index"]] == [6, 7]
+
+
+def test_detection_controls_reject_missing_model_and_preserve_telemetry_fallback(
+    client: TestClient,
+) -> None:
+    set_delay(client, immediate_delay)
+    run = create_run(client)
+    run_id = str(run["simulation_run_id"])
+    with client.websocket_connect(f"/api/v1/ws/simulation/runs/{run_id}") as websocket:
+        websocket.receive_json()
+        websocket.receive_json()
+        websocket.send_json({"message_type": "start", "detection_enabled": True})
+        assert websocket.receive_json()["payload"]["error_code"] == "INVALID_CONTROL"
+        websocket.send_json({"message_type": "start"})
+        assert websocket.receive_json()["message_type"] == "playback_started"
+        assert websocket.receive_json()["message_type"] == "telemetry_event"

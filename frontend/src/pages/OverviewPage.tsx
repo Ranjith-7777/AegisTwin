@@ -8,6 +8,7 @@ import { MitreTimelinePlaceholder } from '../components/dashboard/MitreTimelineP
 import { ResponseRecommendationPlaceholder } from '../components/dashboard/ResponseRecommendationPlaceholder'
 import { SystemStatusCard } from '../components/dashboard/SystemStatusCard'
 import { ThreatActivityChart } from '../components/dashboard/ThreatActivityChart'
+import { LiveAnomalyDashboard } from '../components/detection/LiveAnomalyDashboard'
 import { getDashboardMetrics } from '../mocks/dashboardMetrics'
 
 export function OverviewPage() {
@@ -41,6 +42,7 @@ export function OverviewPage() {
       <section className="dashboard-grid">
         <SimulationControlPanel />
         <LiveEventStream />
+        <LiveAnomalyDashboard />
         <DigitalTwinPlaceholder />
         <SystemStatusCard health={health} />
         <ThreatActivityChart />

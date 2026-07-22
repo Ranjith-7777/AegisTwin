@@ -4,11 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { renderApp } from './test-utils'
 import * as simulationApi from '../services/simulationApi'
+import * as detectionApi from '../services/detectionApi'
 import * as systemApi from '../services/systemApi'
 import type { PlaybackEnvelope } from '../types/playback'
 import type { SimulationRun, SimulationScenario, TelemetryEvent } from '../types/simulation'
+import type { DetectionModel } from '../types/detection'
 
 vi.mock('../services/simulationApi')
+vi.mock('../services/detectionApi')
 vi.mock('../services/systemApi')
 
 class FakeWebSocket {
@@ -106,6 +109,24 @@ const telemetryEvent: TelemetryEvent = {
   metadata: { synthetic: true },
   created_at: '2026-07-21T08:59:00Z',
 }
+const detectionModel: DetectionModel = {
+  model_id: 'model-12345678',
+  model_type: 'IsolationForest',
+  model_version: 'isolation-forest-v2',
+  feature_schema_version: 'synthetic-behaviour-v2',
+  calibration_version: 'calibration-v2',
+  calibration_method: 'interpolated-ecdf-v2',
+  dataset_fingerprint: 'abc123',
+  random_state: 42,
+  target_false_positive_rate: 0.02,
+  calibrated_threshold: 0.9,
+  threshold_percentile: 0.98,
+  training_event_count: 140,
+  validation_event_count: 70,
+  created_at: '2026-07-21T09:00:00Z',
+  synthetic: true,
+  configuration_json: {},
+}
 
 function envelope(
   messageType: PlaybackEnvelope['message_type'],
@@ -149,6 +170,15 @@ beforeEach(() => {
   vi.mocked(simulationApi.getScenarios).mockResolvedValue([scenario])
   vi.mocked(simulationApi.getSimulationRuns).mockResolvedValue([])
   vi.mocked(simulationApi.createSimulationRun).mockResolvedValue(run)
+  vi.mocked(detectionApi.getDetectionModels).mockResolvedValue([])
+  vi.mocked(detectionApi.scoreSimulationRun).mockResolvedValue({
+    model_id: detectionModel.model_id,
+    simulation_run_id: run.simulation_run_id,
+    assessment_count: 2,
+    anomalous_count: 1,
+    force_rescore: false,
+    synthetic: true,
+  })
   vi.mocked(systemApi.getHealth).mockResolvedValue({
     status: 'healthy',
     service: 'AegisTwin API',
@@ -281,5 +311,87 @@ describe('synthetic playback dashboard', () => {
     expect(screen.queryByText(/anomaly score/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText('MTTD')).toHaveTextContent('--')
     expect(screen.getByLabelText('MTTR')).toHaveTextContent('--')
+  })
+
+  it('defaults detection off and loads selectable models from the API', async () => {
+    vi.mocked(detectionApi.getDetectionModels).mockResolvedValue([detectionModel])
+    renderApp()
+    const toggle = await screen.findByRole('checkbox', { name: 'Enable anomaly assessment' })
+    expect(toggle).not.toBeChecked()
+    await userEvent.click(toggle)
+    expect(
+      await screen.findByRole('option', { name: /model-12.*synthetic-behaviour-v2/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('scores the run before opening detection playback and renders matching assessments', async () => {
+    vi.mocked(detectionApi.getDetectionModels).mockResolvedValue([detectionModel])
+    renderApp()
+    await screen.findByRole('option', { name: scenario.name })
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Enable anomaly assessment' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Start Synthetic Simulation' }))
+    await waitFor(() => {
+      expect(detectionApi.scoreSimulationRun).toHaveBeenCalledWith(
+        run.simulation_run_id,
+        detectionModel.model_id,
+      )
+    })
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    const socket = FakeWebSocket.instances[0]
+    if (!socket) throw new Error('Expected detection playback socket.')
+    socket.open()
+    socket.emit(envelope('connection_ack'))
+    expect(JSON.parse(socket.sent[0] ?? '{}')).toMatchObject({
+      message_type: 'start',
+      detection_enabled: true,
+      model_id: detectionModel.model_id,
+    })
+    socket.emit(
+      envelope(
+        'telemetry_event',
+        { event_index: 1, total_event_count: 2, event: telemetryEvent },
+        3,
+      ),
+    )
+    socket.emit(
+      envelope(
+        'anomaly_assessment',
+        {
+          assessment_id: 'assessment-1',
+          model_id: detectionModel.model_id,
+          event_id: telemetryEvent.event_id,
+          sequence_number: 1,
+          feature_schema_version: detectionModel.feature_schema_version,
+          calibration_method: detectionModel.calibration_method,
+          detector_type: detectionModel.model_type,
+          raw_isolation_forest_score: -0.1,
+          isolation_forest_rank: 0.8,
+          hybrid_anomaly_score: 0.95,
+          threshold: 0.9,
+          classification: 'anomalous',
+          contributing_signals: ['rare synthetic transition'],
+          component_scores: {
+            isolation_forest: 0.8,
+            robust_numerical_deviation: 0.7,
+            categorical_rarity: 0.6,
+            behavioural_transition_rarity: 0.9,
+            infrastructure_novelty: 0.4,
+          },
+          synthetic: true,
+        },
+        4,
+      ),
+    )
+    expect(await screen.findAllByText('anomalous')).not.toHaveLength(0)
+    expect(screen.getByText('rare synthetic transition')).toBeInTheDocument()
+    expect(screen.getByText(/score 0.950.*threshold 0.900/i)).toBeInTheDocument()
+  })
+
+  it('rejects malformed assessment messages without crashing', async () => {
+    const socket = await startRun()
+    socket.open()
+    socket.emit(envelope('connection_ack'))
+    socket.emit(envelope('anomaly_assessment', { synthetic: true }, 3))
+    expect(await screen.findAllByText(/malformed playback message/i)).not.toHaveLength(0)
   })
 })

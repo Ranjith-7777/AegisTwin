@@ -2,7 +2,7 @@
 
 Phase 3B connects the React dashboard foundation to deterministic synthetic simulation runs and controlled real-time playback. It is dark by default, responsive, and permanently identifies itself as a simulation environment.
 
-The dashboard reads health and safety status, loads synthetic scenarios and run history, creates runs over REST, and opens a typed run-scoped WebSocket only after an explicit user action. It renders no fabricated anomaly, incident, MTTD, or MTTR values.
+The dashboard reads health and safety status, loads synthetic scenarios, run history and detection models, scores a run before optional assessment playback, and opens a typed run-scoped WebSocket only after an explicit user action. It renders persisted synthetic anomaly values but no fabricated incident, MTTD, MTTR or confirmed-attack values.
 
 ## Windows CMD
 
@@ -47,7 +47,7 @@ Use `npm.cmd run format` to apply Prettier. `npm.cmd run preview` serves the pro
 
 ## Routes
 
-`/` implements the overview. `/digital-twin`, `/telemetry`, `/incidents`, `/mitre`, `/response-centre`, `/audit-trail`, `/model-analytics`, and `/settings` are polished, explicitly deferred placeholders. Unknown paths render a 404 page.
+`/` implements simulation controls, live telemetry and anomaly assessment views. `/model-analytics` implements model listing, synthetic training and benchmark evaluation. The remaining named routes are explicitly deferred placeholders. Unknown paths render a 404 page.
 
 ## Open-source foundation
 
@@ -55,4 +55,4 @@ The component approach is adapted from the open-source shadcn/ui conventions and
 
 ## Current limitations
 
-Playback streams only persisted synthetic events and keeps at most 200 rendered rows. There is no anomaly detection, incident correlation, MITRE mapping, React Flow topology, prediction, agent, or response orchestration.
+Playback keeps at most 200 rendered telemetry rows. Detection is optional and uses only offline persisted assessments. There is no incident correlation, MITRE mapping, React Flow topology, prediction, agent, or response orchestration.

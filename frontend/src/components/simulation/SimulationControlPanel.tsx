@@ -1,5 +1,6 @@
 import { Pause, Play, RefreshCw, RotateCcw, Square, Wifi, WifiOff } from 'lucide-react'
 import { useState, type SyntheticEvent } from 'react'
+import { Link } from 'react-router-dom'
 
 import { useSimulationPlayback } from '../../hooks/useSimulationPlayback'
 import { Button } from '../ui/button'
@@ -23,18 +24,33 @@ export function SimulationControlPanel() {
     stop,
     resetView,
     retry,
+    models,
+    modelsLoading,
+    scoringStatus,
+    detectionError,
+    retryScoring,
+    continueTelemetryOnly,
   } = useSimulationPlayback()
   const [scenarioId, setScenarioId] = useState('')
   const [seed, setSeed] = useState(42)
   const [startTime, setStartTime] = useState('2026-07-21T09:00')
   const [playbackSpeed, setPlaybackSpeed] = useState(10)
+  const [detectionEnabled, setDetectionEnabled] = useState(false)
+  const [modelId, setModelId] = useState('')
 
   const selectedScenarioId = scenarioId || scenarios[0]?.scenario_id || ''
 
   function submit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedScenarioId) return
-    void startSimulation({ scenarioId: selectedScenarioId, seed, startTime, playbackSpeed })
+    void startSimulation({
+      scenarioId: selectedScenarioId,
+      seed,
+      startTime,
+      playbackSpeed,
+      detectionEnabled,
+      modelId: detectionEnabled ? modelId || models[0]?.model_id : undefined,
+    })
   }
 
   const connected = connectionState === 'connected'
@@ -73,6 +89,38 @@ export function SimulationControlPanel() {
               ))}
             </select>
           </label>
+          <label className="flex-row items-center self-center">
+            <input
+              aria-label="Enable anomaly assessment"
+              type="checkbox"
+              checked={detectionEnabled}
+              onChange={(event) => {
+                setDetectionEnabled(event.target.checked)
+              }}
+              disabled={active}
+            />
+            <span>Enable anomaly assessment</span>
+          </label>
+          {detectionEnabled ? (
+            <label>
+              <span>Detection model</span>
+              <select
+                aria-label="Synthetic detection model"
+                value={modelId || models[0]?.model_id || ''}
+                onChange={(event) => {
+                  setModelId(event.target.value)
+                }}
+                disabled={modelsLoading || active}
+              >
+                {models.length === 0 ? <option value="">No model available</option> : null}
+                {models.map((model) => (
+                  <option key={model.model_id} value={model.model_id}>
+                    {model.model_id.slice(0, 8)} · {model.feature_schema_version}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             <span>Seed</span>
             <input
@@ -115,11 +163,57 @@ export function SimulationControlPanel() {
               ))}
             </select>
           </label>
-          <Button type="submit" disabled={!selectedScenarioId || starting || active}>
+          <Button
+            type="submit"
+            disabled={
+              !selectedScenarioId || starting || active || (detectionEnabled && models.length === 0)
+            }
+          >
             <Play className="size-4" />
             {starting ? 'Starting…' : 'Start Synthetic Simulation'}
           </Button>
         </form>
+        {detectionEnabled && models.length === 0 && !modelsLoading ? (
+          <p className="mt-3 text-sm text-amber-300">
+            No synthetic detection model is available.{' '}
+            <Link className="underline" to="/model-analytics">
+              Create a synthetic demo model
+            </Link>
+          </p>
+        ) : null}
+        {detectionEnabled && models.length > 0
+          ? (() => {
+              const model = models.find(
+                (item) => item.model_id === (modelId || models[0]?.model_id),
+              )
+              return model ? (
+                <p className="mt-3 text-xs text-slate-400">
+                  Schema: {model.feature_schema_version} · Calibration: {model.calibration_method} ·
+                  Detector: {model.model_type}
+                </p>
+              ) : null
+            })()
+          : null}
+        <p className="mt-2 text-xs text-slate-500" aria-live="polite">
+          Scoring state: {scoringStatus}
+        </p>
+        {detectionError ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
+            <span className="text-sm text-red-200">{detectionError}</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void retryScoring()
+              }}
+            >
+              Retry Scoring
+            </Button>
+            <Button size="sm" variant="outline" onClick={continueTelemetryOnly}>
+              Continue Telemetry Only
+            </Button>
+          </div>
+        ) : null}
 
         <div className="playback-controls" aria-label="Playback controls">
           <Button

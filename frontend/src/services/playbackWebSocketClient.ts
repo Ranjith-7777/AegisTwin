@@ -3,6 +3,10 @@ import { parsePlaybackEnvelope, type PlaybackEnvelope } from '../types/playback'
 import type { WebSocketConnectionState } from '../types/websocket'
 
 export type PlaybackControlType = 'start' | 'pause' | 'resume' | 'stop' | 'ping'
+export interface DetectionControl {
+  detectionEnabled: boolean
+  modelId?: string
+}
 
 export interface PlaybackClientHandlers {
   onConnectionState: (state: WebSocketConnectionState) => void
@@ -46,12 +50,19 @@ export class PlaybackWebSocketClient {
     return true
   }
 
-  sendControl(messageType: PlaybackControlType, afterSequence?: number): boolean {
+  sendControl(
+    messageType: PlaybackControlType,
+    afterSequence?: number,
+    detection?: DetectionControl,
+  ): boolean {
     if (this.socket?.readyState !== WebSocket.OPEN) return false
     this.socket.send(
       JSON.stringify({
         message_type: messageType,
         ...(afterSequence === undefined ? {} : { after_sequence: afterSequence }),
+        ...(messageType === 'start' && detection?.detectionEnabled
+          ? { detection_enabled: true, model_id: detection.modelId }
+          : {}),
       }),
     )
     return true

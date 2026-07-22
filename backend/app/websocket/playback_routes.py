@@ -9,6 +9,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.exceptions import ApplicationError
 from app.schemas.playback import PlaybackEnvelope
+from app.services.playback_detection_service import (
+    PlaybackDetectionState,
+    playback_detection_service,
+)
 from app.services.playback_service import playback_service
 from app.services.telemetry_service import telemetry_service
 from app.websocket.playback import PlaybackController
@@ -59,8 +63,20 @@ async def simulation_playback_socket(websocket: WebSocket, run_id: str) -> None:
         return
 
     delay_provider = getattr(websocket.app.state, "playback_delay_provider", asyncio.sleep)
+
+    def load_detection(model_id: str) -> PlaybackDetectionState:
+        with database.session_factory() as session:
+            return playback_detection_service.prepare(
+                session, run_id, model_id, [event.event_id for event in events]
+            )
+
     controller = PlaybackController(
-        websocket, metadata, events, delay_provider, after_sequence=after_sequence
+        websocket,
+        metadata,
+        events,
+        delay_provider,
+        after_sequence=after_sequence,
+        detection_loader=load_detection,
     )
     logger.info("Synthetic playback WebSocket connected run_id=%s", run_id)
     await controller.initialise()

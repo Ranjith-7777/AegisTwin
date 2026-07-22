@@ -103,6 +103,8 @@ Detection artifacts default to `artifacts/models` and can be relocated with `MOD
 
 The default feature schema is `synthetic-behaviour-v2` and the default calibration is `interpolated-ecdf-v2`. Training also accepts bounded estimator, sample-fraction, feature-fraction, calibration-method, and hybrid-score settings. Migration `20260721_0004` adds component-score audit fields and structured evaluation diagnostics. See `docs/PHASE_4A1_DETECTION_HARDENING.md`.
 
+Phase 4B extends the start control with optional `detection_enabled` and `model_id` fields. Detection mode validates already-persisted assessments and emits each `anomaly_assessment` immediately after its `telemetry_event`; the original start control remains telemetry-only. Artifacts are cached per process by resolved path and modification time, with explicit test isolation. Missing artifacts or incomplete assessments produce structured detection errors or warnings and never fabricated scores. See `docs/PHASE_4B_LIVE_ANOMALY_INTEGRATION.md`.
+
 Telemetry query parameters are `page`, `page_size`, `simulation_run_id`, `event_type`, `source_id`, `user_id`, and `minimum_severity`.
 
 ### Windows CMD example

@@ -123,7 +123,7 @@ All returned identities, assets, IP addresses, relationships, and events are syn
 - `/` — implemented operational overview.
 - `/digital-twin`, `/telemetry`, `/incidents`, `/mitre` — capability placeholders for Phases 3–5.
 - `/response-centre`, `/audit-trail` — safe orchestration and audit placeholders for Phase 6.
-- `/model-analytics`, `/settings` — later-phase placeholders.
+- `/model-analytics` — synthetic model listing, training and benchmark evaluation; `/settings` remains a placeholder.
 
 The UI integrates the three current REST endpoints. Its WebSocket client is a disconnected-by-default foundation supporting only acknowledgement and ping/pong.
 
@@ -135,5 +135,5 @@ Create focused feature branches, review `git status` before and after work, run 
 
 ## Current limitations
 
-The backend remains synchronous, single-process, and SQLite-backed; model artifacts use the local filesystem. Phase 4A scoring is offline and does not alter WebSocket playback or the dashboard. Authentication, production observability, live anomaly streaming, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.
+The backend remains synchronous, single-process, and SQLite-backed; model artifacts and their cache are process-local. Phase 4B optionally streams persisted synthetic assessments immediately after matching telemetry without changing telemetry-only clients. See [docs/PHASE_4B_LIVE_ANOMALY_INTEGRATION.md](docs/PHASE_4B_LIVE_ANOMALY_INTEGRATION.md). Authentication, production observability, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.
 
