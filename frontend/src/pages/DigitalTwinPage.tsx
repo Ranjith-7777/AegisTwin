@@ -19,6 +19,8 @@ import { getSimulationRuns } from '../services/simulationApi'
 import type { DetectionModel } from '../types/detection'
 import type { SimulationRun } from '../types/simulation'
 import type { TopologyPathType } from '../types/topology'
+import { getResponseSummary } from '../services/responseApi'
+import type { ResponseImpactSimulation } from '../types/response'
 
 export function DigitalTwinPage() {
   const playback = useSimulationPlayback()
@@ -34,6 +36,7 @@ export function DigitalTwinPage() {
   const [layers, setLayers] = useState({ observed: true, correlated: true, predicted: true })
   const [followLive, setFollowLive] = useState(true)
   const [reducedMotion, setReducedMotion] = useState(false)
+  const [responseImpact, setResponseImpact] = useState<ResponseImpactSimulation | null>(null)
   const visibleRunState = useMemo(() => {
     const state = topologyState.runState
     if (!state) return null
@@ -61,10 +64,12 @@ export function DigitalTwinPage() {
     setRunId(value)
     setModelId('')
     setSequence(1)
+    setResponseImpact(null)
     if (value) void topologyState.loadRunState(value, undefined, 1)
   }
 
   function query() {
+    setResponseImpact(null)
     void topologyState.queryPath({
       source,
       destination,
@@ -155,6 +160,35 @@ export function DigitalTwinPage() {
                 <button className="text-cyan-300" onClick={playback.resetTopologyOverlay}>
                   Reset topology overlay
                 </button>
+                <button
+                  className="text-emerald-300"
+                  disabled={!runId || !modelId}
+                  onClick={() => {
+                    void getResponseSummary(runId, modelId)
+                      .then((summary) => {
+                        setResponseImpact(
+                          summary.through_sequence_number === sequence
+                            ? (summary.top_recommendation?.simulation ?? null)
+                            : null,
+                        )
+                      })
+                      .catch(() => {
+                        setResponseImpact(null)
+                      })
+                  }}
+                >
+                  Show simulated response impact
+                </button>
+                {responseImpact ? (
+                  <button
+                    className="text-slate-300"
+                    onClick={() => {
+                      setResponseImpact(null)
+                    }}
+                  >
+                    Clear simulated response impact
+                  </button>
+                ) : null}
               </div>
               <TopologyControls
                 nodes={topologyState.topology.nodes}
@@ -183,7 +217,16 @@ export function DigitalTwinPage() {
             onSelectEdge={topologyState.selectEdge}
             liveOverlay={playback.liveTopology}
             animationPaused={playback.playbackState === 'paused' || reducedMotion}
+            responseImpact={responseImpact}
           />
+          {responseImpact ? (
+            <p className="text-sm text-emerald-200" aria-live="polite">
+              Simulated response impact overlay: hypothetically restricted{' '}
+              {responseImpact.changed_node_ids.length} nodes and{' '}
+              {responseImpact.changed_edge_ids.length} edges. This does not alter playback and is
+              not an actual response.
+            </p>
+          ) : null}
           <div className="grid gap-6 lg:grid-cols-2">
             <AssetInspector
               node={topologyState.selectedNode}

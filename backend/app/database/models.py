@@ -389,3 +389,103 @@ class PredictionEvaluationRecord(Base):
     truth_manifest_version: Mapped[str] = mapped_column(String(40), nullable=False)
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ResponsePlaybookRecord(Base):
+    __tablename__ = "response_playbook_catalogue"
+    playbook_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    playbook_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    catalogue_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    definition_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ResponseAnalysisRecord(Base):
+    __tablename__ = "response_analyses"
+    __table_args__ = (
+        UniqueConstraint(
+            "simulation_run_id",
+            "model_id",
+            "incident_candidate_id",
+            "through_sequence_number",
+            "response_engine_version",
+            name="uq_response_analysis",
+        ),
+    )
+    response_analysis_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    simulation_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    incident_candidate_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    prediction_snapshot_id: Mapped[str | None] = mapped_column(String(36))
+    through_sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    response_engine_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    recommendation_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ResponseRecommendationRecord(Base):
+    __tablename__ = "response_recommendations"
+    __table_args__ = (
+        UniqueConstraint(
+            "response_analysis_id",
+            "playbook_id",
+            "target_type",
+            "target_id",
+            name="uq_response_recommendation_target",
+        ),
+    )
+    recommendation_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    response_analysis_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    simulation_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    incident_candidate_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    prediction_snapshot_id: Mapped[str | None] = mapped_column(String(36))
+    through_sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    playbook_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(220), nullable=False)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    recommendation_score: Mapped[float] = mapped_column(Float, nullable=False)
+    component_scores_json: Mapped[dict[str, float]] = mapped_column(JSON, nullable=False)
+    penalties_json: Mapped[dict[str, float]] = mapped_column(JSON, nullable=False)
+    required_approval_tier: Mapped[str] = mapped_column(String(40), nullable=False)
+    recommendation_state: Mapped[str] = mapped_column(String(40), nullable=False)
+    evidence_summary_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    rationale: Mapped[str] = mapped_column(String(1000), nullable=False)
+    warnings_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ResponseImpactSimulationRecord(Base):
+    __tablename__ = "response_impact_simulations"
+    simulation_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    recommendation_id: Mapped[str] = mapped_column(
+        String(36), nullable=False, unique=True, index=True
+    )
+    simulation_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    through_sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    base_topology_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    simulation_engine_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(220), nullable=False)
+    changed_node_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    changed_edge_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    paths_before_json: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    paths_after_json: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    correlated_paths_interrupted: Mapped[int] = mapped_column(Integer, nullable=False)
+    predicted_paths_interrupted: Mapped[int] = mapped_column(Integer, nullable=False)
+    sensitive_assets_reachable_before: Mapped[int] = mapped_column(Integer, nullable=False)
+    sensitive_assets_reachable_after: Mapped[int] = mapped_column(Integer, nullable=False)
+    expected_relationships_affected: Mapped[int] = mapped_column(Integer, nullable=False)
+    affected_asset_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    affected_edge_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    interruption_score: Mapped[float] = mapped_column(Float, nullable=False)
+    residual_exposure_score: Mapped[float] = mapped_column(Float, nullable=False)
+    operational_disruption_score: Mapped[float] = mapped_column(Float, nullable=False)
+    blast_radius: Mapped[str] = mapped_column(String(30), nullable=False)
+    reversibility: Mapped[str] = mapped_column(String(30), nullable=False)
+    warnings_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

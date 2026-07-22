@@ -87,6 +87,19 @@
   stroke-width: 4;
   stroke-dasharray: 3 4;
 }
+
+.topology-asset-node.state-simulated-response-impact {
+  border-color: rgb(52 211 153);
+  background: rgb(6 78 59 / 0.55);
+  box-shadow: inset 0 0 0 2px rgb(16 185 129 / 0.35);
+}
+
+.topology-edge.state-simulated-response-impact {
+  stroke: rgb(52 211 153);
+  stroke-width: 4;
+  stroke-dasharray: 3 5;
+  opacity: 0.8;
+}
 .animation-paused *,
 .reduced-motion * {
   animation-play-state: paused !important;

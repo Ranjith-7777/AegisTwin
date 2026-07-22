@@ -7,7 +7,6 @@ import { IncidentsPage } from '../pages/IncidentsPage'
 import { MitrePage } from '../pages/MitrePage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { OverviewPage } from '../pages/OverviewPage'
-import { ResponseCentrePage } from '../pages/ResponseCentrePage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { TelemetryPage } from '../pages/TelemetryPage'
 
@@ -20,6 +19,11 @@ const ModelAnalyticsPage = lazy(() =>
 const PredictiveAnalyticsPage = lazy(() =>
   import('../pages/PredictiveAnalyticsPage').then((module) => ({
     default: module.PredictiveAnalyticsPage,
+  })),
+)
+const ResponseCentrePage = lazy(() =>
+  import('../pages/ResponseCentrePage').then((module) => ({
+    default: module.ResponseCentrePage,
   })),
 )
 
@@ -43,7 +47,14 @@ export function AppRoutes() {
         <Route path="telemetry" element={<TelemetryPage />} />
         <Route path="incidents" element={<IncidentsPage />} />
         <Route path="mitre" element={<MitrePage />} />
-        <Route path="response-centre" element={<ResponseCentrePage />} />
+        <Route
+          path="response-centre"
+          element={
+            <LazyPage>
+              <ResponseCentrePage />
+            </LazyPage>
+          }
+        />
         <Route path="audit-trail" element={<AuditTrailPage />} />
         <Route
           path="model-analytics"

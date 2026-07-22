@@ -14,3 +14,5 @@ Phase 5A adds the independent deterministic `staged-compromise-demo` scenario. I
 
 Phase 6B consumes those already-persisted staged events in sequence to animate the curated topology. It adds no generator look-ahead, scanner, host integration, command execution, or response capability; reconnect recovery is constrained to the requested persisted prefix.
 
+Phase 7A reads persisted prefixes but does not change the deterministic generator. Defensive options mutate only cloned in-memory topology collections and persist bounded impact summaries; no playbook is approved or executed.
+

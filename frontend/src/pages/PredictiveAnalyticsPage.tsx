@@ -13,6 +13,8 @@ import { getSimulationRuns } from '../services/simulationApi'
 import type { DetectionModel } from '../types/detection'
 import type { PredictionEvaluation, PredictionSnapshot } from '../types/prediction'
 import type { SimulationRun } from '../types/simulation'
+import { getResponseSummary } from '../services/responseApi'
+import type { ResponseRunSummary } from '../types/response'
 
 export function PredictiveAnalyticsPage() {
   const [runs, setRuns] = useState<SimulationRun[]>([])
@@ -23,6 +25,7 @@ export function PredictiveAnalyticsPage() {
   const [evaluation, setEvaluation] = useState<PredictionEvaluation | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [responseSummary, setResponseSummary] = useState<ResponseRunSummary | null>(null)
 
   useEffect(() => {
     void Promise.all([getSimulationRuns(), getDetectionModels()]).then(([runData, modelData]) => {
@@ -38,6 +41,7 @@ export function PredictiveAnalyticsPage() {
     try {
       const page = await getPredictionSnapshots(runId, modelId)
       setSnapshots(page.items)
+      setResponseSummary(await getResponseSummary(runId, modelId).catch(() => null))
     } catch {
       setError('Prediction snapshots are unavailable. Score, correlate, and analyze the run first.')
     } finally {
@@ -91,6 +95,8 @@ export function PredictiveAnalyticsPage() {
             value={runId}
             onChange={(event) => {
               setRunId(event.target.value)
+              setSnapshots([])
+              setResponseSummary(null)
             }}
           >
             <option value="">Select run</option>
@@ -106,6 +112,8 @@ export function PredictiveAnalyticsPage() {
             value={modelId}
             onChange={(event) => {
               setModelId(event.target.value)
+              setSnapshots([])
+              setResponseSummary(null)
             }}
           >
             <option value="">Select model</option>
@@ -140,6 +148,30 @@ export function PredictiveAnalyticsPage() {
         </p>
       ) : null}
       <LivePredictionDashboard current={snapshots.at(-1) ?? null} timeline={snapshots} />
+      {responseSummary?.top_recommendation ? (
+        <Card>
+          <CardHeader>
+            <h2 className="panel-title">Separate response-analysis context</h2>
+          </CardHeader>
+          <CardContent>
+            <p>
+              Highest ranked synthetic response: {responseSummary.top_recommendation.playbook_name}
+            </p>
+            <p>
+              Target: {responseSummary.top_recommendation.target_id} · analysis sequence{' '}
+              {responseSummary.analysis_sequence}
+            </p>
+            <p>
+              Predicted paths hypothetically interrupted:{' '}
+              {responseSummary.top_recommendation.simulation?.predicted_paths_interrupted ?? 0}
+            </p>
+            <p className="text-xs text-amber-200">
+              Prediction evidence and response simulation remain separate; no action has been
+              executed.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
       {evaluation ? (
         <Card>
           <CardHeader>

@@ -6,6 +6,7 @@ from app.api.routes import (
     health,
     mitre,
     prediction,
+    response,
     safety,
     simulation,
     system,
@@ -24,3 +25,4 @@ api_router.include_router(correlation.router)
 api_router.include_router(prediction.router)
 api_router.include_router(mitre.router)
 api_router.include_router(topology.router)
+api_router.include_router(response.router)

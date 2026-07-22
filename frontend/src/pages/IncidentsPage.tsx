@@ -6,6 +6,9 @@ import type { SimulationRun } from '../types/simulation'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
 import { getLatestPrediction } from '../services/predictionApi'
 import type { PredictionSnapshot } from '../types/prediction'
+import { getResponseSummary } from '../services/responseApi'
+import type { ResponseRunSummary } from '../types/response'
+import { Link } from 'react-router-dom'
 
 export function IncidentsPage() {
   const [runs, setRuns] = useState<SimulationRun[]>([])
@@ -16,6 +19,7 @@ export function IncidentsPage() {
   const [stateFilter, setStateFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [prediction, setPrediction] = useState<PredictionSnapshot | null>(null)
+  const [responseSummary, setResponseSummary] = useState<ResponseRunSummary | null>(null)
   useEffect(() => {
     void getSimulationRuns().then(setRuns)
   }, [])
@@ -37,6 +41,11 @@ export function IncidentsPage() {
       .then(setPrediction)
       .catch(() => {
         setPrediction(null)
+      })
+    void getResponseSummary(selected.simulation_run_id, selected.model_id)
+      .then(setResponseSummary)
+      .catch(() => {
+        setResponseSummary(null)
       })
   }, [selected])
   const shown = candidates.filter(
@@ -175,6 +184,31 @@ export function IncidentsPage() {
                 <p className="text-xs text-amber-200">
                   Ranked synthetic hypothesis; separate from observed incident evidence.
                 </p>
+              </div>
+            ) : null}
+            {responseSummary?.top_recommendation ? (
+              <div className="mt-4 rounded border border-emerald-900 p-3">
+                <h3 className="font-semibold">Top synthetic response recommendation</h3>
+                <p>
+                  {responseSummary.top_recommendation.playbook_name} ·{' '}
+                  {responseSummary.top_recommendation.target_id}
+                </p>
+                <p>
+                  Approval:{' '}
+                  {responseSummary.top_recommendation.required_approval_tier.replaceAll('_', ' ')}
+                </p>
+                <p>
+                  Simulated path interruption:{' '}
+                  {responseSummary.top_recommendation.simulation?.interruption_score.toFixed(3) ??
+                    'unavailable'}{' '}
+                  · residual exposure{' '}
+                  {responseSummary.top_recommendation.simulation?.residual_exposure_score.toFixed(
+                    3,
+                  ) ?? 'unavailable'}
+                </p>
+                <Link className="text-cyan-300" to="/response-centre">
+                  Open Response Centre
+                </Link>
               </div>
             ) : null}
           </CardContent>

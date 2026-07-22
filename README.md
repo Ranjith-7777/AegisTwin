@@ -139,6 +139,8 @@ Create focused feature branches, review `git status` before and after work, run 
 
 ## Current limitations
 
+Phase 7A adds evidence-grounded synthetic defensive recommendations and clone-only digital-twin impact simulation. It calculates approval tiers but never approves or executes an action, and simulation scores are not containment probabilities. See [docs/PHASE_7A_RESPONSE_RECOMMENDATION_SIMULATION.md](docs/PHASE_7A_RESPONSE_RECOMMENDATION_SIMULATION.md).
+
 Phase 6B animates the curated synthetic topology from ordered playback envelopes and provides exact-prefix REST recovery before WebSocket resume. Observed, anomalous, correlated, and predicted layers remain distinct evidence qualifications; none means confirmed compromise. See [docs/PHASE_6B_LIVE_DIGITAL_TWIN.md](docs/PHASE_6B_LIVE_DIGITAL_TWIN.md).
 
 Phase 5A adds optional, causal incident-candidate correlation and a curated local MITRE ATT&CK subset. The two detection benchmark scenarios remain frozen; `staged-compromise-demo` is independent. Correlation streams only persisted synthetic evidence and never confirms an attack. See [docs/PHASE_5A_INCIDENT_CORRELATION_MITRE.md](docs/PHASE_5A_INCIDENT_CORRELATION_MITRE.md).

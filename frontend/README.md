@@ -4,6 +4,8 @@ Phase 6A replaces the Digital Twin placeholder with a reusable React Flow topolo
 
 Phase 6B drives that topology from ordered playback messages. The Overview card and full Digital Twin share reducer state, expose event history and evidence details, separate observed/correlated/predicted semantics, and recover an exact sequence prefix before WebSocket resume. See `../docs/PHASE_6B_LIVE_DIGITAL_TWIN.md`.
 
+Phase 7A replaces the Response Centre placeholder with sequence-bounded recommendation ranking, approval-tier display, component/penalty inspection, and baseline-versus-cloned-topology impact comparison. Incident, prediction, and topology views expose qualified response context without implying execution. See `../docs/PHASE_7A_RESPONSE_RECOMMENDATION_SIMULATION.md`.
+
 Phase 5B adds opt-in prediction controls, a live ranked-hypothesis panel, and `/predictive-analytics` for snapshot and outcome review.
 
 Phase 3B connects the React dashboard foundation to deterministic synthetic simulation runs and controlled real-time playback. It is dark by default, responsive, and permanently identifies itself as a simulation environment.
