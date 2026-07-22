@@ -23,6 +23,13 @@ const system = {
   operational: true,
   active_incidents: 2,
   agents_online: 3,
+  version: '0.8.0',
+  git_commit: 'abcdef1',
+  build_mode: 'production',
+  demo_mode: true,
+  database_revision: '20260722_0008',
+  synthetic_only: true,
+  benchmark_report_timestamp: '2026-07-22T00:00:00Z',
 } as const
 const safety = {
   simulation_only: true,
@@ -49,6 +56,13 @@ describe('AegisTwin dashboard foundation', () => {
     expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Digital Twin' })).toBeInTheDocument()
     expect(await screen.findByText('Backend: Connected')).toBeInTheDocument()
+  })
+  it('renders safe system information without local environment values', async () => {
+    renderApp('/settings')
+    expect(await screen.findByRole('heading', { name: 'System Information' })).toBeInTheDocument()
+    expect(screen.getByText('0.8.0')).toBeInTheDocument()
+    expect(screen.getByText('20260722_0008')).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('C:\\Users')
   })
   it('renders the persistent simulation banner', () => {
     renderApp()

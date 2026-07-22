@@ -1,5 +1,9 @@
 # Release Checklist
 
+- [ ] `SETUP_AEGISTWIN_DEMO.bat` completes on the judge laptop
+- [ ] Production one-click startup reaches backend and frontend readiness
+- [ ] Status, stop, reset, offline audit, and packaged smoke workflows pass
+
 - [ ] Simulation-only startup enforcement remains active
 - [ ] Backend Ruff, mypy, pytest, and clean migration pass
 - [ ] Frontend Prettier, ESLint, TypeScript, Vitest, and build pass

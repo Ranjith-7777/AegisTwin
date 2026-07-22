@@ -1,5 +1,14 @@
 # AegisTwin
 
+## Run the Local Judge Demo
+
+1. Run `SETUP_AEGISTWIN_DEMO.bat` once.
+2. Run `START_AEGISTWIN_DEMO.bat` for the production-mode local demo.
+3. The browser opens at `http://127.0.0.1:5173` after readiness checks.
+4. Run `STOP_AEGISTWIN_DEMO.bat` when finished.
+
+The launcher uses only localhost and `.aegistwin-demo`. See the [Local Demo Guide](docs/LOCAL_DEMO_GUIDE.md).
+
 Phase 8A provides deterministic demo bootstrap, Playwright end-to-end validation, consolidated synthetic benchmarks, release checks, and deployment/runbook documentation. Start with [the demo runbook](docs/DEMO_RUNBOOK.md).
 
 Phase 7B adds deterministic simulation-agent orchestration, human demonstration approvals, synthetic execution, verification, rollback, and tamper-evident audit. See [the Phase 7B guide](docs/PHASE_7B_AGENTIC_RESPONSE_ORCHESTRATION.md).

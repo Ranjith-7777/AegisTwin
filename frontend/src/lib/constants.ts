@@ -10,4 +10,5 @@ const sameHostSocket =
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? sameOrigin
 export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL ?? sameHostSocket
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
+export const DEPLOYMENT_ENV = import.meta.env.VITE_DEPLOYMENT_ENV ?? 'development'
 export const API_TIMEOUT_MS = 5_000

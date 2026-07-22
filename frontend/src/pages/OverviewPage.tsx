@@ -13,6 +13,7 @@ import { LiveCorrelationDashboard } from '../components/correlation/LiveCorrelat
 import { LivePredictionDashboard } from '../components/prediction/LivePredictionDashboard'
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
 import { getDashboardMetrics } from '../mocks/dashboardMetrics'
+import { JudgeDemoGuide } from '../components/demo/JudgeDemoGuide'
 
 export function OverviewPage() {
   const { health, system, error, refresh } = useSystemData()
@@ -44,6 +45,7 @@ export function OverviewPage() {
         ))}
       </section>
       <section className="dashboard-grid">
+        <JudgeDemoGuide />
         <SimulationControlPanel />
         <LiveEventStream />
         <LiveAnomalyDashboard />

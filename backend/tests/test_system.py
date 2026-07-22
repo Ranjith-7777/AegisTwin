@@ -15,4 +15,11 @@ def test_system_status_is_foundation_data(client: TestClient) -> None:
         "operational": True,
         "active_incidents": 0,
         "agents_online": 0,
+        "version": "0.8.0",
+        "git_commit": None,
+        "build_mode": "development",
+        "demo_mode": False,
+        "database_revision": "20260722_0008",
+        "synthetic_only": True,
+        "benchmark_report_timestamp": None,
     }

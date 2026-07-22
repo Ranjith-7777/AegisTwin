@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     )
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     simulation_only: bool = Field(default=True, validation_alias="SIMULATION_ONLY")
+    demo_mode: bool = Field(default=False, validation_alias="DEMO_MODE")
+    build_mode: str = Field(default="development", validation_alias="AEGISTWIN_BUILD_MODE")
+    git_commit: str | None = Field(default=None, validation_alias="AEGISTWIN_GIT_COMMIT")
+    benchmark_report_timestamp: str | None = Field(
+        default=None, validation_alias="AEGISTWIN_BENCHMARK_TIMESTAMP"
+    )
     model_artifact_dir: Path = Field(
         default=Path("artifacts/models"), validation_alias="MODEL_ARTIFACT_DIR"
     )
@@ -70,6 +76,18 @@ class Settings(BaseSettings):
         if normalised not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
             raise ValueError("LOG_LEVEL is not supported")
         return normalised
+
+    @field_validator("git_commit")
+    @classmethod
+    def validate_git_commit(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if (
+            not all(character in "0123456789abcdefABCDEF" for character in value)
+            or not 7 <= len(value) <= 40
+        ):
+            raise ValueError("AEGISTWIN_GIT_COMMIT must be a 7-40 character hexadecimal revision")
+        return value.lower()
 
 
 @lru_cache

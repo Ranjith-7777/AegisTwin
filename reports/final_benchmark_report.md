@@ -96,15 +96,15 @@
 
 | Metric | Value |
 |---|---|
-| simulation_start_to_first_anomaly | 0.3250065000029281 |
-| first_anomaly_to_first_mitre_observation | 0.03881800000090152 |
-| first_anomaly_to_correlated_candidate | 0.02888649993110448 |
-| candidate_to_first_prediction | 0.0427759001031518 |
-| playback_completion_to_response_recommendation | 0.08890249999240041 |
-| orchestration_creation_to_approval | 0.014483900042250752 |
-| approval_to_synthetic_execution_completion | 0.022246299893595278 |
-| verification_duration | 0.021003900095820427 |
-| rollback_duration | 0.028018999961204827 |
+| simulation_start_to_first_anomaly | 0.6627022000029683 |
+| first_anomaly_to_first_mitre_observation | 0.05100560002028942 |
+| first_anomaly_to_correlated_candidate | 0.03558929997961968 |
+| candidate_to_first_prediction | 0.05840029998216778 |
+| playback_completion_to_response_recommendation | 0.36546160001307726 |
+| orchestration_creation_to_approval | 0.012416900019161403 |
+| approval_to_synthetic_execution_completion | 0.017433600034564734 |
+| verification_duration | 0.011892099981196225 |
+| rollback_duration | 0.014034199994057417 |
 
 ## Limitations
 

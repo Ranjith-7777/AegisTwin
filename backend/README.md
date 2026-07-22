@@ -1,5 +1,7 @@
 # AegisTwin Backend and Synthetic Telemetry Foundation
 
+The Windows judge launcher runs this API in non-debug simulation-only mode against `.aegistwin-demo/data/aegistwin-demo.db`; it never reuses the developer database.
+
 Phase 8A validates artifact-directory availability at startup, defaults debug mode off, and supplies isolated bootstrap, benchmark, migration, and release-validation tooling. SQLite remains a documented single-worker prototype constraint.
 
 Phase 7B adds deterministic simulation agents, approval gates, persisted synthetic execution, verification, rollback, and SHA-256 audit-chain verification. It performs no real action.

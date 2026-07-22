@@ -31,6 +31,8 @@ test-results/
 playwright-report/
 backend/.e2e/
 reports/*.tmp
+.aegistwin-demo/
+demo-package-output/
 
 # Frontend
 node_modules/

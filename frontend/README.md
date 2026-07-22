@@ -1,5 +1,7 @@
 # AegisTwin Frontend Dashboard Foundation
 
+The Windows judge launcher builds and serves this frontend locally with synchronized localhost REST/WebSocket endpoints and no remote assets. See `docs/LOCAL_DEMO_GUIDE.md`.
+
 Phase 8A adds explicit Demo Mode, Playwright Chromium E2E coverage, same-origin-safe production URL fallbacks, and lazy/vendor chunk splitting. Run `npm run test:e2e` after installing the pinned Playwright Chromium runtime.
 
 Phase 7B adds Response Operations, a functional Audit Trail, incident workflow context, and distinct applied/rollback synthetic-twin overlays.

@@ -9,3 +9,10 @@ class SystemStatusResponse(BaseModel):
     operational: bool
     active_incidents: int
     agents_online: int
+    version: str
+    git_commit: str | None
+    build_mode: str
+    demo_mode: bool
+    database_revision: str
+    synthetic_only: bool
+    benchmark_report_timestamp: str | None
