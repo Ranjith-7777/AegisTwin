@@ -1,5 +1,7 @@
 # AegisTwin Frontend Dashboard Foundation
 
+Phase 6A replaces the Digital Twin placeholder with a reusable React Flow topology, asset and relationship inspectors, layer controls, and cautious path inspection.
+
 Phase 5B adds opt-in prediction controls, a live ranked-hypothesis panel, and `/predictive-analytics` for snapshot and outcome review.
 
 Phase 3B connects the React dashboard foundation to deterministic synthetic simulation runs and controlled real-time playback. It is dark by default, responsive, and permanently identifies itself as a simulation environment.

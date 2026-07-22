@@ -1,6 +1,6 @@
 import { useSystemData } from '../hooks/useSystemData'
 import { ErrorState } from '../components/common/ErrorState'
-import { DigitalTwinPlaceholder } from '../components/dashboard/DigitalTwinPlaceholder'
+import { CompactDigitalTwin } from '../components/topology/CompactDigitalTwin'
 import { LiveEventStream } from '../components/simulation/LiveEventStream'
 import { SimulationControlPanel } from '../components/simulation/SimulationControlPanel'
 import { MetricCard } from '../components/dashboard/MetricCard'
@@ -49,7 +49,7 @@ export function OverviewPage() {
         <LiveAnomalyDashboard />
         <LiveCorrelationDashboard />
         <LivePredictionDashboard current={currentPrediction} timeline={predictionTimeline} />
-        <DigitalTwinPlaceholder />
+        <CompactDigitalTwin />
         <SystemStatusCard health={health} />
         <ThreatActivityChart />
         <MitreTimelinePlaceholder />

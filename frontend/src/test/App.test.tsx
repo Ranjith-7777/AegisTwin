@@ -92,11 +92,11 @@ describe('AegisTwin dashboard foundation', () => {
     expect(screen.getByText('Live Synthetic Event Stream')).toBeInTheDocument()
     expect(screen.getByText('MITRE ATT&CK Timeline')).toBeInTheDocument()
   })
-  it('navigates to a polished placeholder route', async () => {
+  it('navigates to the interactive synthetic topology route', async () => {
     renderApp()
     await userEvent.click(screen.getByRole('link', { name: 'Digital Twin' }))
-    expect(screen.getByRole('heading', { name: 'Digital Twin' })).toBeInTheDocument()
-    expect(screen.getByText(/intentionally deferred/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Cyber Digital Twin' })).toBeInTheDocument()
+    expect(screen.getByText(/sequence-bounded path evidence/)).toBeInTheDocument()
   })
   it('renders the 404 page for an unknown route', () => {
     renderApp('/unknown')

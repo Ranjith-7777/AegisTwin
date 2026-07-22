@@ -1,5 +1,7 @@
 # AegisTwin
 
+Phase 6A adds a versioned interactive synthetic infrastructure topology with causal observed, correlated, and hypothetical predicted path inspection. See [the Phase 6A guide](docs/PHASE_6A_DIGITAL_TWIN_TOPOLOGY.md).
+
 Phase 5B adds causal, auditable next-stage prediction over the synthetic detection and correlation pipeline. See [the Phase 5B guide](docs/PHASE_5B_NEXT_STAGE_PREDICTION.md) for contracts and limits.
 
 **AegisTwin: Agentic Cyber-Resilience Digital Twin for Critical National Infrastructure** is a hackathon prototype for reasoning over synthetic security telemetry and a simulated infrastructure twin.

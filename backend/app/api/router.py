@@ -10,6 +10,7 @@ from app.api.routes import (
     simulation,
     system,
     telemetry,
+    topology,
 )
 
 api_router = APIRouter()
@@ -22,3 +23,4 @@ api_router.include_router(detection.router)
 api_router.include_router(correlation.router)
 api_router.include_router(prediction.router)
 api_router.include_router(mitre.router)
+api_router.include_router(topology.router)

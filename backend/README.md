@@ -1,5 +1,7 @@
 # AegisTwin Backend and Synthetic Telemetry Foundation
 
+Phase 6A exposes the repository-defined infrastructure as a versioned directed topology under `/api/v1/topology`, including sequence-bounded path and run-state queries.
+
 Phase 5B exposes versioned prediction snapshots, ranked hypotheses, staged-demo evaluation, and causally ordered playback under `/api/v1/prediction`.
 
 Python 3.11+ is required. The service refuses to start unless simulation-only mode is enabled. Run commands from the `backend` directory.
