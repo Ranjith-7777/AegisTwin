@@ -9,6 +9,7 @@ import { ResponseRecommendationPlaceholder } from '../components/dashboard/Respo
 import { SystemStatusCard } from '../components/dashboard/SystemStatusCard'
 import { ThreatActivityChart } from '../components/dashboard/ThreatActivityChart'
 import { LiveAnomalyDashboard } from '../components/detection/LiveAnomalyDashboard'
+import { LiveCorrelationDashboard } from '../components/correlation/LiveCorrelationDashboard'
 import { getDashboardMetrics } from '../mocks/dashboardMetrics'
 
 export function OverviewPage() {
@@ -43,6 +44,7 @@ export function OverviewPage() {
         <SimulationControlPanel />
         <LiveEventStream />
         <LiveAnomalyDashboard />
+        <LiveCorrelationDashboard />
         <DigitalTwinPlaceholder />
         <SystemStatusCard health={health} />
         <ThreatActivityChart />

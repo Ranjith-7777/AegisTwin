@@ -37,6 +37,7 @@ def test_scenario_listing_and_inventory_are_synthetic(client: TestClient) -> Non
     assert [scenario["scenario_id"] for scenario in scenarios] == [
         "normal-operations",
         "credential-compromise",
+        "staged-compromise-demo",
     ]
     assert all(scenario["synthetic"] is True for scenario in scenarios)
 

@@ -8,6 +8,7 @@ import type {
 } from '../types/simulation'
 import type { WebSocketConnectionState } from '../types/websocket'
 import type { AnomalyAssessment, DetectionModel, ScoringStatus } from '../types/detection'
+import type { IncidentCandidate, TechniqueObservation } from '../types/correlation'
 
 export interface StartSimulationInput {
   scenarioId: string
@@ -16,6 +17,7 @@ export interface StartSimulationInput {
   playbackSpeed: number
   detectionEnabled: boolean
   modelId?: string
+  correlationEnabled: boolean
 }
 
 export interface SimulationPlaybackContextValue {
@@ -40,6 +42,11 @@ export interface SimulationPlaybackContextValue {
   assessmentsByEventId: Record<string, AnomalyAssessment>
   assessmentTimeline: AnomalyAssessment[]
   currentAssessment: AnomalyAssessment | null
+  correlationEnabled: boolean
+  correlationStatus: 'idle' | 'analyzing' | 'ready' | 'error'
+  correlationError: string | null
+  techniqueTimeline: TechniqueObservation[]
+  currentIncidentCandidate: IncidentCandidate | null
   startSimulation: (input: StartSimulationInput) => Promise<void>
   replayRun: (run: SimulationRun) => void
   pause: () => void
@@ -50,6 +57,8 @@ export interface SimulationPlaybackContextValue {
   retryScoring: () => Promise<void>
   continueTelemetryOnly: () => void
   refreshModels: () => Promise<void>
+  retryCorrelation: () => Promise<void>
+  continueWithoutCorrelation: () => void
 }
 
 export const SimulationPlaybackContext = createContext<SimulationPlaybackContextValue | null>(null)

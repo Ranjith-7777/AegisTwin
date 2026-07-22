@@ -33,10 +33,12 @@ class DeterministicEventGenerator:
             bytes_transferred = 0
             if scenario.scenario_id == "credential-compromise" and step.sequence == 1:
                 failed_attempts = random.randint(5, 9)
+            if scenario.scenario_id == "staged-compromise-demo" and step.sequence == 5:
+                failed_attempts = random.randint(6, 10)
             if step.event_type is EventType.DATA_TRANSFER:
                 bytes_transferred = (
                     random.randint(180_000_000, 260_000_000)
-                    if scenario.scenario_id == "credential-compromise"
+                    if scenario.scenario_id in {"credential-compromise", "staged-compromise-demo"}
                     else random.randint(18_000, 64_000)
                 )
             destination_ip = (

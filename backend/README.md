@@ -105,6 +105,8 @@ The default feature schema is `synthetic-behaviour-v2` and the default calibrati
 
 Phase 4B extends the start control with optional `detection_enabled` and `model_id` fields. Detection mode validates already-persisted assessments and emits each `anomaly_assessment` immediately after its `telemetry_event`; the original start control remains telemetry-only. Artifacts are cached per process by resolved path and modification time, with explicit test isolation. Missing artifacts or incomplete assessments produce structured detection errors or warnings and never fabricated scores. See `docs/PHASE_4B_LIVE_ANOMALY_INTEGRATION.md`.
 
+Phase 5A adds `POST /api/v1/correlation/runs/{run_id}/analyze`, incident/evidence queries, local MITRE catalogue endpoints, and optional correlation playback. Causal ordering is telemetry, assessment, technique observations, then candidate update. Mapping and correlation require persisted synthetic evidence; see `docs/PHASE_5A_INCIDENT_CORRELATION_MITRE.md`.
+
 Telemetry query parameters are `page`, `page_size`, `simulation_run_id`, `event_type`, `source_id`, `user_id`, and `minimum_severity`.
 
 ### Windows CMD example

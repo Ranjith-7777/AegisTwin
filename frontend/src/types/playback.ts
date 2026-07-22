@@ -1,5 +1,6 @@
 import type { PlaybackState, SimulationRun, TelemetryEvent } from './simulation'
 import type { AnomalyAssessment } from './detection'
+import type { IncidentCandidate, TechniqueObservation } from './correlation'
 
 export type PlaybackMessageType =
   | 'connection_ack'
@@ -15,6 +16,11 @@ export type PlaybackMessageType =
   | 'anomaly_assessment'
   | 'detection_warning'
   | 'detection_error'
+  | 'correlation_ready'
+  | 'mitre_technique_observation'
+  | 'incident_candidate_update'
+  | 'correlation_warning'
+  | 'correlation_error'
   | 'error'
 
 export interface PlaybackEnvelope {
@@ -55,6 +61,11 @@ const MESSAGE_TYPES = new Set<PlaybackMessageType>([
   'anomaly_assessment',
   'detection_warning',
   'detection_error',
+  'correlation_ready',
+  'mitre_technique_observation',
+  'incident_candidate_update',
+  'correlation_warning',
+  'correlation_error',
   'error',
 ])
 
@@ -91,7 +102,64 @@ export function parsePlaybackEnvelope(value: unknown): PlaybackEnvelope | null {
   if (value.message_type === 'anomaly_assessment' && !isAnomalyAssessment(value.payload)) {
     return null
   }
+  if (
+    value.message_type === 'mitre_technique_observation' &&
+    !isTechniqueObservation(value.payload)
+  )
+    return null
+  if (value.message_type === 'incident_candidate_update' && !isIncidentCandidate(value.payload))
+    return null
   return value as unknown as PlaybackEnvelope
+}
+
+function isTechniqueObservation(
+  value: Record<string, unknown>,
+): value is Record<string, unknown> & TechniqueObservation {
+  return (
+    typeof value.mapping_id === 'string' &&
+    typeof value.technique_id === 'string' &&
+    typeof value.technique_name === 'string' &&
+    typeof value.event_id === 'string' &&
+    typeof value.sequence_number === 'number' &&
+    typeof value.mapping_confidence === 'number' &&
+    typeof value.rationale === 'string' &&
+    typeof value.tactic === 'string' &&
+    typeof value.mapper_version === 'string' &&
+    typeof value.model_id === 'string' &&
+    isRecord(value.evidence_fields) &&
+    value.synthetic === true
+  )
+}
+function isIncidentCandidate(
+  value: Record<string, unknown>,
+): value is Record<string, unknown> & IncidentCandidate {
+  return (
+    typeof value.incident_candidate_id === 'string' &&
+    typeof value.simulation_run_id === 'string' &&
+    typeof value.model_id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.correlation_state === 'string' &&
+    typeof value.priority === 'string' &&
+    typeof value.correlation_score === 'number' &&
+    isRecord(value.component_scores) &&
+    typeof value.first_sequence_number === 'number' &&
+    typeof value.latest_sequence_number === 'number' &&
+    Array.isArray(value.involved_asset_ids) &&
+    Array.isArray(value.observed_tactic_ids) &&
+    Array.isArray(value.observed_technique_ids) &&
+    typeof value.evidence_count === 'number' &&
+    value.synthetic === true
+  )
+}
+export function getTechniquePayload(message: PlaybackEnvelope): TechniqueObservation | null {
+  return message.message_type === 'mitre_technique_observation'
+    ? (message.payload as unknown as TechniqueObservation)
+    : null
+}
+export function getIncidentPayload(message: PlaybackEnvelope): IncidentCandidate | null {
+  return message.message_type === 'incident_candidate_update'
+    ? (message.payload as unknown as IncidentCandidate)
+    : null
 }
 
 function isAnomalyAssessment(

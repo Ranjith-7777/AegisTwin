@@ -55,4 +55,6 @@ The component approach is adapted from the open-source shadcn/ui conventions and
 
 ## Current limitations
 
+The overview can optionally prepare and stream causal correlation after detection scoring. `/incidents` is the Incident Candidates workspace and `/mitre` separates the local catalogue from actual persisted observations. All values are synthetic evidence heuristics, not attack probabilities or confirmed incidents.
+
 Playback keeps at most 200 rendered telemetry rows. Detection is optional and uses only offline persisted assessments. There is no incident correlation, MITRE mapping, React Flow topology, prediction, agent, or response orchestration.

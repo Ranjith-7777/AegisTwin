@@ -6,6 +6,7 @@ export type PlaybackControlType = 'start' | 'pause' | 'resume' | 'stop' | 'ping'
 export interface DetectionControl {
   detectionEnabled: boolean
   modelId?: string
+  correlationEnabled?: boolean
 }
 
 export interface PlaybackClientHandlers {
@@ -61,7 +62,11 @@ export class PlaybackWebSocketClient {
         message_type: messageType,
         ...(afterSequence === undefined ? {} : { after_sequence: afterSequence }),
         ...(messageType === 'start' && detection?.detectionEnabled
-          ? { detection_enabled: true, model_id: detection.modelId }
+          ? {
+              detection_enabled: true,
+              model_id: detection.modelId,
+              ...(detection.correlationEnabled ? { correlation_enabled: true } : {}),
+            }
           : {}),
       }),
     )

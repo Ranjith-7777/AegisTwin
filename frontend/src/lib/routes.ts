@@ -21,7 +21,7 @@ export const appRoutes: AppRouteDefinition[] = [
   { path: '/', label: 'Overview', icon: LayoutDashboard },
   { path: '/digital-twin', label: 'Digital Twin', icon: Boxes },
   { path: '/telemetry', label: 'Live Telemetry', icon: RadioTower },
-  { path: '/incidents', label: 'Active Incidents', icon: ShieldAlert },
+  { path: '/incidents', label: 'Incident Candidates', icon: ShieldAlert },
   { path: '/mitre', label: 'MITRE ATT&CK', icon: ShieldCheck },
   { path: '/response-centre', label: 'Response Centre', icon: Bot },
   { path: '/audit-trail', label: 'Audit Trail', icon: FileClock },

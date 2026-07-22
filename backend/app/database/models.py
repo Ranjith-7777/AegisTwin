@@ -202,3 +202,108 @@ class ModelEvaluationRecord(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class MitreTechniqueRecord(Base):
+    __tablename__ = "mitre_technique_catalogue"
+    technique_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    tactics_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    mapping_conditions: Mapped[str] = mapped_column(String(800), nullable=False)
+    catalogue_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    reference_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    synthetic_demo_applicable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class TechniqueObservationRecord(Base):
+    __tablename__ = "technique_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "simulation_run_id",
+            "model_id",
+            "event_id",
+            "technique_id",
+            "mapper_version",
+            name="uq_technique_observation",
+        ),
+    )
+    mapping_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    technique_id: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    technique_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    simulation_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    event_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    mapping_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    evidence_fields_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    rationale: Mapped[str] = mapped_column(String(800), nullable=False)
+    tactic: Mapped[str] = mapped_column(String(60), nullable=False)
+    mapper_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class IncidentCandidateRecord(Base):
+    __tablename__ = "incident_candidates"
+    __table_args__ = (
+        UniqueConstraint(
+            "simulation_run_id",
+            "model_id",
+            "correlation_engine_version",
+            name="uq_incident_run_model_engine",
+        ),
+    )
+    incident_candidate_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    simulation_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    summary: Mapped[str] = mapped_column(String(800), nullable=False)
+    correlation_state: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    priority: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    correlation_score: Mapped[float] = mapped_column(Float, nullable=False)
+    component_scores_json: Mapped[dict[str, float]] = mapped_column(JSON, nullable=False)
+    first_sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    latest_sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    first_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    latest_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    primary_user_id: Mapped[str | None] = mapped_column(String(100))
+    primary_device_id: Mapped[str | None] = mapped_column(String(100))
+    involved_asset_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    observed_tactic_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    observed_technique_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    evidence_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    correlation_engine_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class IncidentEvidenceRecord(Base):
+    __tablename__ = "incident_evidence"
+    __table_args__ = (
+        UniqueConstraint("incident_candidate_id", "event_id", name="uq_incident_event"),
+    )
+    evidence_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    incident_candidate_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    event_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    assessment_id: Mapped[str | None] = mapped_column(String(36))
+    technique_mapping_id: Mapped[str | None] = mapped_column(String(36))
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    contribution_score: Mapped[float] = mapped_column(Float, nullable=False)
+    rationale: Mapped[str] = mapped_column(String(800), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class IncidentCandidateSnapshotRecord(Base):
+    __tablename__ = "incident_candidate_snapshots"
+    __table_args__ = (
+        UniqueConstraint("incident_candidate_id", "sequence_number", name="uq_incident_snapshot"),
+    )
+    snapshot_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    incident_candidate_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    snapshot_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

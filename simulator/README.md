@@ -6,3 +6,5 @@ Phase 4A.1 adds a separate evaluation-only step manifest so routine events insid
 
 Phase 4B keeps scoring offline and persists every synthetic assessment before playback. The run-scoped WebSocket only synchronises stored event/assessment pairs; it does not contain a detector. Anomaly is deviation from the synthetic baseline, never proof of an attack.
 
+Phase 5A adds the independent deterministic `staged-compromise-demo` scenario. It does not alter the frozen normal-operations or credential-compromise benchmarks. Explicit synthetic protocol/channel metadata supports conservative local MITRE mapping without any external lookup.
+

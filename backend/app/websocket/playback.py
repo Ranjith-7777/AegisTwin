@@ -17,10 +17,12 @@ from app.schemas.playback import (
     PlaybackState,
 )
 from app.schemas.telemetry import TelemetryEvent
+from app.services.playback_correlation_service import PlaybackCorrelationState
 from app.services.playback_detection_service import PlaybackDetectionState
 
 DelayProvider = Callable[[float], Awaitable[None]]
 DetectionLoader = Callable[[str], PlaybackDetectionState]
+CorrelationLoader = Callable[[str], PlaybackCorrelationState]
 
 
 class PlaybackController:
@@ -34,6 +36,7 @@ class PlaybackController:
         delay_provider: DelayProvider,
         after_sequence: int = 0,
         detection_loader: DetectionLoader | None = None,
+        correlation_loader: CorrelationLoader | None = None,
     ) -> None:
         self.websocket = websocket
         self.metadata = metadata
@@ -49,6 +52,8 @@ class PlaybackController:
         self._send_lock = asyncio.Lock()
         self._detection_loader = detection_loader
         self._detection: PlaybackDetectionState | None = None
+        self._correlation_loader = correlation_loader
+        self._correlation: PlaybackCorrelationState | None = None
 
     async def initialise(self) -> None:
         await self.send(
@@ -96,6 +101,7 @@ class PlaybackController:
                 control.after_sequence,
                 detection_enabled=control.detection_enabled,
                 model_id=control.model_id,
+                correlation_enabled=control.correlation_enabled,
             )
         elif control.message_type is PlaybackControlType.PAUSE:
             await self.pause()
@@ -110,6 +116,7 @@ class PlaybackController:
         *,
         detection_enabled: bool = False,
         model_id: str | None = None,
+        correlation_enabled: bool = False,
     ) -> None:
         if self._play_task is not None and not self._play_task.done():
             await self.send_error("PLAYBACK_ACTIVE", "Playback is already active.")
@@ -117,6 +124,7 @@ class PlaybackController:
         if after_sequence is not None:
             self.cursor = min(after_sequence, len(self.events))
         self._detection = None
+        self._correlation = None
         if detection_enabled and model_id is not None:
             if self._detection_loader is None:
                 await self.send_detection_error(
@@ -159,6 +167,33 @@ class PlaybackController:
                     "synthetic": True,
                 },
             )
+            if correlation_enabled:
+                if self._correlation_loader is None:
+                    await self.send_correlation_error(
+                        "CORRELATION_UNAVAILABLE", "Synthetic correlation is unavailable."
+                    )
+                    return
+                try:
+                    correlation = self._correlation_loader(model_id)
+                except ApplicationError as exc:
+                    await self.send_correlation_error(exc.error_code, exc.message)
+                    return
+                if not correlation.complete:
+                    await self.send_correlation_error(
+                        "CORRELATION_INCOMPLETE", "Synthetic correlation analysis is incomplete."
+                    )
+                    return
+                self._correlation = correlation
+                await self.send(
+                    "correlation_ready",
+                    {
+                        "enabled": True,
+                        "model_id": model_id,
+                        "analysis_complete": True,
+                        "starting_after_sequence": self.cursor,
+                        "synthetic": True,
+                    },
+                )
         self.state = PlaybackState.PLAYING
         self._play_gate.set()
         await self.send(
@@ -245,6 +280,17 @@ class PlaybackController:
                         )
                         return
                     await self.send("anomaly_assessment", assessment)
+                if self._correlation is not None:
+                    await self._play_gate.wait()
+                    if self.state is not PlaybackState.PLAYING:
+                        return
+                    for observation in self._correlation.observations_by_sequence.get(
+                        self.cursor, []
+                    ):
+                        await self.send("mitre_technique_observation", observation)
+                    update = self._correlation.updates_by_sequence.get(self.cursor)
+                    if update is not None:
+                        await self.send("incident_candidate_update", update)
                 if self.cursor < len(self.events):
                     following = self.events[self.cursor]
                     simulated_delay = (following.timestamp - event.timestamp).total_seconds()
@@ -275,6 +321,17 @@ class PlaybackController:
                 "message": message,
                 "can_retry": True,
                 "can_continue_telemetry_only": True,
+            },
+        )
+
+    async def send_correlation_error(self, code: str, message: str) -> None:
+        await self.send(
+            "correlation_error",
+            {
+                "error_code": code,
+                "message": message,
+                "can_retry": True,
+                "can_continue_without_correlation": True,
             },
         )
 

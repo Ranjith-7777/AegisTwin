@@ -6,11 +6,15 @@ import { PlaybackWebSocketClient } from '../services/playbackWebSocketClient'
 import { createSimulationRun, getScenarios, getSimulationRuns } from '../services/simulationApi'
 import {
   getAssessmentPayload,
+  getIncidentPayload,
   getSnapshotPayload,
   getTelemetryPayload,
+  getTechniquePayload,
   type PlaybackEnvelope,
 } from '../types/playback'
 import { getDetectionModels, scoreSimulationRun } from '../services/detectionApi'
+import { analyzeRun } from '../services/correlationApi'
+import type { IncidentCandidate, TechniqueObservation } from '../types/correlation'
 import type { AnomalyAssessment, DetectionModel, ScoringStatus } from '../types/detection'
 import type {
   PlaybackState,
@@ -44,8 +48,20 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
     Record<string, AnomalyAssessment>
   >({})
   const [assessmentTimeline, setAssessmentTimeline] = useState<AnomalyAssessment[]>([])
+  const [correlationEnabled, setCorrelationEnabled] = useState(false)
+  const [correlationStatus, setCorrelationStatus] = useState<
+    'idle' | 'analyzing' | 'ready' | 'error'
+  >('idle')
+  const [correlationError, setCorrelationError] = useState<string | null>(null)
+  const [techniqueTimeline, setTechniqueTimeline] = useState<TechniqueObservation[]>([])
+  const [currentIncidentCandidate, setCurrentIncidentCandidate] =
+    useState<IncidentCandidate | null>(null)
   const pendingRunRef = useRef<SimulationRun | null>(null)
-  const detectionStartRef = useRef<{ enabled: boolean; modelId?: string }>({ enabled: false })
+  const detectionStartRef = useRef<{
+    enabled: boolean
+    modelId?: string
+    correlationEnabled?: boolean
+  }>({ enabled: false })
   const clientRef = useRef<PlaybackWebSocketClient | null>(null)
 
   useEffect(() => {
@@ -85,6 +101,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
         clientRef.current?.sendControl('start', undefined, {
           detectionEnabled: detectionStartRef.current.enabled,
           modelId: detectionStartRef.current.modelId,
+          correlationEnabled: detectionStartRef.current.correlationEnabled,
         })
         return
       }
@@ -115,6 +132,32 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
             : [...current, assessment],
         )
         return
+      }
+      const technique = getTechniquePayload(message)
+      if (technique) {
+        setTechniqueTimeline((current) =>
+          current.some((item) => item.mapping_id === technique.mapping_id)
+            ? current
+            : [...current, technique],
+        )
+        return
+      }
+      const candidate = getIncidentPayload(message)
+      if (candidate) {
+        setCurrentIncidentCandidate(candidate)
+        return
+      }
+      if (message.message_type === 'correlation_ready') setCorrelationStatus('ready')
+      if (
+        message.message_type === 'correlation_error' ||
+        message.message_type === 'correlation_warning'
+      ) {
+        setCorrelationStatus('error')
+        setCorrelationError(
+          typeof message.payload.message === 'string'
+            ? message.payload.message
+            : 'Synthetic correlation is unavailable.',
+        )
       }
       if (message.message_type === 'detection_ready') setScoringStatus('ready')
       if (
@@ -178,6 +221,9 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       setEvents([])
       setAssessmentsByEventId({})
       setAssessmentTimeline([])
+      setTechniqueTimeline([])
+      setCurrentIncidentCandidate(null)
+      setCorrelationError(null)
       setDetectionError(null)
       setCurrentEventIndex(0)
       try {
@@ -197,6 +243,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
           ? (models.find((item) => item.model_id === input.modelId) ?? null)
           : null
         setDetectionEnabled(input.detectionEnabled)
+        setCorrelationEnabled(input.correlationEnabled)
         setSelectedModel(model)
         pendingRunRef.current = run
         if (input.detectionEnabled && model) {
@@ -207,7 +254,18 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
               throw new Error('Persisted assessment count does not match the run event count.')
             }
             setScoringStatus('ready')
-            openRun(run, 0, { enabled: true, modelId: model.model_id })
+            if (input.correlationEnabled) {
+              setCorrelationStatus('analyzing')
+              await analyzeRun(run.simulation_run_id, model.model_id)
+              setCorrelationStatus('ready')
+            } else {
+              setCorrelationStatus('idle')
+            }
+            openRun(run, 0, {
+              enabled: true,
+              modelId: model.model_id,
+              correlationEnabled: input.correlationEnabled,
+            })
           } catch (reason) {
             setScoringStatus('error')
             setDetectionError(
@@ -281,6 +339,32 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
     setScoringStatus('idle')
     openRun(run, 0, { enabled: false })
   }, [openRun])
+  const retryCorrelation = useCallback(async () => {
+    const run = pendingRunRef.current
+    if (!run || !selectedModel) return
+    setCorrelationStatus('analyzing')
+    setCorrelationError(null)
+    try {
+      await analyzeRun(run.simulation_run_id, selectedModel.model_id, true)
+      setCorrelationStatus('ready')
+      openRun(run, 0, {
+        enabled: true,
+        modelId: selectedModel.model_id,
+        correlationEnabled: true,
+      })
+    } catch (reason) {
+      setCorrelationStatus('error')
+      setCorrelationError(toClientApiError(reason).message)
+    }
+  }, [openRun, selectedModel])
+  const continueWithoutCorrelation = useCallback(() => {
+    const run = pendingRunRef.current
+    if (!run || !selectedModel) return
+    setCorrelationEnabled(false)
+    setCorrelationStatus('idle')
+    setCorrelationError(null)
+    openRun(run, 0, { enabled: true, modelId: selectedModel.model_id })
+  }, [openRun, selectedModel])
   const refreshModels = useCallback(async () => {
     setModelsLoading(true)
     try {
@@ -319,6 +403,11 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       assessmentsByEventId,
       assessmentTimeline,
       currentAssessment: assessmentTimeline.at(-1) ?? null,
+      correlationEnabled,
+      correlationStatus,
+      correlationError,
+      techniqueTimeline,
+      currentIncidentCandidate,
       startSimulation,
       replayRun,
       pause,
@@ -329,6 +418,8 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       retryScoring,
       continueTelemetryOnly,
       refreshModels,
+      retryCorrelation,
+      continueWithoutCorrelation,
     }),
     [
       scenarios,
@@ -351,6 +442,11 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       detectionError,
       assessmentsByEventId,
       assessmentTimeline,
+      correlationEnabled,
+      correlationStatus,
+      correlationError,
+      techniqueTimeline,
+      currentIncidentCandidate,
       startSimulation,
       replayRun,
       pause,
@@ -361,6 +457,8 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       retryScoring,
       continueTelemetryOnly,
       refreshModels,
+      retryCorrelation,
+      continueWithoutCorrelation,
     ],
   )
   return (
