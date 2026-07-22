@@ -2,14 +2,23 @@ import { Route, Routes } from 'react-router-dom'
 import { lazy, Suspense, type ReactNode } from 'react'
 
 import { DashboardLayout } from '../components/layout/DashboardLayout'
-import { AuditTrailPage } from '../pages/AuditTrailPage'
 import { IncidentsPage } from '../pages/IncidentsPage'
-import { MitrePage } from '../pages/MitrePage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { OverviewPage } from '../pages/OverviewPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { TelemetryPage } from '../pages/TelemetryPage'
-import { ResponseOperationsPage } from '../pages/ResponseOperationsPage'
+
+const MitrePage = lazy(() =>
+  import('../pages/MitrePage').then((module) => ({ default: module.MitrePage })),
+)
+const AuditTrailPage = lazy(() =>
+  import('../pages/AuditTrailPage').then((module) => ({ default: module.AuditTrailPage })),
+)
+const ResponseOperationsPage = lazy(() =>
+  import('../pages/ResponseOperationsPage').then((module) => ({
+    default: module.ResponseOperationsPage,
+  })),
+)
 
 const DigitalTwinPage = lazy(() =>
   import('../pages/DigitalTwinPage').then((module) => ({ default: module.DigitalTwinPage })),
@@ -47,7 +56,14 @@ export function AppRoutes() {
         />
         <Route path="telemetry" element={<TelemetryPage />} />
         <Route path="incidents" element={<IncidentsPage />} />
-        <Route path="mitre" element={<MitrePage />} />
+        <Route
+          path="mitre"
+          element={
+            <LazyPage>
+              <MitrePage />
+            </LazyPage>
+          }
+        />
         <Route
           path="response-centre"
           element={
@@ -56,8 +72,22 @@ export function AppRoutes() {
             </LazyPage>
           }
         />
-        <Route path="audit-trail" element={<AuditTrailPage />} />
-        <Route path="response-operations" element={<ResponseOperationsPage />} />
+        <Route
+          path="audit-trail"
+          element={
+            <LazyPage>
+              <AuditTrailPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="response-operations"
+          element={
+            <LazyPage>
+              <ResponseOperationsPage />
+            </LazyPage>
+          }
+        />
         <Route
           path="model-analytics"
           element={

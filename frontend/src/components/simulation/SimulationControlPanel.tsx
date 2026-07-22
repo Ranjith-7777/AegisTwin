@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { useSimulationPlayback } from '../../hooks/useSimulationPlayback'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader } from '../ui/card'
+import { DEMO_MODE } from '../../lib/constants'
 
 export function SimulationControlPanel() {
   const {
@@ -39,14 +40,14 @@ export function SimulationControlPanel() {
     retryPrediction,
     continueWithoutPrediction,
   } = useSimulationPlayback()
-  const [scenarioId, setScenarioId] = useState('')
-  const [seed, setSeed] = useState(42)
+  const [scenarioId, setScenarioId] = useState(DEMO_MODE ? 'staged-compromise-demo' : '')
+  const [seed, setSeed] = useState(DEMO_MODE ? 84 : 42)
   const [startTime, setStartTime] = useState('2026-07-21T09:00')
-  const [playbackSpeed, setPlaybackSpeed] = useState(10)
-  const [detectionEnabled, setDetectionEnabled] = useState(false)
+  const [playbackSpeed, setPlaybackSpeed] = useState(DEMO_MODE ? 50 : 10)
+  const [detectionEnabled, setDetectionEnabled] = useState(DEMO_MODE)
   const [modelId, setModelId] = useState('')
-  const [correlationEnabled, setCorrelationEnabled] = useState(false)
-  const [predictionEnabled, setPredictionEnabled] = useState(false)
+  const [correlationEnabled, setCorrelationEnabled] = useState(DEMO_MODE)
+  const [predictionEnabled, setPredictionEnabled] = useState(DEMO_MODE)
   const [topK, setTopK] = useState(3)
 
   const selectedScenarioId = scenarioId || scenarios[0]?.scenario_id || ''
@@ -82,6 +83,12 @@ export function SimulationControlPanel() {
         </span>
       </CardHeader>
       <CardContent>
+        {DEMO_MODE ? (
+          <p className="mb-3 text-sm text-cyan-200" role="status">
+            Demo Mode preselects frozen synthetic inputs; scoring, analysis, approval, and audit
+            gates are unchanged.
+          </p>
+        ) : null}
         <form className="simulation-form" onSubmit={submit}>
           <label>
             <span>Scenario</span>

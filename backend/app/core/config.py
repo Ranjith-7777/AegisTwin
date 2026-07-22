@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     app_name: str = Field(default="AegisTwin API", validation_alias="APP_NAME")
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
-    debug: bool = Field(default=True, validation_alias="DEBUG")
+    debug: bool = Field(default=False, validation_alias="DEBUG")
     api_prefix: str = Field(default="/api", validation_alias="API_PREFIX")
     backend_host: str = Field(default="127.0.0.1", validation_alias="BACKEND_HOST")
     backend_port: int = Field(default=8000, ge=1, le=65535, validation_alias="BACKEND_PORT")

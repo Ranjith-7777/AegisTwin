@@ -15,6 +15,7 @@ htmlcov/
 .env.*
 !.env.example
 !**/.env.example
+!**/.env.*.example
 
 # Databases and generated output
 *.db
@@ -27,6 +28,9 @@ backend/artifacts/
 models/artifacts/
 logs/
 test-results/
+playwright-report/
+backend/.e2e/
+reports/*.tmp
 
 # Frontend
 node_modules/

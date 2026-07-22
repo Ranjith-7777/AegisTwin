@@ -1,5 +1,7 @@
 # AegisTwin Frontend Dashboard Foundation
 
+Phase 8A adds explicit Demo Mode, Playwright Chromium E2E coverage, same-origin-safe production URL fallbacks, and lazy/vendor chunk splitting. Run `npm run test:e2e` after installing the pinned Playwright Chromium runtime.
+
 Phase 7B adds Response Operations, a functional Audit Trail, incident workflow context, and distinct applied/rollback synthetic-twin overlays.
 
 Phase 6A replaces the Digital Twin placeholder with a reusable React Flow topology, asset and relationship inspectors, layer controls, and cautious path inspection.

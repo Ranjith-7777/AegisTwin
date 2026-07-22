@@ -1,5 +1,7 @@
 # AegisTwin
 
+Phase 8A provides deterministic demo bootstrap, Playwright end-to-end validation, consolidated synthetic benchmarks, release checks, and deployment/runbook documentation. Start with [the demo runbook](docs/DEMO_RUNBOOK.md).
+
 Phase 7B adds deterministic simulation-agent orchestration, human demonstration approvals, synthetic execution, verification, rollback, and tamper-evident audit. See [the Phase 7B guide](docs/PHASE_7B_AGENTIC_RESPONSE_ORCHESTRATION.md).
 
 Phase 6A adds a versioned interactive synthetic infrastructure topology with causal observed, correlated, and hypothetical predicted path inspection. See [the Phase 6A guide](docs/PHASE_6A_DIGITAL_TWIN_TOPOLOGY.md).

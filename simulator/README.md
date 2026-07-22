@@ -1,5 +1,7 @@
 # AegisTwin Simulator
 
+Phase 8A freezes the submission demonstration at `staged-compromise-demo`, seed 84, accelerated playback speed 50, model random state 17, and top-three predictions. These are regression inputs, not production performance claims.
+
 Phase 6A derives observed topology layers only from persisted synthetic telemetry prefixes; it does not inspect host or real network topology.
 
 Prediction consumes persisted synthetic event prefixes only; scenario metadata and future steps remain excluded from predictive features.

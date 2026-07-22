@@ -42,6 +42,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             database.dispose()
             raise ConfigurationError("Database connectivity verification failed during startup")
         logger.info("Database connectivity verified")
+        try:
+            active_settings.model_artifact_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            database.dispose()
+            raise ConfigurationError(
+                "Model artifact directory is unavailable during startup"
+            ) from exc
+        if not active_settings.model_artifact_dir.is_dir():
+            database.dispose()
+            raise ConfigurationError("MODEL_ARTIFACT_DIR must identify a directory")
+        logger.info("Model artifact directory verified")
         logger.info("Application startup complete")
         try:
             yield

@@ -1,5 +1,7 @@
 # AegisTwin Backend and Synthetic Telemetry Foundation
 
+Phase 8A validates artifact-directory availability at startup, defaults debug mode off, and supplies isolated bootstrap, benchmark, migration, and release-validation tooling. SQLite remains a documented single-worker prototype constraint.
+
 Phase 7B adds deterministic simulation agents, approval gates, persisted synthetic execution, verification, rollback, and SHA-256 audit-chain verification. It performs no real action.
 
 Phase 6A exposes the repository-defined infrastructure as a versioned directed topology under `/api/v1/topology`, including sequence-bounded path and run-state queries.
