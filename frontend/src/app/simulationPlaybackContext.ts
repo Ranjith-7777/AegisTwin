@@ -9,6 +9,7 @@ import type {
 import type { WebSocketConnectionState } from '../types/websocket'
 import type { AnomalyAssessment, DetectionModel, ScoringStatus } from '../types/detection'
 import type { IncidentCandidate, TechniqueObservation } from '../types/correlation'
+import type { PredictionSnapshot } from '../types/prediction'
 
 export interface StartSimulationInput {
   scenarioId: string
@@ -18,6 +19,8 @@ export interface StartSimulationInput {
   detectionEnabled: boolean
   modelId?: string
   correlationEnabled: boolean
+  predictionEnabled: boolean
+  topK: number
 }
 
 export interface SimulationPlaybackContextValue {
@@ -47,6 +50,11 @@ export interface SimulationPlaybackContextValue {
   correlationError: string | null
   techniqueTimeline: TechniqueObservation[]
   currentIncidentCandidate: IncidentCandidate | null
+  predictionEnabled: boolean
+  predictionStatus: 'idle' | 'analyzing' | 'ready' | 'error'
+  predictionError: string | null
+  predictionTimeline: PredictionSnapshot[]
+  currentPrediction: PredictionSnapshot | null
   startSimulation: (input: StartSimulationInput) => Promise<void>
   replayRun: (run: SimulationRun) => void
   pause: () => void
@@ -59,6 +67,8 @@ export interface SimulationPlaybackContextValue {
   refreshModels: () => Promise<void>
   retryCorrelation: () => Promise<void>
   continueWithoutCorrelation: () => void
+  retryPrediction: () => Promise<void>
+  continueWithoutPrediction: () => void
 }
 
 export const SimulationPlaybackContext = createContext<SimulationPlaybackContextValue | null>(null)

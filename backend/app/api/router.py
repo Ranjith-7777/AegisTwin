@@ -5,6 +5,7 @@ from app.api.routes import (
     detection,
     health,
     mitre,
+    prediction,
     safety,
     simulation,
     system,
@@ -19,4 +20,5 @@ api_router.include_router(simulation.router)
 api_router.include_router(telemetry.router)
 api_router.include_router(detection.router)
 api_router.include_router(correlation.router)
+api_router.include_router(prediction.router)
 api_router.include_router(mitre.router)

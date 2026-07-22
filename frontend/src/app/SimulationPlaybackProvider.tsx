@@ -8,12 +8,14 @@ import {
   getAssessmentPayload,
   getIncidentPayload,
   getSnapshotPayload,
+  getPredictionPayload,
   getTelemetryPayload,
   getTechniquePayload,
   type PlaybackEnvelope,
 } from '../types/playback'
 import { getDetectionModels, scoreSimulationRun } from '../services/detectionApi'
 import { analyzeRun } from '../services/correlationApi'
+import { analyzePredictions } from '../services/predictionApi'
 import type { IncidentCandidate, TechniqueObservation } from '../types/correlation'
 import type { AnomalyAssessment, DetectionModel, ScoringStatus } from '../types/detection'
 import type {
@@ -23,6 +25,7 @@ import type {
   TelemetryEvent,
 } from '../types/simulation'
 import type { WebSocketConnectionState } from '../types/websocket'
+import type { PredictionSnapshot } from '../types/prediction'
 
 const MAX_RENDERED_EVENTS = 200
 
@@ -56,11 +59,18 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
   const [techniqueTimeline, setTechniqueTimeline] = useState<TechniqueObservation[]>([])
   const [currentIncidentCandidate, setCurrentIncidentCandidate] =
     useState<IncidentCandidate | null>(null)
+  const [predictionEnabled, setPredictionEnabled] = useState(false)
+  const [predictionStatus, setPredictionStatus] = useState<
+    'idle' | 'analyzing' | 'ready' | 'error'
+  >('idle')
+  const [predictionError, setPredictionError] = useState<string | null>(null)
+  const [predictionTimeline, setPredictionTimeline] = useState<PredictionSnapshot[]>([])
   const pendingRunRef = useRef<SimulationRun | null>(null)
   const detectionStartRef = useRef<{
     enabled: boolean
     modelId?: string
     correlationEnabled?: boolean
+    predictionEnabled?: boolean
   }>({ enabled: false })
   const clientRef = useRef<PlaybackWebSocketClient | null>(null)
 
@@ -102,6 +112,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
           detectionEnabled: detectionStartRef.current.enabled,
           modelId: detectionStartRef.current.modelId,
           correlationEnabled: detectionStartRef.current.correlationEnabled,
+          predictionEnabled: detectionStartRef.current.predictionEnabled,
         })
         return
       }
@@ -146,6 +157,34 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       if (candidate) {
         setCurrentIncidentCandidate(candidate)
         return
+      }
+      const prediction = getPredictionPayload(message)
+      if (prediction) {
+        const expectedRun = pendingRunRef.current?.simulation_run_id ?? activeRun?.simulation_run_id
+        if (
+          message.run_id !== expectedRun ||
+          prediction.simulation_run_id !== expectedRun ||
+          prediction.model_id !== detectionStartRef.current.modelId
+        )
+          return
+        setPredictionTimeline((current) =>
+          current.some((item) => item.prediction_snapshot_id === prediction.prediction_snapshot_id)
+            ? current
+            : [...current, prediction],
+        )
+        return
+      }
+      if (message.message_type === 'prediction_ready') setPredictionStatus('ready')
+      if (
+        message.message_type === 'prediction_error' ||
+        message.message_type === 'prediction_warning'
+      ) {
+        setPredictionStatus('error')
+        setPredictionError(
+          typeof message.payload.message === 'string'
+            ? message.payload.message
+            : 'Synthetic prediction is unavailable.',
+        )
       }
       if (message.message_type === 'correlation_ready') setCorrelationStatus('ready')
       if (
@@ -223,6 +262,8 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       setAssessmentTimeline([])
       setTechniqueTimeline([])
       setCurrentIncidentCandidate(null)
+      setPredictionTimeline([])
+      setPredictionError(null)
       setCorrelationError(null)
       setDetectionError(null)
       setCurrentEventIndex(0)
@@ -244,6 +285,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
           : null
         setDetectionEnabled(input.detectionEnabled)
         setCorrelationEnabled(input.correlationEnabled)
+        setPredictionEnabled(input.predictionEnabled)
         setSelectedModel(model)
         pendingRunRef.current = run
         if (input.detectionEnabled && model) {
@@ -258,6 +300,13 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
               setCorrelationStatus('analyzing')
               await analyzeRun(run.simulation_run_id, model.model_id)
               setCorrelationStatus('ready')
+              if (input.predictionEnabled) {
+                setPredictionStatus('analyzing')
+                await analyzePredictions(run.simulation_run_id, model.model_id, input.topK)
+                setPredictionStatus('ready')
+              } else {
+                setPredictionStatus('idle')
+              }
             } else {
               setCorrelationStatus('idle')
             }
@@ -265,6 +314,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
               enabled: true,
               modelId: model.model_id,
               correlationEnabled: input.correlationEnabled,
+              predictionEnabled: input.predictionEnabled,
             })
           } catch (reason) {
             setScoringStatus('error')
@@ -362,8 +412,41 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
     if (!run || !selectedModel) return
     setCorrelationEnabled(false)
     setCorrelationStatus('idle')
+    setPredictionEnabled(false)
+    setPredictionStatus('idle')
     setCorrelationError(null)
     openRun(run, 0, { enabled: true, modelId: selectedModel.model_id })
+  }, [openRun, selectedModel])
+  const retryPrediction = useCallback(async () => {
+    const run = pendingRunRef.current
+    if (!run || !selectedModel) return
+    setPredictionStatus('analyzing')
+    setPredictionError(null)
+    try {
+      await analyzePredictions(run.simulation_run_id, selectedModel.model_id, 3, true)
+      setPredictionStatus('ready')
+      openRun(run, 0, {
+        enabled: true,
+        modelId: selectedModel.model_id,
+        correlationEnabled: true,
+        predictionEnabled: true,
+      })
+    } catch (reason) {
+      setPredictionStatus('error')
+      setPredictionError(toClientApiError(reason).message)
+    }
+  }, [openRun, selectedModel])
+  const continueWithoutPrediction = useCallback(() => {
+    const run = pendingRunRef.current
+    if (!run || !selectedModel) return
+    setPredictionEnabled(false)
+    setPredictionStatus('idle')
+    setPredictionError(null)
+    openRun(run, 0, {
+      enabled: true,
+      modelId: selectedModel.model_id,
+      correlationEnabled: true,
+    })
   }, [openRun, selectedModel])
   const refreshModels = useCallback(async () => {
     setModelsLoading(true)
@@ -408,6 +491,11 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       correlationError,
       techniqueTimeline,
       currentIncidentCandidate,
+      predictionEnabled,
+      predictionStatus,
+      predictionError,
+      predictionTimeline,
+      currentPrediction: predictionTimeline.at(-1) ?? null,
       startSimulation,
       replayRun,
       pause,
@@ -420,6 +508,8 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       refreshModels,
       retryCorrelation,
       continueWithoutCorrelation,
+      retryPrediction,
+      continueWithoutPrediction,
     }),
     [
       scenarios,
@@ -447,6 +537,10 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       correlationError,
       techniqueTimeline,
       currentIncidentCandidate,
+      predictionEnabled,
+      predictionStatus,
+      predictionError,
+      predictionTimeline,
       startSimulation,
       replayRun,
       pause,
@@ -459,6 +553,8 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       refreshModels,
       retryCorrelation,
       continueWithoutCorrelation,
+      retryPrediction,
+      continueWithoutPrediction,
     ],
   )
   return (

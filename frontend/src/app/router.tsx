@@ -8,6 +8,7 @@ import { MitrePage } from '../pages/MitrePage'
 import { ModelAnalyticsPage } from '../pages/ModelAnalyticsPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { OverviewPage } from '../pages/OverviewPage'
+import { PredictiveAnalyticsPage } from '../pages/PredictiveAnalyticsPage'
 import { ResponseCentrePage } from '../pages/ResponseCentrePage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { TelemetryPage } from '../pages/TelemetryPage'
@@ -24,6 +25,7 @@ export function AppRoutes() {
         <Route path="response-centre" element={<ResponseCentrePage />} />
         <Route path="audit-trail" element={<AuditTrailPage />} />
         <Route path="model-analytics" element={<ModelAnalyticsPage />} />
+        <Route path="predictive-analytics" element={<PredictiveAnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

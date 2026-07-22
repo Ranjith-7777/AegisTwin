@@ -5,6 +5,7 @@ import {
   FileClock,
   LayoutDashboard,
   RadioTower,
+  Radar,
   Settings,
   ShieldAlert,
   ShieldCheck,
@@ -26,5 +27,6 @@ export const appRoutes: AppRouteDefinition[] = [
   { path: '/response-centre', label: 'Response Centre', icon: Bot },
   { path: '/audit-trail', label: 'Audit Trail', icon: FileClock },
   { path: '/model-analytics', label: 'Model Analytics', icon: Activity },
+  { path: '/predictive-analytics', label: 'Predictive Analytics', icon: Radar },
   { path: '/settings', label: 'Settings', icon: Settings },
 ]

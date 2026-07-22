@@ -34,6 +34,7 @@ class PlaybackControl(BaseModel):
     detection_enabled: bool = False
     model_id: str | None = Field(default=None, min_length=1, max_length=100)
     correlation_enabled: bool = False
+    prediction_enabled: bool = False
 
     @model_validator(mode="after")
     def detection_model_required(self) -> PlaybackControl:
@@ -43,6 +44,8 @@ class PlaybackControl(BaseModel):
             raise ValueError("model_id requires detection_enabled")
         if self.correlation_enabled and not self.detection_enabled:
             raise ValueError("correlation_enabled requires detection_enabled")
+        if self.prediction_enabled and not self.correlation_enabled:
+            raise ValueError("prediction_enabled requires correlation_enabled")
         return self
 
 

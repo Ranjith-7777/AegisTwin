@@ -1,5 +1,7 @@
 # AegisTwin Frontend Dashboard Foundation
 
+Phase 5B adds opt-in prediction controls, a live ranked-hypothesis panel, and `/predictive-analytics` for snapshot and outcome review.
+
 Phase 3B connects the React dashboard foundation to deterministic synthetic simulation runs and controlled real-time playback. It is dark by default, responsive, and permanently identifies itself as a simulation environment.
 
 The dashboard reads health and safety status, loads synthetic scenarios, run history and detection models, scores a run before optional assessment playback, and opens a typed run-scoped WebSocket only after an explicit user action. It renders persisted synthetic anomaly values but no fabricated incident, MTTD, MTTR or confirmed-attack values.

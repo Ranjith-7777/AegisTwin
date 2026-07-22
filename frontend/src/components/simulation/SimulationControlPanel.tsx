@@ -34,6 +34,10 @@ export function SimulationControlPanel() {
     correlationError,
     retryCorrelation,
     continueWithoutCorrelation,
+    predictionStatus,
+    predictionError,
+    retryPrediction,
+    continueWithoutPrediction,
   } = useSimulationPlayback()
   const [scenarioId, setScenarioId] = useState('')
   const [seed, setSeed] = useState(42)
@@ -42,6 +46,8 @@ export function SimulationControlPanel() {
   const [detectionEnabled, setDetectionEnabled] = useState(false)
   const [modelId, setModelId] = useState('')
   const [correlationEnabled, setCorrelationEnabled] = useState(false)
+  const [predictionEnabled, setPredictionEnabled] = useState(false)
+  const [topK, setTopK] = useState(3)
 
   const selectedScenarioId = scenarioId || scenarios[0]?.scenario_id || ''
 
@@ -56,6 +62,8 @@ export function SimulationControlPanel() {
       detectionEnabled,
       modelId: detectionEnabled ? modelId || models[0]?.model_id : undefined,
       correlationEnabled,
+      predictionEnabled,
+      topK,
     })
   }
 
@@ -135,10 +143,44 @@ export function SimulationControlPanel() {
                 checked={correlationEnabled}
                 onChange={(event) => {
                   setCorrelationEnabled(event.target.checked)
+                  if (!event.target.checked) setPredictionEnabled(false)
                 }}
                 disabled={active}
               />
               <span>Enable correlation</span>
+            </label>
+          ) : null}
+          {correlationEnabled ? (
+            <label className="flex-row items-center self-center">
+              <input
+                aria-label="Enable next-stage prediction"
+                type="checkbox"
+                checked={predictionEnabled}
+                onChange={(event) => {
+                  setPredictionEnabled(event.target.checked)
+                }}
+                disabled={active}
+              />
+              <span>Enable next-stage prediction</span>
+            </label>
+          ) : null}
+          {predictionEnabled ? (
+            <label>
+              <span>Ranked hypotheses</span>
+              <select
+                aria-label="Prediction top K"
+                value={topK}
+                onChange={(event) => {
+                  setTopK(Number(event.target.value))
+                }}
+                disabled={active}
+              >
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={value} value={value}>
+                    Top {value}
+                  </option>
+                ))}
+              </select>
             </label>
           ) : null}
           <label>
@@ -220,6 +262,20 @@ export function SimulationControlPanel() {
         <p className="mt-1 text-xs text-slate-500" aria-live="polite">
           Correlation preparation: {correlationStatus}
         </p>
+        <p className="mt-1 text-xs text-slate-500" aria-live="polite">
+          Prediction preparation: {predictionStatus}
+        </p>
+        {predictionError ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
+            <span className="text-sm text-red-200">{predictionError}</span>
+            <Button size="sm" variant="outline" onClick={() => void retryPrediction()}>
+              Analyze Predictions
+            </Button>
+            <Button size="sm" variant="outline" onClick={continueWithoutPrediction}>
+              Continue Without Prediction
+            </Button>
+          </div>
+        ) : null}
         {correlationError ? (
           <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
             <span className="text-sm text-red-200">{correlationError}</span>

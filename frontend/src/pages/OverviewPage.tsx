@@ -10,11 +10,14 @@ import { SystemStatusCard } from '../components/dashboard/SystemStatusCard'
 import { ThreatActivityChart } from '../components/dashboard/ThreatActivityChart'
 import { LiveAnomalyDashboard } from '../components/detection/LiveAnomalyDashboard'
 import { LiveCorrelationDashboard } from '../components/correlation/LiveCorrelationDashboard'
+import { LivePredictionDashboard } from '../components/prediction/LivePredictionDashboard'
+import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
 import { getDashboardMetrics } from '../mocks/dashboardMetrics'
 
 export function OverviewPage() {
   const { health, system, error, refresh } = useSystemData()
   const metrics = getDashboardMetrics(system?.active_incidents ?? 0, system?.agents_online ?? 0)
+  const { currentPrediction, predictionTimeline } = useSimulationPlayback()
   return (
     <div className="space-y-6">
       <header className="page-heading">
@@ -45,6 +48,7 @@ export function OverviewPage() {
         <LiveEventStream />
         <LiveAnomalyDashboard />
         <LiveCorrelationDashboard />
+        <LivePredictionDashboard current={currentPrediction} timeline={predictionTimeline} />
         <DigitalTwinPlaceholder />
         <SystemStatusCard health={health} />
         <ThreatActivityChart />

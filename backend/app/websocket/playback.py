@@ -19,10 +19,12 @@ from app.schemas.playback import (
 from app.schemas.telemetry import TelemetryEvent
 from app.services.playback_correlation_service import PlaybackCorrelationState
 from app.services.playback_detection_service import PlaybackDetectionState
+from app.services.playback_prediction_service import PlaybackPredictionState
 
 DelayProvider = Callable[[float], Awaitable[None]]
 DetectionLoader = Callable[[str], PlaybackDetectionState]
 CorrelationLoader = Callable[[str], PlaybackCorrelationState]
+PredictionLoader = Callable[[str], PlaybackPredictionState]
 
 
 class PlaybackController:
@@ -37,6 +39,7 @@ class PlaybackController:
         after_sequence: int = 0,
         detection_loader: DetectionLoader | None = None,
         correlation_loader: CorrelationLoader | None = None,
+        prediction_loader: PredictionLoader | None = None,
     ) -> None:
         self.websocket = websocket
         self.metadata = metadata
@@ -54,6 +57,8 @@ class PlaybackController:
         self._detection: PlaybackDetectionState | None = None
         self._correlation_loader = correlation_loader
         self._correlation: PlaybackCorrelationState | None = None
+        self._prediction_loader = prediction_loader
+        self._prediction: PlaybackPredictionState | None = None
 
     async def initialise(self) -> None:
         await self.send(
@@ -102,6 +107,7 @@ class PlaybackController:
                 detection_enabled=control.detection_enabled,
                 model_id=control.model_id,
                 correlation_enabled=control.correlation_enabled,
+                prediction_enabled=control.prediction_enabled,
             )
         elif control.message_type is PlaybackControlType.PAUSE:
             await self.pause()
@@ -117,6 +123,7 @@ class PlaybackController:
         detection_enabled: bool = False,
         model_id: str | None = None,
         correlation_enabled: bool = False,
+        prediction_enabled: bool = False,
     ) -> None:
         if self._play_task is not None and not self._play_task.done():
             await self.send_error("PLAYBACK_ACTIVE", "Playback is already active.")
@@ -125,6 +132,7 @@ class PlaybackController:
             self.cursor = min(after_sequence, len(self.events))
         self._detection = None
         self._correlation = None
+        self._prediction = None
         if detection_enabled and model_id is not None:
             if self._detection_loader is None:
                 await self.send_detection_error(
@@ -194,6 +202,38 @@ class PlaybackController:
                         "synthetic": True,
                     },
                 )
+                if prediction_enabled:
+                    if self._prediction_loader is None:
+                        await self.send_prediction_error(
+                            "PREDICTION_UNAVAILABLE", "Synthetic prediction is unavailable."
+                        )
+                        return
+                    try:
+                        prediction = self._prediction_loader(model_id)
+                    except ApplicationError as exc:
+                        await self.send_prediction_error(exc.error_code, exc.message)
+                        return
+                    if not prediction.complete:
+                        await self.send_prediction_error(
+                            "PREDICTION_INCOMPLETE",
+                            "Synthetic prediction analysis is incomplete.",
+                        )
+                        return
+                    self._prediction = prediction
+                    await self.send(
+                        "prediction_ready",
+                        {
+                            "enabled": True,
+                            "model_id": model_id,
+                            "analysis_complete": True,
+                            "predictor_version": prediction.predictor_version,
+                            "progression_catalogue_version": (
+                                prediction.progression_catalogue_version
+                            ),
+                            "starting_after_sequence": self.cursor,
+                            "synthetic": True,
+                        },
+                    )
         self.state = PlaybackState.PLAYING
         self._play_gate.set()
         await self.send(
@@ -291,6 +331,25 @@ class PlaybackController:
                     update = self._correlation.updates_by_sequence.get(self.cursor)
                     if update is not None:
                         await self.send("incident_candidate_update", update)
+                if self._prediction is not None:
+                    await self._play_gate.wait()
+                    if self.state is not PlaybackState.PLAYING:
+                        return
+                    snapshot = self._prediction.snapshots_by_sequence.get(self.cursor)
+                    if snapshot is None:
+                        await self.send(
+                            "prediction_warning",
+                            {
+                                "warning_code": "PREDICTION_SNAPSHOT_UNAVAILABLE",
+                                "message": "The causal prediction snapshot is unavailable.",
+                                "model_id": self._prediction.model_id,
+                                "through_sequence_number": self.cursor,
+                                "can_retry": True,
+                                "can_continue_without_prediction": True,
+                            },
+                        )
+                        return
+                    await self.send("next_stage_prediction", snapshot)
                 if self.cursor < len(self.events):
                     following = self.events[self.cursor]
                     simulated_delay = (following.timestamp - event.timestamp).total_seconds()
@@ -332,6 +391,17 @@ class PlaybackController:
                 "message": message,
                 "can_retry": True,
                 "can_continue_without_correlation": True,
+            },
+        )
+
+    async def send_prediction_error(self, code: str, message: str) -> None:
+        await self.send(
+            "prediction_error",
+            {
+                "error_code": code,
+                "message": message,
+                "can_retry": True,
+                "can_continue_without_prediction": True,
             },
         )
 

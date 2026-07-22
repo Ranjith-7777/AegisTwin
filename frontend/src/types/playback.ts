@@ -1,6 +1,7 @@
 import type { PlaybackState, SimulationRun, TelemetryEvent } from './simulation'
 import type { AnomalyAssessment } from './detection'
 import type { IncidentCandidate, TechniqueObservation } from './correlation'
+import type { PredictionSnapshot } from './prediction'
 
 export type PlaybackMessageType =
   | 'connection_ack'
@@ -21,6 +22,10 @@ export type PlaybackMessageType =
   | 'incident_candidate_update'
   | 'correlation_warning'
   | 'correlation_error'
+  | 'prediction_ready'
+  | 'next_stage_prediction'
+  | 'prediction_warning'
+  | 'prediction_error'
   | 'error'
 
 export interface PlaybackEnvelope {
@@ -66,6 +71,10 @@ const MESSAGE_TYPES = new Set<PlaybackMessageType>([
   'incident_candidate_update',
   'correlation_warning',
   'correlation_error',
+  'prediction_ready',
+  'next_stage_prediction',
+  'prediction_warning',
+  'prediction_error',
   'error',
 ])
 
@@ -109,7 +118,49 @@ export function parsePlaybackEnvelope(value: unknown): PlaybackEnvelope | null {
     return null
   if (value.message_type === 'incident_candidate_update' && !isIncidentCandidate(value.payload))
     return null
+  if (value.message_type === 'next_stage_prediction' && !isPredictionSnapshot(value.payload))
+    return null
   return value as unknown as PlaybackEnvelope
+}
+
+function isPredictionSnapshot(
+  value: Record<string, unknown>,
+): value is Record<string, unknown> & PredictionSnapshot {
+  return (
+    typeof value.prediction_snapshot_id === 'string' &&
+    typeof value.simulation_run_id === 'string' &&
+    typeof value.model_id === 'string' &&
+    typeof value.through_sequence_number === 'number' &&
+    typeof value.predictor_version === 'string' &&
+    typeof value.progression_catalogue_version === 'string' &&
+    typeof value.prediction_state === 'string' &&
+    typeof value.current_stage_estimate === 'string' &&
+    typeof value.current_tactic_estimate === 'string' &&
+    Array.isArray(value.observed_technique_ids) &&
+    Array.isArray(value.observed_tactic_ids) &&
+    Array.isArray(value.supporting_evidence) &&
+    Array.isArray(value.hypotheses) &&
+    value.hypotheses.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.hypothesis_id === 'string' &&
+        typeof item.rank === 'number' &&
+        typeof item.hypothesis_type === 'string' &&
+        typeof item.prediction_score === 'number' &&
+        isRecord(item.component_scores) &&
+        Array.isArray(item.prerequisite_evidence) &&
+        Array.isArray(item.contradictory_evidence) &&
+        typeof item.rationale === 'string' &&
+        item.synthetic === true,
+    ) &&
+    value.synthetic === true
+  )
+}
+
+export function getPredictionPayload(message: PlaybackEnvelope): PredictionSnapshot | null {
+  return message.message_type === 'next_stage_prediction'
+    ? (message.payload as unknown as PredictionSnapshot)
+    : null
 }
 
 function isTechniqueObservation(

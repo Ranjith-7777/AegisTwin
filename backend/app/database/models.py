@@ -307,3 +307,85 @@ class IncidentCandidateSnapshotRecord(Base):
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
     snapshot_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ProgressionCatalogueEntryRecord(Base):
+    __tablename__ = "progression_catalogue_entries"
+    entry_id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    source_technique_id: Mapped[str | None] = mapped_column(String(20))
+    destination_technique_id: Mapped[str | None] = mapped_column(String(20))
+    source_tactic: Mapped[str | None] = mapped_column(String(60))
+    destination_tactic: Mapped[str] = mapped_column(String(60), nullable=False)
+    rationale: Mapped[str] = mapped_column(String(800), nullable=False)
+    prerequisites_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    contradictions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    transition_weight: Mapped[float] = mapped_column(Float, nullable=False)
+    catalogue_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class PredictionSnapshotRecord(Base):
+    __tablename__ = "prediction_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "simulation_run_id",
+            "model_id",
+            "predictor_version",
+            "through_sequence_number",
+            name="uq_prediction_snapshot",
+        ),
+    )
+    prediction_snapshot_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    simulation_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    incident_candidate_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    through_sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    predictor_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    progression_catalogue_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    prediction_state: Mapped[str] = mapped_column(String(30), nullable=False)
+    current_stage_estimate: Mapped[str] = mapped_column(String(60), nullable=False)
+    current_tactic_estimate: Mapped[str] = mapped_column(String(60), nullable=False)
+    observed_technique_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    observed_tactic_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    candidate_hypothesis_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    insufficient_evidence_reason: Mapped[str | None] = mapped_column(String(500))
+    supporting_evidence_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PredictionHypothesisRecord(Base):
+    __tablename__ = "prediction_hypotheses"
+    __table_args__ = (
+        UniqueConstraint(
+            "prediction_snapshot_id", "hypothesis_type", "rank", name="uq_prediction_hypothesis"
+        ),
+    )
+    hypothesis_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    prediction_snapshot_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    hypothesis_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    predicted_technique_id: Mapped[str | None] = mapped_column(String(20))
+    predicted_technique_name: Mapped[str | None] = mapped_column(String(120))
+    predicted_tactic: Mapped[str | None] = mapped_column(String(60))
+    predicted_asset_id: Mapped[str | None] = mapped_column(String(100))
+    predicted_objective: Mapped[str | None] = mapped_column(String(60))
+    prediction_score: Mapped[float] = mapped_column(Float, nullable=False)
+    component_scores_json: Mapped[dict[str, float]] = mapped_column(JSON, nullable=False)
+    prerequisite_evidence_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    contradictory_evidence_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    rationale: Mapped[str] = mapped_column(String(1000), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class PredictionEvaluationRecord(Base):
+    __tablename__ = "prediction_evaluations"
+    evaluation_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    simulation_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    predictor_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    metrics_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    baseline_metrics_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    truth_manifest_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

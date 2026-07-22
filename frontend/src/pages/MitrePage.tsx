@@ -4,6 +4,8 @@ import { getSimulationRuns } from '../services/simulationApi'
 import type { MitreTechnique, TechniqueObservation } from '../types/correlation'
 import type { SimulationRun } from '../types/simulation'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { getLatestPrediction } from '../services/predictionApi'
+import type { PredictionSnapshot } from '../types/prediction'
 
 export function MitrePage() {
   const [catalogue, setCatalogue] = useState<MitreTechnique[]>([])
@@ -11,6 +13,7 @@ export function MitrePage() {
   const [runId, setRunId] = useState('')
   const [observations, setObservations] = useState<TechniqueObservation[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [prediction, setPrediction] = useState<PredictionSnapshot | null>(null)
   useEffect(() => {
     void Promise.all([getMitreTechniques(), getSimulationRuns()])
       .then(([techniques, runItems]) => {
@@ -28,6 +31,14 @@ export function MitrePage() {
     void getRunTechniques(runId)
       .then((page) => {
         setObservations(page.items)
+        const modelId = page.items[0]?.model_id
+        if (modelId) {
+          void getLatestPrediction(runId, modelId)
+            .then(setPrediction)
+            .catch(() => {
+              setPrediction(null)
+            })
+        }
       })
       .catch(() => {
         setError('Technique observations are unavailable.')
@@ -102,6 +113,22 @@ export function MitrePage() {
               assigned techniques.
             </p>
           )}
+          {prediction ? (
+            <div className="mt-4 rounded border border-cyan-900 p-3">
+              <strong>Predicted, not observed</strong>
+              <p>
+                {prediction.hypotheses
+                  .filter((item) => item.hypothesis_type === 'next_technique')
+                  .map(
+                    (item) => `#${String(item.rank)} ${item.predicted_technique_id ?? 'unknown'}`,
+                  )
+                  .join(' · ')}
+              </p>
+              <p className="text-xs text-amber-200">
+                Cautious synthetic rankings remain separate from the observed timeline above.
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

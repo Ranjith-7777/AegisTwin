@@ -4,6 +4,8 @@ import { getSimulationRuns } from '../services/simulationApi'
 import type { IncidentCandidate, IncidentEvidence } from '../types/correlation'
 import type { SimulationRun } from '../types/simulation'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { getLatestPrediction } from '../services/predictionApi'
+import type { PredictionSnapshot } from '../types/prediction'
 
 export function IncidentsPage() {
   const [runs, setRuns] = useState<SimulationRun[]>([])
@@ -13,6 +15,7 @@ export function IncidentsPage() {
   const [evidence, setEvidence] = useState<IncidentEvidence[]>([])
   const [stateFilter, setStateFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
+  const [prediction, setPrediction] = useState<PredictionSnapshot | null>(null)
   useEffect(() => {
     void getSimulationRuns().then(setRuns)
   }, [])
@@ -30,6 +33,11 @@ export function IncidentsPage() {
       return
     }
     void getIncidentEvidence(selected.incident_candidate_id).then(setEvidence)
+    void getLatestPrediction(selected.simulation_run_id, selected.model_id)
+      .then(setPrediction)
+      .catch(() => {
+        setPrediction(null)
+      })
   }, [selected])
   const shown = candidates.filter(
     (item) =>
@@ -157,6 +165,18 @@ export function IncidentsPage() {
               Correlation indicates related unusual synthetic activity. It does not confirm a real
               attack.
             </p>
+            {prediction ? (
+              <div className="mt-4 rounded border border-cyan-900 p-3">
+                <h3 className="font-semibold">Latest predicted progression</h3>
+                <p>
+                  {prediction.current_stage_estimate} · through sequence{' '}
+                  {prediction.through_sequence_number}
+                </p>
+                <p className="text-xs text-amber-200">
+                  Ranked synthetic hypothesis; separate from observed incident evidence.
+                </p>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

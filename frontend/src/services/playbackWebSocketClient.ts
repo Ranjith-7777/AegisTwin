@@ -7,6 +7,7 @@ export interface DetectionControl {
   detectionEnabled: boolean
   modelId?: string
   correlationEnabled?: boolean
+  predictionEnabled?: boolean
 }
 
 export interface PlaybackClientHandlers {
@@ -66,6 +67,7 @@ export class PlaybackWebSocketClient {
               detection_enabled: true,
               model_id: detection.modelId,
               ...(detection.correlationEnabled ? { correlation_enabled: true } : {}),
+              ...(detection.predictionEnabled ? { prediction_enabled: true } : {}),
             }
           : {}),
       }),

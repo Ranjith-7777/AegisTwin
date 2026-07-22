@@ -1,5 +1,7 @@
 # AegisTwin Backend and Synthetic Telemetry Foundation
 
+Phase 5B exposes versioned prediction snapshots, ranked hypotheses, staged-demo evaluation, and causally ordered playback under `/api/v1/prediction`.
+
 Python 3.11+ is required. The service refuses to start unless simulation-only mode is enabled. Run commands from the `backend` directory.
 
 Phase 4A.1 hardens offline IsolationForest detection with causal context features, a separate synthetic benchmark manifest, three normal-only calibration methods, auditable hybrid scoring, and run-level diagnostics. Anomalous means unusual relative to synthetic normal training; it never means a confirmed attack. Live anomaly streaming, incident correlation, ATT&CK mapping, commands, device contact, scanning, and response actions are absent.
