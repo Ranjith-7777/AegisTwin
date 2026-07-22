@@ -6,6 +6,7 @@ import { renderApp } from './test-utils'
 import * as simulationApi from '../services/simulationApi'
 import * as detectionApi from '../services/detectionApi'
 import * as systemApi from '../services/systemApi'
+import * as topologyApi from '../services/topologyApi'
 import type { PlaybackEnvelope } from '../types/playback'
 import type { SimulationRun, SimulationScenario, TelemetryEvent } from '../types/simulation'
 import type { DetectionModel } from '../types/detection'
@@ -13,6 +14,7 @@ import type { DetectionModel } from '../types/detection'
 vi.mock('../services/simulationApi')
 vi.mock('../services/detectionApi')
 vi.mock('../services/systemApi')
+vi.mock('../services/topologyApi')
 
 class FakeWebSocket {
   static readonly CONNECTING = 0
@@ -149,6 +151,7 @@ async function startRun() {
   await userEvent.click(screen.getByRole('button', { name: 'Start Synthetic Simulation' }))
   await waitFor(() => {
     expect(simulationApi.createSimulationRun).toHaveBeenCalledOnce()
+    expect(FakeWebSocket.instances).toHaveLength(1)
   })
   const socket = FakeWebSocket.instances.at(-1)
   if (!socket) throw new Error('Expected playback socket to be created.')
@@ -171,6 +174,10 @@ beforeEach(() => {
   vi.mocked(simulationApi.getSimulationRuns).mockResolvedValue([])
   vi.mocked(simulationApi.createSimulationRun).mockResolvedValue(run)
   vi.mocked(detectionApi.getDetectionModels).mockResolvedValue([])
+  vi.mocked(topologyApi.getTopology).mockRejectedValue(new Error('Topology unavailable in test'))
+  vi.mocked(topologyApi.getRunTopologyState).mockRejectedValue(
+    new Error('Recovery unavailable in test'),
+  )
   vi.mocked(detectionApi.scoreSimulationRun).mockResolvedValue({
     model_id: detectionModel.model_id,
     simulation_run_id: run.simulation_run_id,
@@ -290,7 +297,9 @@ describe('synthetic playback dashboard', () => {
       socket.fail()
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Retry connection' }))
-    expect(FakeWebSocket.instances).toHaveLength(2)
+    await waitFor(() => {
+      expect(FakeWebSocket.instances).toHaveLength(2)
+    })
     const retrySocket = FakeWebSocket.instances[1]
     if (!retrySocket) throw new Error('Expected retry socket to be created.')
     expect(retrySocket.url).toContain('after_sequence=0')

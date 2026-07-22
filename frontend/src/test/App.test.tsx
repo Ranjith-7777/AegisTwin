@@ -95,7 +95,9 @@ describe('AegisTwin dashboard foundation', () => {
   it('navigates to the interactive synthetic topology route', async () => {
     renderApp()
     await userEvent.click(screen.getByRole('link', { name: 'Digital Twin' }))
-    expect(screen.getByRole('heading', { name: 'Cyber Digital Twin' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Cyber Digital Twin' }, { timeout: 5000 }),
+    ).toBeInTheDocument()
     expect(screen.getByText(/sequence-bounded path evidence/)).toBeInTheDocument()
   })
   it('renders the 404 page for an unknown route', () => {

@@ -61,6 +61,7 @@ function stringList(value: unknown): value is string[] {
 export function parseRunTopologyState(value: unknown): RunTopologyState | null {
   return record(value) &&
     typeof value.simulation_run_id === 'string' &&
+    value.state_version === 'live-topology-state-v1' &&
     (value.model_id === null || typeof value.model_id === 'string') &&
     stringList(value.observed_asset_ids) &&
     stringList(value.observed_edge_ids) &&
@@ -68,6 +69,12 @@ export function parseRunTopologyState(value: unknown): RunTopologyState | null {
     stringList(value.correlated_edge_ids) &&
     stringList(value.predicted_asset_ids) &&
     stringList(value.predicted_edge_ids) &&
+    stringList(value.anomalous_observed_asset_ids) &&
+    stringList(value.anomalous_observed_edge_ids) &&
+    stringList(value.unexpected_observed_edge_ids) &&
+    Array.isArray(value.event_mappings) &&
+    Array.isArray(value.predicted_paths) &&
+    value.predicted_paths.every(path) &&
     typeof value.current_sequence_limit === 'number' &&
     value.synthetic === true
     ? (value as unknown as RunTopologyState)
@@ -99,8 +106,14 @@ export function parseTopologyPathPage(value: unknown): TopologyPathPage | null {
     : null
 }
 
-export async function getTopology(): Promise<TopologySnapshot> {
-  const parsed = parseTopologySnapshot((await apiClient.get('/api/v1/topology')).data)
+export async function getTopology(includeSyntheticSink = false): Promise<TopologySnapshot> {
+  const parsed = parseTopologySnapshot(
+    (
+      await apiClient.get('/api/v1/topology', {
+        params: { include_synthetic_sink: includeSyntheticSink },
+      })
+    ).data,
+  )
   if (!parsed) throw new Error('Malformed synthetic topology response.')
   return parsed
 }

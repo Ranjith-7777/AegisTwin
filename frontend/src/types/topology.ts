@@ -34,6 +34,7 @@ export interface TopologySnapshot {
 }
 
 export interface RunTopologyState {
+  state_version: 'live-topology-state-v1'
   simulation_run_id: string
   model_id: string | null
   observed_asset_ids: string[]
@@ -42,7 +43,26 @@ export interface RunTopologyState {
   correlated_edge_ids: string[]
   predicted_asset_ids: string[]
   predicted_edge_ids: string[]
+  anomalous_observed_asset_ids: string[]
+  anomalous_observed_edge_ids: string[]
+  unexpected_observed_edge_ids: string[]
+  event_mappings: TopologyEventMapping[]
+  predicted_paths: TopologyPath[]
   current_sequence_limit: number
+  synthetic: true
+}
+
+export interface TopologyEventMapping {
+  event_id: string
+  sequence_number: number
+  source_asset_id: string | null
+  destination_asset_id: string | null
+  edge_id: string | null
+  unexpected_observed: boolean
+  anomalous_observed: boolean
+  anomaly_score: number | null
+  classification: string | null
+  technique_ids: string[]
   synthetic: true
 }
 

@@ -139,6 +139,8 @@ Create focused feature branches, review `git status` before and after work, run 
 
 ## Current limitations
 
+Phase 6B animates the curated synthetic topology from ordered playback envelopes and provides exact-prefix REST recovery before WebSocket resume. Observed, anomalous, correlated, and predicted layers remain distinct evidence qualifications; none means confirmed compromise. See [docs/PHASE_6B_LIVE_DIGITAL_TWIN.md](docs/PHASE_6B_LIVE_DIGITAL_TWIN.md).
+
 Phase 5A adds optional, causal incident-candidate correlation and a curated local MITRE ATT&CK subset. The two detection benchmark scenarios remain frozen; `staged-compromise-demo` is independent. Correlation streams only persisted synthetic evidence and never confirms an attack. See [docs/PHASE_5A_INCIDENT_CORRELATION_MITRE.md](docs/PHASE_5A_INCIDENT_CORRELATION_MITRE.md).
 
 The backend remains synchronous, single-process, and SQLite-backed; model artifacts and their cache are process-local. Phase 4B optionally streams persisted synthetic assessments immediately after matching telemetry without changing telemetry-only clients. See [docs/PHASE_4B_LIVE_ANOMALY_INTEGRATION.md](docs/PHASE_4B_LIVE_ANOMALY_INTEGRATION.md). Authentication, production observability, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.

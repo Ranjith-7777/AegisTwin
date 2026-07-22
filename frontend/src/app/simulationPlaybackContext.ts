@@ -10,6 +10,7 @@ import type { WebSocketConnectionState } from '../types/websocket'
 import type { AnomalyAssessment, DetectionModel, ScoringStatus } from '../types/detection'
 import type { IncidentCandidate, TechniqueObservation } from '../types/correlation'
 import type { PredictionSnapshot } from '../types/prediction'
+import type { LiveTopologyOverlay } from '../types/liveTopology'
 
 export interface StartSimulationInput {
   scenarioId: string
@@ -55,6 +56,7 @@ export interface SimulationPlaybackContextValue {
   predictionError: string | null
   predictionTimeline: PredictionSnapshot[]
   currentPrediction: PredictionSnapshot | null
+  liveTopology: LiveTopologyOverlay
   startSimulation: (input: StartSimulationInput) => Promise<void>
   replayRun: (run: SimulationRun) => void
   pause: () => void
@@ -69,6 +71,7 @@ export interface SimulationPlaybackContextValue {
   continueWithoutCorrelation: () => void
   retryPrediction: () => Promise<void>
   continueWithoutPrediction: () => void
+  resetTopologyOverlay: () => void
 }
 
 export const SimulationPlaybackContext = createContext<SimulationPlaybackContextValue | null>(null)

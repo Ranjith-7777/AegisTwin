@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 
 import { SimulationPlaybackContext, type StartSimulationInput } from './simulationPlaybackContext'
 import { toClientApiError } from '../services/apiClient'
@@ -26,6 +34,8 @@ import type {
 } from '../types/simulation'
 import type { WebSocketConnectionState } from '../types/websocket'
 import type { PredictionSnapshot } from '../types/prediction'
+import { emptyLiveTopologyOverlay, liveTopologyReducer } from '../types/liveTopology'
+import { getRunTopologyState, getTopology } from '../services/topologyApi'
 
 const MAX_RENDERED_EVENTS = 200
 
@@ -65,12 +75,18 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
   >('idle')
   const [predictionError, setPredictionError] = useState<string | null>(null)
   const [predictionTimeline, setPredictionTimeline] = useState<PredictionSnapshot[]>([])
+  const [liveTopology, dispatchTopology] = useReducer(
+    liveTopologyReducer,
+    undefined,
+    emptyLiveTopologyOverlay,
+  )
   const pendingRunRef = useRef<SimulationRun | null>(null)
   const detectionStartRef = useRef<{
     enabled: boolean
     modelId?: string
     correlationEnabled?: boolean
     predictionEnabled?: boolean
+    topK?: number
   }>({ enabled: false })
   const clientRef = useRef<PlaybackWebSocketClient | null>(null)
 
@@ -104,6 +120,14 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
     }
   }, [])
 
+  useEffect(() => {
+    void getTopology(true)
+      .then((topology) => {
+        dispatchTopology({ type: 'configure', topology })
+      })
+      .catch(() => undefined)
+  }, [])
+
   const handleMessage = useCallback(
     (message: PlaybackEnvelope) => {
       setError(null)
@@ -124,6 +148,11 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       }
       const telemetry = getTelemetryPayload(message)
       if (telemetry) {
+        dispatchTopology({
+          type: 'telemetry',
+          event: telemetry.event,
+          sequence: telemetry.event_index,
+        })
         setEvents((current) => [...current, telemetry.event].slice(-MAX_RENDERED_EVENTS))
         setCurrentEventIndex(telemetry.event_index)
         setTotalEventCount(telemetry.total_event_count)
@@ -142,10 +171,12 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
             ? current
             : [...current, assessment],
         )
+        dispatchTopology({ type: 'assessment', assessment })
         return
       }
       const technique = getTechniquePayload(message)
       if (technique) {
+        dispatchTopology({ type: 'technique', observation: technique })
         setTechniqueTimeline((current) =>
           current.some((item) => item.mapping_id === technique.mapping_id)
             ? current
@@ -155,6 +186,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       }
       const candidate = getIncidentPayload(message)
       if (candidate) {
+        dispatchTopology({ type: 'correlation', candidate })
         setCurrentIncidentCandidate(candidate)
         return
       }
@@ -167,6 +199,11 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
           prediction.model_id !== detectionStartRef.current.modelId
         )
           return
+        dispatchTopology({
+          type: 'prediction',
+          snapshot: prediction,
+          topK: detectionStartRef.current.topK ?? 1,
+        })
         setPredictionTimeline((current) =>
           current.some((item) => item.prediction_snapshot_id === prediction.prediction_snapshot_id)
             ? current
@@ -263,6 +300,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       setTechniqueTimeline([])
       setCurrentIncidentCandidate(null)
       setPredictionTimeline([])
+      dispatchTopology({ type: 'reset' })
       setPredictionError(null)
       setCorrelationError(null)
       setDetectionError(null)
@@ -287,6 +325,11 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
         setCorrelationEnabled(input.correlationEnabled)
         setPredictionEnabled(input.predictionEnabled)
         setSelectedModel(model)
+        dispatchTopology({
+          type: 'start_run',
+          runId: run.simulation_run_id,
+          modelId: model?.model_id ?? null,
+        })
         pendingRunRef.current = run
         if (input.detectionEnabled && model) {
           setScoringStatus('scoring')
@@ -315,6 +358,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
               modelId: model.model_id,
               correlationEnabled: input.correlationEnabled,
               predictionEnabled: input.predictionEnabled,
+              topK: input.topK,
             })
           } catch (reason) {
             setScoringStatus('error')
@@ -342,6 +386,11 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       setEvents([])
       setCurrentEventIndex(0)
       setTotalEventCount(run.event_count)
+      dispatchTopology({
+        type: 'start_run',
+        runId: run.simulation_run_id,
+        modelId: detectionStartRef.current.modelId ?? null,
+      })
       openRun(run, 0)
     },
     [openRun],
@@ -360,10 +409,27 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
     setEvents([])
     setCurrentEventIndex(0)
     setError(null)
+    dispatchTopology({ type: 'reset' })
   }, [])
   const retry = useCallback(() => {
-    if (activeRun) openRun(activeRun, currentEventIndex)
-  }, [activeRun, currentEventIndex, openRun])
+    if (!activeRun) return
+    dispatchTopology({ type: 'clear_transient' })
+    void getRunTopologyState(
+      activeRun.simulation_run_id,
+      selectedModel?.model_id,
+      currentEventIndex,
+    )
+      .then((state) => {
+        dispatchTopology({ type: 'recover', state })
+        openRun(activeRun, currentEventIndex)
+      })
+      .catch(() => {
+        openRun(activeRun, currentEventIndex)
+      })
+  }, [activeRun, currentEventIndex, openRun, selectedModel?.model_id])
+  const resetTopologyOverlay = useCallback(() => {
+    dispatchTopology({ type: 'reset' })
+  }, [])
   const retryScoring = useCallback(async () => {
     const run = pendingRunRef.current
     if (!run || !selectedModel) return
@@ -496,6 +562,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       predictionError,
       predictionTimeline,
       currentPrediction: predictionTimeline.at(-1) ?? null,
+      liveTopology,
       startSimulation,
       replayRun,
       pause,
@@ -510,6 +577,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       continueWithoutCorrelation,
       retryPrediction,
       continueWithoutPrediction,
+      resetTopologyOverlay,
     }),
     [
       scenarios,
@@ -541,6 +609,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       predictionStatus,
       predictionError,
       predictionTimeline,
+      liveTopology,
       startSimulation,
       replayRun,
       pause,
@@ -555,6 +624,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       continueWithoutCorrelation,
       retryPrediction,
       continueWithoutPrediction,
+      resetTopologyOverlay,
     ],
   )
   return (

@@ -5,13 +5,15 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ApplicationError
 from app.database.models import (
+    AnomalyAssessmentRecord,
     IncidentCandidateRecord,
     IncidentEvidenceRecord,
     PredictionHypothesisRecord,
     PredictionSnapshotRecord,
     SimulationRunRecord,
+    TechniqueObservationRecord,
 )
-from app.schemas.topology import RunTopologyState, TopologyPath
+from app.schemas.topology import RunTopologyState, TopologyEventMapping, TopologyPath
 from app.services.telemetry_service import telemetry_service
 from app.services.topology_service import topology_service
 
@@ -78,11 +80,70 @@ class TopologyPathService:
             )
         events = telemetry_service.list_run_events(session, run_id)
         limit = min(through_sequence or len(events), len(events))
+        include_sink = run.scenario_id == "staged-compromise-demo"
+        known_assets = {item.asset_id for item in topology_service.nodes(include_sink)}
+        topology_edges = {
+            (item.source_asset_id, item.destination_asset_id): item.edge_id
+            for item in topology_service.edges(include_sink)
+        }
         observed_pairs = {
             (event.source_id, event.destination_id)
             for event in events[:limit]
-            if event.destination_id
+            if event.source_id in known_assets and event.destination_id in known_assets
         }
+        assessments = (
+            {
+                item.event_id: item
+                for item in session.scalars(
+                    select(AnomalyAssessmentRecord).where(
+                        AnomalyAssessmentRecord.simulation_run_id == run_id,
+                        AnomalyAssessmentRecord.model_id == model_id,
+                        AnomalyAssessmentRecord.sequence_number <= limit,
+                    )
+                )
+            }
+            if model_id
+            else {}
+        )
+        techniques_by_event: dict[str, list[str]] = {}
+        if model_id:
+            for item in session.scalars(
+                select(TechniqueObservationRecord).where(
+                    TechniqueObservationRecord.simulation_run_id == run_id,
+                    TechniqueObservationRecord.model_id == model_id,
+                    TechniqueObservationRecord.sequence_number <= limit,
+                )
+            ):
+                techniques_by_event.setdefault(item.event_id, []).append(item.technique_id)
+        mappings: list[TopologyEventMapping] = []
+        anomalous_pairs: set[tuple[str, str]] = set()
+        unexpected_pairs: set[tuple[str, str]] = set()
+        for sequence, event in enumerate(events[:limit], 1):
+            source = event.source_id if event.source_id in known_assets else None
+            destination = event.destination_id if event.destination_id in known_assets else None
+            pair = (source, destination) if source and destination else None
+            assessment = assessments.get(event.event_id)
+            anomalous = bool(assessment and assessment.classification == "anomalous")
+            unexpected = bool(pair and pair not in topology_edges)
+            if pair and anomalous:
+                anomalous_pairs.add(pair)
+            if pair and unexpected:
+                unexpected_pairs.add(pair)
+            mappings.append(
+                TopologyEventMapping(
+                    event_id=event.event_id,
+                    sequence_number=sequence,
+                    source_asset_id=source,
+                    destination_asset_id=destination,
+                    edge_id=topology_edges.get(pair) if pair else None,
+                    unexpected_observed=unexpected,
+                    anomalous_observed=anomalous,
+                    anomaly_score=assessment.anomaly_score if assessment else None,
+                    classification=assessment.classification if assessment else None,
+                    technique_ids=sorted(techniques_by_event.get(event.event_id, [])),
+                    synthetic=True,
+                )
+            )
         correlated_pairs: set[tuple[str, str]] = set()
         predicted_pairs: set[tuple[str, str]] = set()
         if model_id:
@@ -135,9 +196,31 @@ class TopologyPathService:
             correlated_edge_ids=self._edge_ids(correlated_pairs),
             predicted_asset_ids=self._assets(predicted_pairs),
             predicted_edge_ids=self._edge_ids(predicted_pairs),
+            anomalous_observed_asset_ids=self._assets(anomalous_pairs),
+            anomalous_observed_edge_ids=self._edge_ids(anomalous_pairs),
+            unexpected_observed_edge_ids=self._edge_ids(unexpected_pairs),
+            event_mappings=mappings,
+            predicted_paths=self._predicted_paths(predicted_pairs, limit),
             current_sequence_limit=limit,
             synthetic=True,
         )
+
+    @staticmethod
+    def _predicted_paths(pairs: set[tuple[str, str]], limit: int) -> list[TopologyPath]:
+        return [
+            TopologyPath(
+                path_type="predicted",
+                ordered_node_ids=[source, destination],
+                ordered_edge_ids=[f"{source}--{destination}"],
+                path_length=1,
+                evidence_source="persisted synthetic ranked prediction",
+                through_sequence_number=limit,
+                hypothetical=True,
+                statement="Hypothetical path derived from synthetic ranked predictions.",
+                synthetic=True,
+            )
+            for source, destination in sorted(pairs)
+        ]
 
     def _allowed_edges(
         self,

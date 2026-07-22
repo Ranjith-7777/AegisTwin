@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { CyberDigitalTwin } from '../components/topology/CyberDigitalTwin'
 import { TopologyControls } from '../components/topology/TopologyControls'
+import { TopologyHistory } from '../components/topology/TopologyHistory'
 import {
   AssetInspector,
   PathInspection,
@@ -12,6 +13,7 @@ import {
 } from '../components/topology/TopologyPanels'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
 import { useTopology } from '../hooks/useTopology'
+import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
 import { getDetectionModels } from '../services/detectionApi'
 import { getSimulationRuns } from '../services/simulationApi'
 import type { DetectionModel } from '../types/detection'
@@ -19,7 +21,8 @@ import type { SimulationRun } from '../types/simulation'
 import type { TopologyPathType } from '../types/topology'
 
 export function DigitalTwinPage() {
-  const topologyState = useTopology()
+  const playback = useSimulationPlayback()
+  const topologyState = useTopology(playback.activeRun?.scenario_id === 'staged-compromise-demo')
   const [runs, setRuns] = useState<SimulationRun[]>([])
   const [models, setModels] = useState<DetectionModel[]>([])
   const [source, setSource] = useState('employee-laptop-01')
@@ -29,6 +32,8 @@ export function DigitalTwinPage() {
   const [modelId, setModelId] = useState('')
   const [sequence, setSequence] = useState(1)
   const [layers, setLayers] = useState({ observed: true, correlated: true, predicted: true })
+  const [followLive, setFollowLive] = useState(true)
+  const [reducedMotion, setReducedMotion] = useState(false)
   const visibleRunState = useMemo(() => {
     const state = topologyState.runState
     if (!state) return null
@@ -79,7 +84,19 @@ export function DigitalTwinPage() {
           <h1>Cyber Digital Twin</h1>
           <p>Inspect the repository-defined infrastructure and sequence-bounded path evidence.</p>
         </div>
+        <span className="status-chip">
+          {playback.activeRun ? 'LIVE SYNTHETIC REPLAY' : 'STATIC TOPOLOGY'}
+        </span>
       </header>
+      <p className="text-sm" aria-live="polite">
+        Playback: {playback.playbackState} · Run:{' '}
+        {playback.activeRun?.simulation_run_id.slice(0, 8) ?? 'none'} · Sequence{' '}
+        {playback.currentEventIndex} / {playback.totalEventCount}
+      </p>
+      <p className="text-xs text-amber-200">
+        Observed and anomalous states describe synthetic replay evidence and do not confirm
+        compromise.
+      </p>
       {topologyState.error ? (
         <p className="text-red-200" role="alert">
           {topologyState.error}
@@ -114,6 +131,31 @@ export function DigitalTwinPage() {
                   </label>
                 ))}
               </div>
+              <div className="flex flex-wrap gap-4">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={followLive}
+                    onChange={(event) => {
+                      setFollowLive(event.target.checked)
+                    }}
+                  />{' '}
+                  Follow current event
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={reducedMotion}
+                    onChange={(event) => {
+                      setReducedMotion(event.target.checked)
+                    }}
+                  />{' '}
+                  Reduced animation
+                </label>
+                <button className="text-cyan-300" onClick={playback.resetTopologyOverlay}>
+                  Reset topology overlay
+                </button>
+              </div>
               <TopologyControls
                 nodes={topologyState.topology.nodes}
                 runs={runs}
@@ -139,15 +181,28 @@ export function DigitalTwinPage() {
             runState={visibleRunState}
             onSelectNode={topologyState.selectNode}
             onSelectEdge={topologyState.selectEdge}
+            liveOverlay={playback.liveTopology}
+            animationPaused={playback.playbackState === 'paused' || reducedMotion}
           />
           <div className="grid gap-6 lg:grid-cols-2">
             <AssetInspector
               node={topologyState.selectedNode}
               edges={topologyState.topology.edges}
               state={topologyState.runState}
+              live={playback.liveTopology}
             />
             <PathInspection path={topologyState.activePath} />
-            <RelationshipInspector edge={topologyState.selectedEdge} />
+            <RelationshipInspector edge={topologyState.selectedEdge} live={playback.liveTopology} />
+            <TopologyHistory
+              items={playback.liveTopology.history}
+              onSelect={(item) => {
+                const assetId = item.destination_asset_id ?? item.source_asset_id
+                const asset = topologyState.topology?.nodes.find(
+                  (node) => node.asset_id === assetId,
+                )
+                if (asset) topologyState.selectNode(asset)
+              }}
+            />
           </div>
         </>
       ) : null}

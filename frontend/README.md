@@ -2,6 +2,8 @@
 
 Phase 6A replaces the Digital Twin placeholder with a reusable React Flow topology, asset and relationship inspectors, layer controls, and cautious path inspection.
 
+Phase 6B drives that topology from ordered playback messages. The Overview card and full Digital Twin share reducer state, expose event history and evidence details, separate observed/correlated/predicted semantics, and recover an exact sequence prefix before WebSocket resume. See `../docs/PHASE_6B_LIVE_DIGITAL_TWIN.md`.
+
 Phase 5B adds opt-in prediction controls, a live ranked-hypothesis panel, and `/predictive-analytics` for snapshot and outcome review.
 
 Phase 3B connects the React dashboard foundation to deterministic synthetic simulation runs and controlled real-time playback. It is dark by default, responsive, and permanently identifies itself as a simulation environment.
@@ -61,4 +63,4 @@ The component approach is adapted from the open-source shadcn/ui conventions and
 
 The overview can optionally prepare and stream causal correlation after detection scoring. `/incidents` is the Incident Candidates workspace and `/mitre` separates the local catalogue from actual persisted observations. All values are synthetic evidence heuristics, not attack probabilities or confirmed incidents.
 
-Playback keeps at most 200 rendered telemetry rows. Detection is optional and uses only offline persisted assessments. There is no incident correlation, MITRE mapping, React Flow topology, prediction, agent, or response orchestration.
+Playback keeps at most 200 rendered telemetry rows. Detection is optional and uses only offline persisted assessments. Topology animation is a synthetic evidence projection, not infrastructure discovery or confirmed compromise. There is no agent or response orchestration.

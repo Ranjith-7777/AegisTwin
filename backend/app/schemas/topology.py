@@ -84,7 +84,22 @@ class TopologyPathPage(BaseModel):
     synthetic: Literal[True] = True
 
 
+class TopologyEventMapping(BaseModel):
+    event_id: str
+    sequence_number: int
+    source_asset_id: str | None
+    destination_asset_id: str | None
+    edge_id: str | None
+    unexpected_observed: bool
+    anomalous_observed: bool
+    anomaly_score: float | None
+    classification: str | None
+    technique_ids: list[str]
+    synthetic: Literal[True] = True
+
+
 class RunTopologyState(BaseModel):
+    state_version: Literal["live-topology-state-v1"] = "live-topology-state-v1"
     simulation_run_id: str
     model_id: str | None
     observed_asset_ids: list[str]
@@ -93,5 +108,10 @@ class RunTopologyState(BaseModel):
     correlated_edge_ids: list[str]
     predicted_asset_ids: list[str]
     predicted_edge_ids: list[str]
+    anomalous_observed_asset_ids: list[str]
+    anomalous_observed_edge_ids: list[str]
+    unexpected_observed_edge_ids: list[str]
+    event_mappings: list[TopologyEventMapping]
+    predicted_paths: list[TopologyPath]
     current_sequence_limit: int
     synthetic: Literal[True] = True

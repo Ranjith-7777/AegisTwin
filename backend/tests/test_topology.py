@@ -115,6 +115,14 @@ def test_run_paths_are_causal_isolated_and_prediction_is_hypothetical(
         params={"model_id": model_id, "through_sequence_number": 10},
     ).json()
     assert "simulation-egress-sink-01" not in state["observed_asset_ids"]
+    assert state["state_version"] == "live-topology-state-v1"
+    assert len(state["event_mappings"]) == 10
+    assert all(item["sequence_number"] <= 10 for item in state["event_mappings"])
+    assert all(item["synthetic"] is True for item in state["event_mappings"])
+    assert "synthetic-unseen-device" not in state["observed_asset_ids"]
+    assert set(state["anomalous_observed_asset_ids"]) <= set(state["observed_asset_ids"])
+    assert all(item["hypothetical"] is True for item in state["predicted_paths"])
+    assert set(state["predicted_edge_ids"]).isdisjoint(state["observed_edge_ids"])
     other_run, _ = prepare_prediction(client)
     other = client.get(
         f"/api/v1/topology/runs/{other_run}/state",
@@ -122,3 +130,4 @@ def test_run_paths_are_causal_isolated_and_prediction_is_hypothetical(
     ).json()
     assert other["current_sequence_limit"] == 4
     assert "simulation-egress-sink-01" not in other["observed_asset_ids"]
+    assert len(other["event_mappings"]) == 4

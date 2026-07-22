@@ -10,7 +10,7 @@ import type {
   TopologySnapshot,
 } from '../types/topology'
 
-export function useTopology() {
+export function useTopology(includeSyntheticSink = false) {
   const [topology, setTopology] = useState<TopologySnapshot | null>(null)
   const [runState, setRunState] = useState<RunTopologyState | null>(null)
   const [selectedNode, setSelectedNode] = useState<InfrastructureNode | null>(null)
@@ -20,7 +20,7 @@ export function useTopology() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    void getTopology()
+    void getTopology(includeSyntheticSink)
       .then(setTopology)
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : 'Synthetic topology is unavailable.')
@@ -28,7 +28,7 @@ export function useTopology() {
       .finally(() => {
         setLoading(false)
       })
-  }, [])
+  }, [includeSyntheticSink])
 
   const loadRunState = useCallback(
     async (runId: string, modelId: string | undefined, sequence: number) => {

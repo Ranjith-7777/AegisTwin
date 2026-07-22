@@ -44,6 +44,14 @@
   border-style: dashed;
   border-color: rgb(192 132 252);
 }
+.topology-asset-node.state-anomalous-observed {
+  border-color: rgb(251 146 60);
+  border-style: double;
+}
+.topology-asset-node.state-current-focus {
+  border-color: rgb(255 255 255);
+  animation: topology-pulse 1.2s ease-out infinite;
+}
 .topology-asset-node.is-selected {
   outline: 3px solid white;
   outline-offset: 3px;
@@ -63,6 +71,41 @@
 .topology-edge.state-predicted {
   stroke: rgb(192 132 252);
   stroke-dasharray: 8 5;
+}
+.topology-edge.state-anomalous-observed {
+  stroke: rgb(251 146 60);
+  stroke-width: 4;
+}
+.topology-edge.state-current-focus {
+  stroke: rgb(255 255 255);
+  stroke-width: 4;
+  stroke-dasharray: 10 5;
+  animation: topology-dash 1s linear infinite;
+}
+.topology-edge.state-unexpected-observed {
+  stroke: rgb(248 113 113);
+  stroke-width: 4;
+  stroke-dasharray: 3 4;
+}
+.animation-paused *,
+.reduced-motion * {
+  animation-play-state: paused !important;
+}
+@keyframes topology-pulse {
+  50% {
+    transform: scale(1.035);
+  }
+}
+@keyframes topology-dash {
+  to {
+    stroke-dashoffset: -30;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .topology-canvas * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 .topology-edge.state-simulation-only-external {
   stroke: rgb(244 114 182);

@@ -113,6 +113,8 @@ Phase 5A adds `POST /api/v1/correlation/runs/{run_id}/analyze`, incident/evidenc
 
 Telemetry query parameters are `page`, `page_size`, `simulation_run_id`, `event_type`, `source_id`, `user_id`, and `minimum_severity`.
 
+Phase 6B extends run topology recovery with causal event mappings and observed, anomalous, unexpected, correlated, and hypothetical predicted layers. Recovery is derived from persisted synthetic evidence through an explicit sequence limit; it performs no discovery or real-world action. See `docs/PHASE_6B_LIVE_DIGITAL_TWIN.md`.
+
 ### Windows CMD example
 
 ```bat

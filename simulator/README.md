@@ -12,3 +12,5 @@ Phase 4B keeps scoring offline and persists every synthetic assessment before pl
 
 Phase 5A adds the independent deterministic `staged-compromise-demo` scenario. It does not alter the frozen normal-operations or credential-compromise benchmarks. Explicit synthetic protocol/channel metadata supports conservative local MITRE mapping without any external lookup.
 
+Phase 6B consumes those already-persisted staged events in sequence to animate the curated topology. It adds no generator look-ahead, scanner, host integration, command execution, or response capability; reconnect recovery is constrained to the requested persisted prefix.
+

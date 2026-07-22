@@ -4,6 +4,7 @@ import type {
   RunTopologyState,
   TopologyPath,
 } from '../../types/topology'
+import type { LiveTopologyOverlay } from '../../types/liveTopology'
 import { Card, CardContent, CardHeader } from '../ui/card'
 
 export function ZoneGroup() {
@@ -65,10 +66,12 @@ export function AssetInspector({
   node,
   edges,
   state,
+  live,
 }: {
   node: InfrastructureNode | null
   edges: InfrastructureEdge[]
   state: RunTopologyState | null
+  live?: LiveTopologyOverlay | null
 }) {
   if (!node)
     return (
@@ -83,6 +86,7 @@ export function AssetInspector({
     )
   const incoming = edges.filter((edge) => edge.destination_asset_id === node.asset_id)
   const outgoing = edges.filter((edge) => edge.source_asset_id === node.asset_id)
+  const liveNode = live?.nodes[node.asset_id]
   return (
     <Card>
       <CardHeader>
@@ -107,6 +111,28 @@ export function AssetInspector({
           {state?.correlated_asset_ids.includes(node.asset_id) ? 'yes' : 'no'} · Predicted:{' '}
           {state?.predicted_asset_ids.includes(node.asset_id) ? 'hypothesis' : 'no'}
         </p>
+        {liveNode ? (
+          <>
+            <p>
+              First/latest sequence: {liveNode.first_observed_sequence ?? 'none'} /{' '}
+              {liveNode.last_observed_sequence ?? 'none'} · Events: {liveNode.event_count}
+            </p>
+            <p>
+              Latest assessment: {liveNode.classification ?? 'none'} · score{' '}
+              {liveNode.anomaly_score?.toFixed(3) ?? 'none'}
+            </p>
+            <p>Observed techniques: {liveNode.observed_technique_ids.join(', ') || 'none'}</p>
+            <p>
+              Predicted target:{' '}
+              {liveNode.predicted
+                ? `rank ${String(liveNode.predicted_rank)} · score ${liveNode.prediction_score?.toFixed(3) ?? 'none'}`
+                : 'no'}
+            </p>
+            {liveNode.prediction_rationale ? (
+              <p className="text-xs">{liveNode.prediction_rationale}</p>
+            ) : null}
+          </>
+        ) : null}
         <p className="text-xs text-amber-200">
           No health, availability, or confirmed compromise state is inferred.
         </p>
@@ -134,8 +160,15 @@ export function PathInspection({ path }: { path: TopologyPath | null }) {
   )
 }
 
-export function RelationshipInspector({ edge }: { edge: InfrastructureEdge | null }) {
+export function RelationshipInspector({
+  edge,
+  live,
+}: {
+  edge: InfrastructureEdge | null
+  live?: LiveTopologyOverlay | null
+}) {
   if (!edge) return null
+  const liveEdge = live?.edges[edge.edge_id]
   return (
     <Card>
       <CardHeader>
@@ -155,6 +188,34 @@ export function RelationshipInspector({ edge }: { edge: InfrastructureEdge | nul
         <p>
           Direction: {edge.direction} · Permitted: {edge.permitted ? 'yes' : 'no'}
         </p>
+        {liveEdge ? (
+          <>
+            <p>
+              First/latest sequence: {liveEdge.first_observed_sequence ?? 'none'} /{' '}
+              {liveEdge.last_observed_sequence ?? 'none'}
+            </p>
+            <p>
+              Events: {liveEdge.associated_event_ids.length} · Techniques:{' '}
+              {liveEdge.associated_technique_ids.join(', ') || 'none'}
+            </p>
+            <p>
+              Evidence:{' '}
+              {liveEdge.anomalous_observed
+                ? 'anomalous observed'
+                : liveEdge.observed
+                  ? 'observed'
+                  : 'not observed'}{' '}
+              · {liveEdge.correlated ? 'correlation involved' : 'not correlated'} ·{' '}
+              {liveEdge.predicted ? 'hypothetical predicted path' : 'not predicted'}
+            </p>
+            {liveEdge.unexpected ? (
+              <p className="text-amber-200">
+                Unexpected observed relationship: both assets are known, but this directed edge is
+                outside the expected synthetic architecture.
+              </p>
+            ) : null}
+          </>
+        ) : null}
       </CardContent>
     </Card>
   )
