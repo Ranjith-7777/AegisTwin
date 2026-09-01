@@ -146,7 +146,7 @@ function envelope(
 }
 
 async function startRun() {
-  renderApp()
+  renderApp('/telemetry')
   await screen.findByRole('option', { name: scenario.name })
   await userEvent.click(screen.getByRole('button', { name: 'Start Synthetic Simulation' }))
   await waitFor(() => {
@@ -188,13 +188,13 @@ beforeEach(() => {
   })
   vi.mocked(systemApi.getHealth).mockResolvedValue({
     status: 'healthy',
-    service: 'AegisTwin API',
+    service: 'AegisArena API',
     environment: 'test',
     simulation_only: true,
     database: 'connected',
   })
   vi.mocked(systemApi.getSystemStatus).mockResolvedValue({
-    system_name: 'AegisTwin',
+    system_name: 'AegisArena',
     mode: 'simulation',
     operational: true,
     active_incidents: 0,
@@ -214,7 +214,7 @@ afterEach(() => {
 
 describe('synthetic playback dashboard', () => {
   it('stays disconnected until the user explicitly starts a run', async () => {
-    renderApp()
+    renderApp('/telemetry')
     expect(await screen.findByRole('option', { name: scenario.name })).toBeInTheDocument()
     expect(FakeWebSocket.instances).toHaveLength(0)
     expect(screen.getByText('disconnected')).toBeInTheDocument()
@@ -306,7 +306,7 @@ describe('synthetic playback dashboard', () => {
   })
 
   it('closes an active socket during component cleanup', async () => {
-    const { unmount } = renderApp()
+    const { unmount } = renderApp('/telemetry')
     await screen.findByRole('option', { name: scenario.name })
     await userEvent.click(screen.getByRole('button', { name: 'Start Synthetic Simulation' }))
     const socket = FakeWebSocket.instances[0]
@@ -315,16 +315,17 @@ describe('synthetic playback dashboard', () => {
     expect(socket.closeCalled).toBe(true)
   })
 
-  it('does not fabricate anomaly, incident, MTTD, or MTTR values', () => {
+  it('does not fabricate risk or availability values before a run', () => {
     renderApp()
-    expect(screen.queryByText(/anomaly score/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText('MTTD')).toHaveTextContent('--')
-    expect(screen.getByLabelText('MTTR')).toHaveTextContent('--')
+    expect(screen.getByLabelText('Risk Score')).toHaveTextContent('0')
+    expect(screen.getByLabelText('Active Incidents')).toHaveTextContent('0')
+    expect(screen.getByLabelText('Active Incidents')).toHaveTextContent('No correlated incident')
+    expect(screen.getByLabelText('Cloud Health')).toHaveTextContent('healthy')
   })
 
   it('defaults detection off and loads selectable models from the API', async () => {
     vi.mocked(detectionApi.getDetectionModels).mockResolvedValue([detectionModel])
-    renderApp()
+    renderApp('/telemetry')
     const toggle = await screen.findByRole('checkbox', { name: 'Enable anomaly assessment' })
     expect(toggle).not.toBeChecked()
     await userEvent.click(toggle)
@@ -335,7 +336,7 @@ describe('synthetic playback dashboard', () => {
 
   it('scores the run before opening detection playback and renders matching assessments', async () => {
     vi.mocked(detectionApi.getDetectionModels).mockResolvedValue([detectionModel])
-    renderApp()
+    renderApp('/telemetry')
     await screen.findByRole('option', { name: scenario.name })
     await userEvent.click(screen.getByRole('checkbox', { name: 'Enable anomaly assessment' }))
     await userEvent.click(screen.getByRole('button', { name: 'Start Synthetic Simulation' }))

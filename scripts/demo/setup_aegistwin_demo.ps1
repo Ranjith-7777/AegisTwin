@@ -30,5 +30,5 @@ if ($InstallPlaywright) {
     try { npm.cmd exec playwright install chromium; if ($LASTEXITCODE -ne 0) { throw "Playwright installation failed." } }
     finally { Pop-Location }
 }
-Write-Host "AegisTwin demo setup complete. No administrator privileges were used."
+Write-Host "AegisArena demo setup complete. No administrator privileges were used."
 Write-Host "Next: START_AEGISTWIN_DEMO.bat"

@@ -1,4 +1,4 @@
-# AegisTwin Backend and Synthetic Telemetry Foundation
+# AegisArena Backend and Synthetic Telemetry Foundation
 
 The Windows judge launcher runs this API in non-debug simulation-only mode against `.aegistwin-demo/data/aegistwin-demo.db`; it never reuses the developer database.
 
@@ -80,8 +80,9 @@ Every event contains `event_id`, `scenario_id`, `simulation_run_id`, UTC `timest
 
 ## Available scenarios
 
-- `normal-operations`: office-hours login, portal access, application request, database query, small transfer, and logout.
-- `credential-compromise`: suspicious-looking synthetic failures, unusual-hour login, unseen synthetic device, privilege change, internal access, and large transfer to a simulation sink. This is exercise data, not a confirmed attack.
+- `normal-operations`: office-hours API sign-in, gateway forwarding, application-pod request, cloud-database query, small object-storage write, and sign-out.
+- `credential-compromise`: suspicious-looking synthetic failures, unusual-hour login, unseen synthetic client, IAM privilege change, internal access, and large transfer to a simulation sink. This is exercise data, not a confirmed attack.
+- `leaked-api-credential`, `suspicious-kubernetes-pod`, `ddos-traffic-spike`: the three deterministic Red Agent scenarios against the synthetic cloud estate.
 
 The same scenario, seed, UTC start time, and playback speed produce the same run ID and exact event sequence. Repeating an identical request returns the already persisted deterministic run.
 

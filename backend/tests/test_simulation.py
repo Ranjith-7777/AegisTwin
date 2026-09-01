@@ -38,15 +38,19 @@ def test_scenario_listing_and_inventory_are_synthetic(client: TestClient) -> Non
         "normal-operations",
         "credential-compromise",
         "staged-compromise-demo",
+        "leaked-api-credential",
+        "suspicious-kubernetes-pod",
+        "ddos-traffic-spike",
     ]
     assert all(scenario["synthetic"] is True for scenario in scenarios)
 
     inventory = client.get("/api/v1/simulation/infrastructure").json()
-    assert len(inventory) == 8
+    assert len(inventory) == 13
     assert {asset["asset_id"] for asset in inventory} >= {
-        "employee-laptop-01",
-        "examination-database-01",
-        "monitoring-server-01",
+        "external-user-01",
+        "kubernetes-cluster-01",
+        "cloud-database-01",
+        "monitoring-service-01",
     }
     assert all(asset["synthetic"] is True for asset in inventory)
 
@@ -122,7 +126,7 @@ def test_telemetry_filtering_works(client: TestClient) -> None:
 
     by_source = client.get(
         "/api/v1/telemetry/events",
-        params={"simulation_run_id": run_id, "source_id": "application-server-01"},
+        params={"simulation_run_id": run_id, "source_id": "application-pod-01"},
     ).json()
     assert by_source["total"] == 1
 

@@ -69,4 +69,4 @@ try {
     if ($LASTEXITCODE -eq 0 -and $realExecutionWording) { throw "Prohibited real-execution wording found in runtime source." }
 } finally { Pop-Location }
 
-Write-Host "AegisTwin release validation passed. All exercised workflows are synthetic."
+Write-Host "AegisArena release validation passed. All exercised workflows are synthetic."

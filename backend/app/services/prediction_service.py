@@ -379,7 +379,7 @@ class PredictionService:
         }
         if latest in mapping:
             stage, tactic = mapping[latest]
-        elif events and events[-1].destination_id == "examination-database-01":
+        elif events and events[-1].destination_id == "cloud-database-01":
             stage, tactic = "sensitive_resource_access", "Collection"
         else:
             stage, tactic = "normal_activity", tactics[-1] if tactics else "insufficient_evidence"

@@ -124,7 +124,9 @@ def test_correlation_websocket_preserves_causal_order(client: TestClient) -> Non
         assert websocket.receive_json()["message_type"] == "detection_ready"
         assert websocket.receive_json()["message_type"] == "correlation_ready"
         assert websocket.receive_json()["message_type"] == "playback_started"
-        messages = [cast(dict[str, object], websocket.receive_json()) for _ in range(7)]
+        messages: list[dict[str, object]] = []
+        while not messages or str(messages[-1]["message_type"]) != "playback_completed":
+            messages.append(cast(dict[str, object], websocket.receive_json()))
     types = [str(item["message_type"]) for item in messages]
     assert types[:4] == [
         "telemetry_event",

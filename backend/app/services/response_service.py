@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid5
 
@@ -35,8 +36,19 @@ from app.services.response_playbook_service import PLAYBOOKS, response_playbook_
 from app.services.topology_path_service import topology_path_service
 from app.services.topology_service import TOPOLOGY_VERSION, topology_service
 
-ENGINE_VERSION = "deterministic-response-ranking-v1"
+ENGINE_VERSION = "blue-agent-defense-score-v1"
 SIMULATION_VERSION = "graph-clone-impact-v1"
+BLUE_AGENT_NAME = "Blue Agent"
+# Zones that sit on the synthetic request-serving path, where a defensive action
+# carries a full service-level penalty rather than a reduced one.
+SERVING_ZONES = frozenset({"edge_zone", "cluster_zone", "workload_zone", "data_zone"})
+OPERATIONAL_IMPACT_COST = {"low": 0.04, "medium": 0.10, "high": 0.20}
+BLAST_RADIUS_COST = {
+    "single_identity": 0.01,
+    "single_asset": 0.02,
+    "single_relationship": 0.02,
+    "service": 0.08,
+}
 WEIGHTS = {
     "evidence_applicability": 0.25,
     "correlated_path_interruption": 0.20,
@@ -46,6 +58,21 @@ WEIGHTS = {
     "reversibility": 0.10,
     "policy_compatibility": 0.05,
 }
+
+
+"""Defense score, ranking score, playbook, target type, target id, components,
+penalties, defense components and the human-readable explanation."""
+_RankedAction = tuple[
+    float,
+    float,
+    DefensivePlaybook,
+    str,
+    str,
+    dict[str, float],
+    dict[str, float],
+    dict[str, float],
+    str,
+]
 
 
 class ResponseService:
@@ -239,15 +266,18 @@ class ResponseService:
         for asset_id in assets:
             targets.extend([(PLAYBOOKS[0], "asset", asset_id), (PLAYBOOKS[6], "asset", asset_id)])
             asset_type = known_nodes[asset_id].asset_type
-            if asset_type == "endpoint":
-                targets.append((PLAYBOOKS[3], "endpoint", asset_id))
-            if asset_type == "application_server":
-                targets.append((PLAYBOOKS[5], "application_server", asset_id))
-            if asset_type == "database":
-                targets.append((PLAYBOOKS[7], "database", asset_id))
+            if asset_type == "external_client":
+                targets.append((PLAYBOOKS[3], "external_client", asset_id))
+            if asset_type == "kubernetes_pod":
+                targets.append((PLAYBOOKS[5], "kubernetes_pod", asset_id))
+            if asset_type in {"database", "object_storage"}:
+                targets.append((PLAYBOOKS[7], asset_type, asset_id))
+            if asset_type in {"api_gateway", "load_balancer"}:
+                targets.append((PLAYBOOKS[8], asset_type, asset_id))
         for asset_id in predicted_assets:
-            if known_nodes[asset_id].asset_type == "database":
-                targets.append((PLAYBOOKS[7], "database", asset_id))
+            predicted_type = known_nodes[asset_id].asset_type
+            if predicted_type in {"database", "object_storage"}:
+                targets.append((PLAYBOOKS[7], predicted_type, asset_id))
         for user_id in users:
             targets.append((PLAYBOOKS[1], "user", user_id))
             if any(
@@ -260,24 +290,36 @@ class ResponseService:
                 targets.append((PLAYBOOKS[4], "relationship", edge_id))
 
         unique = {(p.playbook_id, kind, target): (p, kind, target) for p, kind, target in targets}
-        ranked: list[
-            tuple[float, DefensivePlaybook, str, str, dict[str, float], dict[str, float]]
-        ] = []
+        ranked: list[_RankedAction] = []
         for playbook, kind, target in unique.values():
             components, penalties = self._score(
                 playbook, target, assets, predicted_assets, technique_ids, topology_state
             )
             score = round(max(0.0, min(1.0, sum(components.values()) - sum(penalties.values()))), 6)
-            ranked.append((score, playbook, kind, target, components, penalties))
-        ranked.sort(key=lambda item: (-item[0], item[1].playbook_id, item[3]))
-        selected: list[
-            tuple[float, DefensivePlaybook, str, str, dict[str, float], dict[str, float]]
-        ] = []
+            defense, explanation = self._defense_score(
+                playbook, kind, target, components, known_nodes
+            )
+            ranked.append(
+                (
+                    defense["defense_score"],
+                    score,
+                    playbook,
+                    kind,
+                    target,
+                    components,
+                    penalties,
+                    defense,
+                    explanation,
+                )
+            )
+        # The Blue Agent ranks on Defense Score, highest net defensive value first.
+        ranked.sort(key=lambda item: (-item[0], item[2].playbook_id, item[4]))
+        selected: list[_RankedAction] = []
         selected_playbooks: set[str] = set()
         for item in ranked:
-            if item[1].playbook_id not in selected_playbooks:
+            if item[2].playbook_id not in selected_playbooks:
                 selected.append(item)
-                selected_playbooks.add(item[1].playbook_id)
+                selected_playbooks.add(item[2].playbook_id)
             if len(selected) == top_k:
                 break
         for item in ranked:
@@ -286,7 +328,17 @@ class ResponseService:
             if item not in selected:
                 selected.append(item)
 
-        for rank, (score, playbook, kind, target, components, penalties) in enumerate(selected, 1):
+        for rank, (
+            _defense_value,
+            score,
+            playbook,
+            kind,
+            target,
+            components,
+            penalties,
+            defense,
+            explanation,
+        ) in enumerate(selected, 1):
             recommendation_id = self._id(
                 "recommendation", analysis_id, playbook.playbook_id, target
             )
@@ -305,12 +357,15 @@ class ResponseService:
                 recommendation_score=score,
                 component_scores_json=components,
                 penalties_json=penalties,
+                defense_score=defense["defense_score"],
+                defense_components_json=defense,
+                defense_explanation=explanation,
                 required_approval_tier=playbook.approval_tier,
                 recommendation_state="simulation_complete",
                 evidence_summary_json=self._evidence_summary(events, technique_ids, target),
                 rationale=(
-                    f"{playbook.name} applies to causally available synthetic evidence for "
-                    f"{target}; the score is a relative ranking measure."
+                    f"{BLUE_AGENT_NAME}: {playbook.name} applies to causally available synthetic "
+                    f"evidence for {target}; scores are relative ranking measures."
                 ),
                 warnings_json=[
                     "No real defensive action has been approved or performed.",
@@ -384,6 +439,66 @@ class ResponseService:
             "action_redundancy": 0.0,
         }
         return components, penalties
+
+    @staticmethod
+    def _defense_score(
+        playbook: DefensivePlaybook,
+        kind: str,
+        target: str,
+        components: dict[str, float],
+        nodes: Mapping[str, object],
+    ) -> tuple[dict[str, float], str]:
+        """Blue Agent objective.
+
+        Defense Score = Security Improvement - Service Disruption - Resource Cost - SLA Penalty.
+        """
+        security_improvement = round(min(1.0, sum(components.values())), 6)
+        service_disruption = round(
+            OPERATIONAL_IMPACT_COST[playbook.default_operational_impact]
+            + BLAST_RADIUS_COST.get(playbook.default_blast_radius, 0.04),
+            6,
+        )
+        resource_cost = round(playbook.resource_cost_weight, 6)
+        if kind == "user":
+            serving_factor = 0.5
+        elif kind == "relationship":
+            endpoints = [nodes.get(part) for part in target.split("--")]
+            serving_factor = (
+                1.0
+                if any(getattr(item, "zone", None) in SERVING_ZONES for item in endpoints)
+                else 0.5
+            )
+        else:
+            serving_factor = (
+                1.0 if getattr(nodes.get(target), "zone", None) in SERVING_ZONES else 0.5
+            )
+        sla_penalty = round(playbook.sla_sensitivity_weight * serving_factor, 6)
+        score = round(
+            max(
+                -1.0,
+                min(
+                    1.0,
+                    security_improvement - service_disruption - resource_cost - sla_penalty,
+                ),
+            ),
+            6,
+        )
+        explanation = (
+            f"{playbook.name} on {target}: security improvement {security_improvement:.2f} "
+            f"less service disruption {service_disruption:.2f}, resource cost "
+            f"{resource_cost:.2f} and SLA penalty {sla_penalty:.2f} gives a Defense Score of "
+            f"{score:.2f}."
+        )
+        return (
+            {
+                "security_improvement": security_improvement,
+                "service_disruption": service_disruption,
+                "resource_cost": resource_cost,
+                "sla_penalty": sla_penalty,
+                "defense_score": score,
+            },
+            explanation,
+        )
 
     def _simulate(
         self,
@@ -570,6 +685,9 @@ class ResponseService:
             recommendation_score=record.recommendation_score,
             component_scores=record.component_scores_json,
             penalties=record.penalties_json,
+            defense_score=record.defense_score,
+            defense_components=record.defense_components_json,
+            defense_explanation=record.defense_explanation,
             required_approval_tier=record.required_approval_tier,
             recommendation_state=record.recommendation_state,
             evidence_summary=record.evidence_summary_json,
@@ -686,7 +804,7 @@ class ResponseService:
 
     @staticmethod
     def _id(*parts: str) -> str:
-        return str(uuid5(NAMESPACE_URL, "aegistwin-response:" + ":".join(parts)))
+        return str(uuid5(NAMESPACE_URL, "aegisarena-response:" + ":".join(parts)))
 
     @staticmethod
     def _utc(value: datetime) -> datetime:

@@ -29,8 +29,8 @@ export function DigitalTwinPage() {
   const topologyState = useTopology(playback.activeRun?.scenario_id === 'staged-compromise-demo')
   const [runs, setRuns] = useState<SimulationRun[]>([])
   const [models, setModels] = useState<DetectionModel[]>([])
-  const [source, setSource] = useState('employee-laptop-01')
-  const [destination, setDestination] = useState('examination-database-01')
+  const [source, setSource] = useState('external-user-01')
+  const [destination, setDestination] = useState('cloud-database-01')
   const [pathType, setPathType] = useState<TopologyPathType>('expected')
   const [runId, setRunId] = useState('')
   const [modelId, setModelId] = useState('')
@@ -89,12 +89,11 @@ export function DigitalTwinPage() {
     <div className="space-y-6">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">INTERACTIVE · SYNTHETIC ONLY</p>
-          <h1>Cyber Digital Twin</h1>
-          <p>Inspect the repository-defined infrastructure and sequence-bounded path evidence.</p>
+          <h1>Cloud Digital Twin</h1>
+          <p>Inspect the synthetic cloud estate and sequence-bounded path evidence.</p>
         </div>
-        <span className="status-chip">
-          {playback.activeRun ? 'LIVE SYNTHETIC REPLAY' : 'STATIC TOPOLOGY'}
+        <span className="chip chip-muted">
+          {playback.activeRun ? 'Live synthetic replay' : 'Static topology'}
         </span>
       </header>
       <p className="text-sm" aria-live="polite">

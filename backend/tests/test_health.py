@@ -12,7 +12,7 @@ def test_health_reports_real_database_connectivity(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json() == {
         "status": "healthy",
-        "service": "AegisTwin API",
+        "service": "AegisArena API",
         "environment": "development",
         "simulation_only": True,
         "database": "connected",

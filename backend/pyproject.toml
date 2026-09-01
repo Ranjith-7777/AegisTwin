@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aegistwin-backend"
 version = "0.1.0"
-description = "Simulation-only backend foundation for AegisTwin"
+description = "Simulation-only backend for AegisArena — Cloud Cyber Defense Range"
 requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.14,<2.0",

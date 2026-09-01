@@ -1,4 +1,4 @@
-"""Prepare deterministic local AegisTwin demonstration state without real integrations."""
+"""Prepare deterministic local AegisArena demonstration state without real integrations."""
 
 import argparse
 import os
@@ -15,7 +15,7 @@ sys.path.insert(0, str(BACKEND))
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Bootstrap synthetic AegisTwin demo state.")
+    parser = argparse.ArgumentParser(description="Bootstrap synthetic AegisArena demo state.")
     parser.add_argument("--database", default=str(BACKEND / "aegistwin-demo.db"))
     parser.add_argument("--artifacts", default=str(BACKEND / "artifacts" / "demo-models"))
     args = parser.parse_args()
@@ -52,7 +52,7 @@ def main() -> int:
         )
         response.raise_for_status()
         model_id = response.json()["model_id"]
-    print("AegisTwin synthetic demo bootstrap complete.")
+    print("AegisArena synthetic demo bootstrap complete.")
     print(f"Deterministic model: {model_id}")
     print("Backend: cd backend && python -m uvicorn app.main:app --reload")
     print("Frontend: cd frontend && npm run dev")

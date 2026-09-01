@@ -29,7 +29,7 @@ const orchestration: Orchestration = {
       playbook_id: 'quarantine-synthetic-application',
       recommendation_id: 'rec-1',
       target_type: 'application_server',
-      target_id: 'application-server-01',
+      target_id: 'application-pod-01',
       required_approval_tier: 'administrator_approval',
       reversibility: 'reversible',
       rationale: 'Synthetic evidence rationale.',

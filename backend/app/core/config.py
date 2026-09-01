@@ -17,7 +17,7 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    app_name: str = Field(default="AegisTwin API", validation_alias="APP_NAME")
+    app_name: str = Field(default="AegisArena API", validation_alias="APP_NAME")
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
     debug: bool = Field(default=False, validation_alias="DEBUG")
     api_prefix: str = Field(default="/api", validation_alias="API_PREFIX")

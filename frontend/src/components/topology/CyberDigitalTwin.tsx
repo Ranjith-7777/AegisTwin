@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   Background,
   Controls,
@@ -6,6 +6,7 @@ import {
   ReactFlow,
   type EdgeMouseHandler,
   type NodeMouseHandler,
+  type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -21,17 +22,31 @@ import type { LiveTopologyOverlay } from '../../types/liveTopology'
 import type { ResponseImpactSimulation } from '../../types/response'
 import type { SyntheticExecution } from '../../types/orchestration'
 
+const NODE_WIDTH = 132
+const NODE_HEIGHT = 70
+
+// Four bands read top to bottom: control/identity, request path, workload and data,
+// operations. Compact pitch keeps all thirteen nodes legible once fitted.
 const positions: Record<string, { x: number; y: number }> = {
-  'employee-laptop-01': { x: 40, y: 30 },
-  'administrator-workstation-01': { x: 330, y: 30 },
-  'authentication-server-01': { x: 185, y: 180 },
-  'examination-portal-01': { x: 40, y: 330 },
-  'application-server-01': { x: 330, y: 330 },
-  'examination-database-01': { x: 185, y: 500 },
-  'backup-server-01': { x: 610, y: 410 },
-  'monitoring-server-01': { x: 610, y: 180 },
-  'simulation-egress-sink-01': { x: 610, y: 560 },
+  'admin-service-01': { x: 166, y: 0 },
+  'iam-service-01': { x: 498, y: 0 },
+  'auth-pod-01': { x: 664, y: 0 },
+  'external-user-01': { x: 0, y: 110 },
+  'api-gateway-01': { x: 166, y: 110 },
+  'load-balancer-01': { x: 332, y: 110 },
+  'kubernetes-cluster-01': { x: 498, y: 110 },
+  'worker-node-01': { x: 664, y: 110 },
+  'object-storage-01': { x: 332, y: 220 },
+  'application-pod-01': { x: 498, y: 220 },
+  'cloud-database-01': { x: 664, y: 220 },
+  'monitoring-service-01': { x: 498, y: 330 },
+  'backup-service-01': { x: 664, y: 330 },
+  'simulation-egress-sink-01': { x: 830, y: 330 },
 }
+
+const FIT_PADDING = 16
+const FIT_MIN_ZOOM = 0.2
+const FIT_MAX_ZOOM = 1.25
 
 function stateFor(id: string, state: RunTopologyState | null, live: LiveTopologyOverlay | null) {
   const liveNode = live?.nodes[id]
@@ -49,7 +64,7 @@ function stateFor(id: string, state: RunTopologyState | null, live: LiveTopology
 export function CyberDigitalTwin({
   topology,
   runState,
-  compact = false,
+  variant = 'full',
   onSelectNode,
   onSelectEdge,
   liveOverlay = null,
@@ -59,7 +74,7 @@ export function CyberDigitalTwin({
 }: {
   topology: TopologySnapshot
   runState: RunTopologyState | null
-  compact?: boolean
+  variant?: 'full' | 'workspace'
   onSelectNode?: (node: InfrastructureNode) => void
   onSelectEdge?: (edge: InfrastructureEdge) => void
   liveOverlay?: LiveTopologyOverlay | null
@@ -67,12 +82,16 @@ export function CyberDigitalTwin({
   responseImpact?: ResponseImpactSimulation | null
   syntheticExecution?: SyntheticExecution | null
 }) {
+  const compact = variant === 'workspace'
   const nodes = useMemo<AssetFlowNode[]>(
     () =>
       topology.nodes.map((item) => ({
         id: item.asset_id,
         type: 'asset',
         position: positions[item.asset_id] ?? { x: 0, y: 0 },
+        // Declared up front so the first fit does not wait on measurement.
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
         data: {
           label: item.display_name,
           assetType: item.asset_type,
@@ -131,6 +150,44 @@ export function CyberDigitalTwin({
       }),
     [compact, liveOverlay, responseImpact, runState, syntheticExecution, topology.edges],
   )
+  // The panel height is only known after layout and the library fit runs before
+  // that, so the viewport is computed from the declared node grid instead and
+  // re-applied whenever the container resizes.
+  const shell = useRef<HTMLDivElement>(null)
+  const instance = useRef<ReactFlowInstance<AssetFlowNode, RelationshipFlowEdge> | null>(null)
+  const fit = useCallback(() => {
+    const container = shell.current
+    if (!container || !instance.current || nodes.length === 0) return
+    const left = Math.min(...nodes.map((node) => node.position.x))
+    const top = Math.min(...nodes.map((node) => node.position.y))
+    const right = Math.max(...nodes.map((node) => node.position.x + NODE_WIDTH))
+    const bottom = Math.max(...nodes.map((node) => node.position.y + NODE_HEIGHT))
+    const graphWidth = Math.max(1, right - left)
+    const graphHeight = Math.max(1, bottom - top)
+    const width = container.clientWidth - FIT_PADDING * 2
+    const height = container.clientHeight - FIT_PADDING * 2
+    if (width <= 0 || height <= 0) return
+    const zoom = Math.min(
+      FIT_MAX_ZOOM,
+      Math.max(FIT_MIN_ZOOM, Math.min(width / graphWidth, height / graphHeight)),
+    )
+    void instance.current.setViewport({
+      x: FIT_PADDING + (width - graphWidth * zoom) / 2 - left * zoom,
+      y: FIT_PADDING + (height - graphHeight * zoom) / 2 - top * zoom,
+      zoom,
+    })
+  }, [nodes])
+  useEffect(() => {
+    fit()
+    const container = shell.current
+    if (!container || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(fit)
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+    }
+  }, [fit])
+
   const onNodeClick: NodeMouseHandler<AssetFlowNode> = (_event, node) => {
     const asset = topology.nodes.find((item) => item.asset_id === node.id)
     if (asset) onSelectNode?.(asset)
@@ -141,7 +198,8 @@ export function CyberDigitalTwin({
   }
   return (
     <div
-      className={`${compact ? 'topology-canvas is-compact' : 'topology-canvas'}${animationPaused ? ' animation-paused' : ''}`}
+      ref={shell}
+      className={`${compact ? 'topology-canvas is-workspace' : 'topology-canvas'}${animationPaused ? ' animation-paused' : ''}`}
       aria-label="Interactive synthetic infrastructure topology"
     >
       <ReactFlow
@@ -151,15 +209,19 @@ export function CyberDigitalTwin({
         edgeTypes={{ relationship: RelationshipEdge }}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
-        fitView
+        onInit={(item) => {
+          instance.current = item
+          fit()
+        }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={!compact}
-        minZoom={0.35}
-        maxZoom={1.5}
+        proOptions={{ hideAttribution: true }}
+        minZoom={0.2}
+        maxZoom={1.6}
       >
-        <Background />
-        <Controls showInteractive={false} />
+        <Background gap={22} size={1} />
+        <Controls showInteractive={false} position="bottom-right" />
         {compact ? null : <MiniMap pannable zoomable />}
       </ReactFlow>
       <div className="sr-only">

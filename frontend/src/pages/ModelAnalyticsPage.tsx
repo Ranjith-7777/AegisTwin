@@ -9,6 +9,7 @@ import {
 import type { DetectionModel, DetectionTrainingRequest, ModelEvaluation } from '../types/detection'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { AnomalyActivityChart } from '../components/dashboard/AnomalyActivityChart'
 
 const defaults: DetectionTrainingRequest = {
   training_seed_range: { start: 1, end: 20 },
@@ -89,14 +90,10 @@ export function ModelAnalyticsPage() {
   return (
     <div className="space-y-6">
       <header className="page-heading">
-        <div>
-          <p className="eyebrow">Synthetic detection</p>
-          <h1>Model Analytics</h1>
-          <p>
-            Train and evaluate reproducible offline models using repository-generated telemetry.
-          </p>
-        </div>
+        <h1>Detection Models</h1>
+        <p>Train and evaluate reproducible offline models using repository-generated telemetry.</p>
       </header>
+      <AnomalyActivityChart />
       <div ref={statusRef} tabIndex={-1} aria-live="polite">
         {error ? (
           <p role="alert" className="text-red-300">

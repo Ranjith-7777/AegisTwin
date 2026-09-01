@@ -63,13 +63,23 @@ const analysis: ResponseAnalysisResult = {
       prediction_snapshot_id: 'prediction-1',
       through_sequence_number: 10,
       playbook_id: 'block-synthetic-route',
-      playbook_name: 'Block synthetic source route',
+      playbook_name: 'Block the network route',
       target_type: 'relationship',
-      target_id: 'application-server-01--examination-database-01',
+      target_id: 'application-pod-01--cloud-database-01',
       rank: 1,
       recommendation_score: 0.81,
       component_scores: { evidence_applicability: 0.25 },
       penalties: { operational_disruption: 0.05 },
+      defense_score: 0.62,
+      defense_components: {
+        security_improvement: 0.85,
+        service_disruption: 0.12,
+        resource_cost: 0.05,
+        sla_penalty: 0.06,
+        defense_score: 0.62,
+      },
+      defense_explanation:
+        'Block the network route on application-pod-01--cloud-database-01: security improvement 0.85 less service disruption 0.12, resource cost 0.05 and SLA penalty 0.06 gives a Defense Score of 0.62.',
       required_approval_tier: 'analyst_approval',
       recommendation_state: 'simulation_complete',
       evidence_summary: ['Sequence-bounded evidence'],
@@ -85,9 +95,9 @@ const analysis: ResponseAnalysisResult = {
         base_topology_version: 'v1',
         simulation_engine_version: 'v1',
         target_type: 'relationship',
-        target_id: 'application-server-01--examination-database-01',
+        target_id: 'application-pod-01--cloud-database-01',
         changed_node_ids: [],
-        changed_edge_ids: ['application-server-01--examination-database-01'],
+        changed_edge_ids: ['application-pod-01--cloud-database-01'],
         paths_before: [{}],
         paths_after: [],
         correlated_paths_interrupted: 1,
@@ -118,7 +128,7 @@ beforeEach(() => {
   vi.mocked(responseApi.analyzeResponses).mockResolvedValue(analysis)
 })
 
-describe('Response Centre', () => {
+describe('Blue Agent response centre', () => {
   it('shows the safe empty state and submits a sequence-bounded analysis', async () => {
     render(<ResponseCentrePage />)
     expect(screen.getByText(/No real defensive action has been executed/)).toBeInTheDocument()
@@ -126,11 +136,15 @@ describe('Response Centre', () => {
     await userEvent.selectOptions(screen.getByLabelText('Response model'), 'model-1')
     await userEvent.clear(screen.getByLabelText('Response through sequence'))
     await userEvent.type(screen.getByLabelText('Response through sequence'), '10')
-    await userEvent.click(screen.getByRole('button', { name: 'Analyze Synthetic Responses' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Rank Mitigations' }))
     await waitFor(() => {
       expect(responseApi.analyzeResponses).toHaveBeenCalled()
     })
-    expect(await screen.findByText('Block synthetic source route')).toBeInTheDocument()
+    expect(await screen.findByText('Block the network route')).toBeInTheDocument()
+    expect(screen.getAllByLabelText('Defense score breakdown').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Security improvement').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('SLA penalty').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('0.620').length).toBeGreaterThan(0)
     expect(screen.getByText(/Approval: analyst approval/)).toBeInTheDocument()
     expect(screen.getByText(/Correlated paths interrupted: 1/)).toBeInTheDocument()
     expect(screen.getByText('Baseline synthetic topology')).toBeInTheDocument()
@@ -145,7 +159,7 @@ describe('Response Centre', () => {
     render(<ResponseCentrePage />)
     await userEvent.selectOptions(await screen.findByLabelText('Response run'), 'run-1')
     await userEvent.selectOptions(screen.getByLabelText('Response model'), 'model-1')
-    await userEvent.click(screen.getByRole('button', { name: 'Analyze Synthetic Responses' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Rank Mitigations' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Malformed synthetic response analysis.',
     )

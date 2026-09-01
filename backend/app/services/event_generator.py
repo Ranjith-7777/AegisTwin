@@ -9,6 +9,25 @@ from app.schemas.telemetry import EventType, TelemetryEvent
 from app.services.infrastructure_service import inventory_service
 
 EVENT_NAMESPACE = UUID("3b0a8f60-cc97-4c4c-9044-1f0e35f38a1e")
+# Scenarios whose transfers model an unusually large synthetic volume.
+HIGH_VOLUME_SCENARIOS = frozenset(
+    {
+        "credential-compromise",
+        "staged-compromise-demo",
+        "leaked-api-credential",
+        "suspicious-kubernetes-pod",
+    }
+)
+# (scenario_id, sequence) pairs that model repeated synthetic authentication failures.
+BRUTE_FORCE_STEPS = frozenset(
+    {
+        ("credential-compromise", 1),
+        ("staged-compromise-demo", 5),
+        ("leaked-api-credential", 1),
+        ("suspicious-kubernetes-pod", 4),
+        ("ddos-traffic-spike", 4),
+    }
+)
 
 
 class DeterministicEventGenerator:
@@ -31,14 +50,14 @@ class DeterministicEventGenerator:
             )
             failed_attempts = 0
             bytes_transferred = 0
-            if scenario.scenario_id == "credential-compromise" and step.sequence == 1:
+            if (scenario.scenario_id, step.sequence) in BRUTE_FORCE_STEPS:
                 failed_attempts = random.randint(5, 9)
             if scenario.scenario_id == "staged-compromise-demo" and step.sequence == 5:
                 failed_attempts = random.randint(6, 10)
             if step.event_type is EventType.DATA_TRANSFER:
                 bytes_transferred = (
                     random.randint(180_000_000, 260_000_000)
-                    if scenario.scenario_id in {"credential-compromise", "staged-compromise-demo"}
+                    if scenario.scenario_id in HIGH_VOLUME_SCENARIOS
                     else random.randint(18_000, 64_000)
                 )
             destination_ip = (

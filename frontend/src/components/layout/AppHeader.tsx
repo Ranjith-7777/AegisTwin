@@ -1,16 +1,18 @@
-import { Menu, RefreshCw, Server, ShieldCheck } from 'lucide-react'
+import { Menu, RefreshCw, Shield } from 'lucide-react'
 
 import { useSystemData } from '../../hooks/useSystemData'
-import { AgentStatusIndicator } from '../dashboard/AgentStatusIndicator'
+import { useSafetyStatus } from '../../hooks/useSafetyStatus'
+import { APP_NAME, FALLBACK_SAFETY_MESSAGE } from '../../lib/constants'
 import { Button } from '../ui/button'
 
 export function AppHeader({ onMenu }: { onMenu: () => void }) {
   const { health, system, loading, refresh } = useSystemData()
+  const { safety } = useSafetyStatus()
   const connected = health?.status === 'healthy' && health.database === 'connected'
   const operational = connected && system?.operational === true
   return (
     <header className="app-header">
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
         <Button
           variant="ghost"
           size="icon"
@@ -20,34 +22,31 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
         >
           <Menu className="size-5" />
         </Button>
-        <div className="min-w-0">
-          <p className="eyebrow">Operations console</p>
-          <p className="truncate text-sm font-medium text-slate-200">
-            Agentic Cyber-Resilience Digital Twin
-          </p>
-        </div>
+        <span className="brand-mark" aria-hidden="true">
+          <Shield className="size-[1.05rem]" />
+        </span>
+        <p className="brand-name">{APP_NAME}</p>
+        <span className="chip chip-accent">Simulation Mode</span>
       </div>
       <div className="header-statuses">
-        <span className={connected ? 'status-chip is-healthy' : 'status-chip is-offline'}>
-          <Server className="size-3.5" />
-          Backend: {loading ? 'Checking' : connected ? 'Connected' : 'Disconnected'}
+        <span
+          className="chip chip-muted"
+          role="status"
+          aria-label="Simulation environment safety notice"
+          title={safety?.simulation_only ? safety.message : FALLBACK_SAFETY_MESSAGE}
+        >
+          Synthetic Environment
         </span>
-        <span className="status-chip is-simulation">
-          <ShieldCheck className="size-3.5" />
-          Mode: Simulation
+        <span className={connected ? 'chip chip-healthy' : 'chip chip-danger'}>
+          <span className="chip-dot" aria-hidden="true" />
+          Backend {loading ? 'checking' : connected ? 'connected' : 'disconnected'}
         </span>
-        <span className={operational ? 'status-chip is-healthy' : 'status-chip'}>
-          System: {operational ? 'Operational' : 'Unavailable'}
-        </span>
-        <AgentStatusIndicator
-          count={system?.agents_online ?? 0}
-          live={connected && system !== null}
-        />
-        <span className="status-chip hidden xl:inline-flex">
-          Environment: {health?.environment ?? 'unavailable'}
+        <span className={operational ? 'chip chip-healthy' : 'chip chip-warn'}>
+          <span className="chip-dot" aria-hidden="true" />
+          System {operational ? 'operational' : 'unavailable'}
         </span>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
           onClick={refresh}
           disabled={loading}

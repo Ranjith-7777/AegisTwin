@@ -4,6 +4,7 @@ import { getSimulationRuns } from '../services/simulationApi'
 import type { MitreTechnique, TechniqueObservation } from '../types/correlation'
 import type { SimulationRun } from '../types/simulation'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { AttackTechniqueTimeline } from '../components/dashboard/AttackTechniqueTimeline'
 import { getLatestPrediction } from '../services/predictionApi'
 import type { PredictionSnapshot } from '../types/prediction'
 
@@ -47,13 +48,11 @@ export function MitrePage() {
   return (
     <div className="space-y-6">
       <header className="page-heading">
-        <div>
-          <p className="eyebrow">Local curated catalogue</p>
-          <h1>MITRE ATT&CK Observations</h1>
-          <p>Catalogue coverage and evidence-based observations remain distinct and synthetic.</p>
-        </div>
+        <h1>MITRE ATT&CK</h1>
+        <p>Catalogue coverage and evidence-based observations remain distinct and synthetic.</p>
       </header>
       {error ? <p role="alert">{error}</p> : null}
+      <AttackTechniqueTimeline />
       <Card>
         <CardHeader>
           <h2 className="panel-title">Catalogue Techniques</h2>

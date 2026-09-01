@@ -1,5 +1,8 @@
+export const APP_NAME = 'AegisArena'
+export const APP_TAGLINE = 'Cloud Cyber Defense Range'
+export const APP_FULL_NAME = `${APP_NAME} — ${APP_TAGLINE}`
 export const FALLBACK_SAFETY_MESSAGE =
-  'AegisTwin uses synthetic telemetry and simulated infrastructure. No action affects real systems.'
+  'AegisArena uses synthetic telemetry and a simulated cloud estate. No action affects real systems.'
 
 const sameOrigin = typeof window === 'undefined' ? '' : window.location.origin
 const sameHostSocket =

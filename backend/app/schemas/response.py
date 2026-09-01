@@ -33,6 +33,8 @@ class DefensivePlaybook(BaseModel):
     automatic_eligibility: bool
     synthetic: Literal[True] = True
     catalogue_version: str
+    resource_cost_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.0
+    sla_sensitivity_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.0
 
 
 class ResponseAnalyzeRequest(BaseModel):
@@ -90,6 +92,9 @@ class ResponseRecommendation(BaseModel):
     recommendation_score: float
     component_scores: dict[str, float]
     penalties: dict[str, float]
+    defense_score: float
+    defense_components: dict[str, float]
+    defense_explanation: str
     required_approval_tier: ApprovalTier
     recommendation_state: RecommendationState
     evidence_summary: list[str]

@@ -18,6 +18,17 @@ export interface DefensivePlaybook {
   automatic_eligibility: boolean
   synthetic: true
   catalogue_version: string
+  resource_cost_weight?: number
+  sla_sensitivity_weight?: number
+}
+
+/** Blue Agent objective components behind Defense Score. */
+export interface DefenseComponents {
+  security_improvement: number
+  service_disruption: number
+  resource_cost: number
+  sla_penalty: number
+  defense_score: number
 }
 
 export interface ResponseImpactSimulation {
@@ -67,6 +78,9 @@ export interface ResponseRecommendation {
   recommendation_score: number
   component_scores: Record<string, number>
   penalties: Record<string, number>
+  defense_score: number
+  defense_components: DefenseComponents
+  defense_explanation: string
   required_approval_tier: ApprovalTier
   recommendation_state: string
   evidence_summary: string[]

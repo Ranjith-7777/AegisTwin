@@ -1,1 +1,1 @@
-"""AegisTwin simulation-only backend."""
+"""AegisArena simulation-only backend."""

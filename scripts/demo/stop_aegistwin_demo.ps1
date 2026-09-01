@@ -12,4 +12,4 @@ foreach ($name in @("frontend", "backend")) {
 }
 if (Test-Path -LiteralPath $paths.ProcessFile) { Remove-Item -LiteralPath $paths.ProcessFile -Force }
 if ($stopped.Count) { Write-Host "Stopped: $($stopped -join ', '). Demo data and logs were preserved." }
-else { Write-Host "AegisTwin demo was already stopped. Stale metadata was cleaned." }
+else { Write-Host "AegisArena demo was already stopped. Stale metadata was cleaned." }

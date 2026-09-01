@@ -19,11 +19,11 @@ def test_demo_environment_is_explicit_and_safe(tmp_path: Path) -> None:
         AEGISTWIN_BUILD_MODE="production",
         AEGISTWIN_GIT_COMMIT="abcdef1",
     )
-    status = get_system_status(settings)
+    status = get_system_status(settings=settings)
     assert status.demo_mode is True
     assert status.synthetic_only is True
     assert status.git_commit == "abcdef1"
-    assert status.database_revision == "20260722_0008"
+    assert status.database_revision == "20260817_0009"
     assert "ASUS" not in status.model_dump_json()
 
 

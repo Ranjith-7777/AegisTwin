@@ -449,6 +449,11 @@ class ResponseRecommendationRecord(Base):
     recommendation_score: Mapped[float] = mapped_column(Float, nullable=False)
     component_scores_json: Mapped[dict[str, float]] = mapped_column(JSON, nullable=False)
     penalties_json: Mapped[dict[str, float]] = mapped_column(JSON, nullable=False)
+    defense_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    defense_components_json: Mapped[dict[str, float]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    defense_explanation: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     required_approval_tier: Mapped[str] = mapped_column(String(40), nullable=False)
     recommendation_state: Mapped[str] = mapped_column(String(40), nullable=False)
     evidence_summary_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)

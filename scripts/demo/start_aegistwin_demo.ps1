@@ -56,7 +56,7 @@ try {
     $route = if ($OpenPage -eq "overview") { "" } else { $OpenPage }
     $url = "http://127.0.0.1:$FrontendPort/$route"
     if (-not $NoBrowser) { Start-Process $url }
-    Write-Host "AegisTwin Judge Demo READY: $url"
+    Write-Host "AegisArena Judge Demo READY: $url"
     Write-Host "Scenario staged-compromise-demo; seed 84; all outputs computed and synthetic."
     Write-Host "Approval gates remain enabled. Logs: $($paths.Logs)"
 } catch {

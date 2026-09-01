@@ -4,6 +4,7 @@ import { getSimulationRuns } from '../services/simulationApi'
 import type { IncidentCandidate, IncidentEvidence } from '../types/correlation'
 import type { SimulationRun } from '../types/simulation'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { LiveCorrelationDashboard } from '../components/correlation/LiveCorrelationDashboard'
 import { getLatestPrediction } from '../services/predictionApi'
 import type { PredictionSnapshot } from '../types/prediction'
 import { getResponseSummary } from '../services/responseApi'
@@ -69,12 +70,10 @@ export function IncidentsPage() {
   return (
     <div className="space-y-6">
       <header className="page-heading">
-        <div>
-          <p className="eyebrow">Auditable synthetic evidence</p>
-          <h1>Incident Candidates</h1>
-          <p>Cautious correlation candidates, never confirmed incidents.</p>
-        </div>
+        <h1>Incidents</h1>
+        <p>Cautious correlation candidates, never confirmed incidents.</p>
       </header>
+      <LiveCorrelationDashboard />
       <Card>
         <CardHeader>
           <h2 className="panel-title">Candidate Listing</h2>
@@ -146,7 +145,7 @@ export function IncidentsPage() {
               <strong>{item.title}</strong>
               <p>
                 {item.correlation_state} · {item.priority} · coherence{' '}
-                {item.correlation_score.toFixed(3)} · SYNTHETIC
+                {item.correlation_score.toFixed(3)}
               </p>
             </button>
           ))}

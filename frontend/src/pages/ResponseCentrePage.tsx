@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { DefenseScoreBreakdown } from '../components/response/DefenseScoreBreakdown'
 import { getDetectionModels } from '../services/detectionApi'
 import { analyzeResponses, getResponsePlaybooks } from '../services/responseApi'
 import { getSimulationRuns } from '../services/simulationApi'
@@ -86,13 +87,16 @@ export function ResponseCentrePage() {
     <div className="space-y-6">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Decision support · synthetic only</p>
-          <h1>Response Centre</h1>
-          <p>Rank defensive options and simulate their impact on a cloned digital twin.</p>
+          <p className="eyebrow">Blue Agent · synthetic only</p>
+          <h1>Blue Agent</h1>
+          <p>
+            Mitigations are ranked by Defense Score = Security Improvement − Service Disruption −
+            Resource Cost − SLA Penalty, then simulated on a cloned cloud twin.
+          </p>
         </div>
       </header>
       <p className="rounded border border-amber-800 bg-amber-950/30 p-3 text-sm text-amber-100">
-        Recommendations are generated and evaluated only against the synthetic digital twin. No real
+        Recommendations are generated and evaluated only against the synthetic cloud twin. No real
         defensive action has been executed.
       </p>
       <Card>
@@ -168,7 +172,7 @@ export function ResponseCentrePage() {
             Use prediction evidence
           </label>
           <Button disabled={busy || !runId || !modelId} onClick={() => void analyze()}>
-            {busy ? 'Analyzing…' : 'Analyze Synthetic Responses'}
+            {busy ? 'Ranking mitigations…' : 'Rank Mitigations'}
           </Button>
         </CardContent>
       </Card>
@@ -181,8 +185,8 @@ export function ResponseCentrePage() {
         <Card>
           <CardContent>
             <p>
-              No response analysis selected. Prepare detection and correlation, then analyze a
-              causal sequence.
+              No Blue Agent analysis selected. Prepare detection and correlation, then rank
+              mitigations for a causal sequence.
             </p>
           </CardContent>
         </Card>
@@ -197,12 +201,12 @@ export function ResponseCentrePage() {
                 setSelected(item)
               }}
             >
-              <span className="text-xs text-cyan-300">RANK {item.rank} · SYNTHETIC</span>
+              <span className="chip chip-muted">Rank {item.rank}</span>
               <h2 className="font-semibold">{item.playbook_name}</h2>
               <p>
-                {item.target_type}: {item.target_id}
+                {label(item.target_type)}: {item.target_id}
               </p>
-              <p>Relative recommendation score: {item.recommendation_score.toFixed(3)}</p>
+              <DefenseScoreBreakdown recommendation={item} />
               <p>
                 Approval: {label(item.required_approval_tier)} ·{' '}
                 {item.simulation?.reversibility ?? 'unknown'} ·{' '}
@@ -258,7 +262,9 @@ export function ResponseCentrePage() {
                 <p key={item}>{item}</p>
               ))}
               <p className="mt-2">{selected.rationale}</p>
-              <h3 className="mt-3 font-semibold">Component-score breakdown</h3>
+              <h3 className="mt-3 font-semibold">Defense Score</h3>
+              <DefenseScoreBreakdown recommendation={selected} />
+              <h3 className="mt-3 font-semibold">Security-improvement components</h3>
               {Object.entries(selected.component_scores).map(([name, value]) => (
                 <p key={name}>
                   {label(name)}: {value.toFixed(3)}

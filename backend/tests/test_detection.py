@@ -178,7 +178,7 @@ def test_assessment_pagination_and_filters(client: TestClient) -> None:
     assert len(first["items"]) == len(second["items"]) == 3
     authentication = client.get(base, params={"event_type": "authentication"}).json()
     assert authentication["total"] == 2
-    source = client.get(base, params={"source_id": "application-server-01"}).json()
+    source = client.get(base, params={"source_id": "application-pod-01"}).json()
     assert source["total"] == 1
     user = client.get(base, params={"user_id": "synthetic-user-01"}).json()
     assert user["total"] == 7

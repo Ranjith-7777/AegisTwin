@@ -26,7 +26,7 @@ export function LiveCorrelationDashboard() {
             <p className="eyebrow">Causal synthetic correlation</p>
             <h2 className="panel-title">Incident Candidate Summary</h2>
           </div>
-          <Badge>SYNTHETIC</Badge>
+          <Badge>Synthetic</Badge>
         </CardHeader>
         <CardContent aria-live="polite">
           {candidate ? (

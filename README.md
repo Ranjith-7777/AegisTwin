@@ -1,4 +1,4 @@
-# AegisTwin
+# AegisArena — Cloud Cyber Defense Range
 
 ## Run the Local Judge Demo
 
@@ -17,9 +17,9 @@ Phase 6A adds a versioned interactive synthetic infrastructure topology with cau
 
 Phase 5B adds causal, auditable next-stage prediction over the synthetic detection and correlation pipeline. See [the Phase 5B guide](docs/PHASE_5B_NEXT_STAGE_PREDICTION.md) for contracts and limits.
 
-**AegisTwin: Agentic Cyber-Resilience Digital Twin for Critical National Infrastructure** is a hackathon prototype for reasoning over synthetic security telemetry and a simulated infrastructure twin.
+**AegisArena — Cloud Cyber Defense Range** is a hackathon prototype in which a deterministic Red Agent replays synthetic attack scenarios against a simulated cloud estate and a Blue Agent ranks mitigations by Defense Score = Security Improvement − Service Disruption − Resource Cost − SLA Penalty.
 
-> **Safety boundary:** AegisTwin operates exclusively on synthetic telemetry, simulated identities, simulated assets, and simulated response state. Real-world actions and external targets are prohibited. The backend refuses to start when `SIMULATION_ONLY=false`.
+> **Safety boundary:** AegisArena operates exclusively on synthetic telemetry, simulated identities, simulated assets, and simulated response state. Real-world actions and external targets are prohibited. The backend refuses to start when `SIMULATION_ONLY=false`.
 
 ## Current phase
 

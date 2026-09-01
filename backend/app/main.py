@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def ensure_simulation_only(settings: Settings) -> None:
     if not settings.simulation_only:
         raise ConfigurationError(
-            "AegisTwin cannot start with SIMULATION_ONLY=false. Real-world mode is prohibited."
+            "AegisArena cannot start with SIMULATION_ONLY=false. Real-world mode is prohibited."
         )
 
 

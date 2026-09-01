@@ -1,23 +1,23 @@
 import { useSystemData } from '../hooks/useSystemData'
-import { DEPLOYMENT_ENV } from '../lib/constants'
+import { APP_FULL_NAME, DEPLOYMENT_ENV } from '../lib/constants'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { SystemStatusCard } from '../components/dashboard/SystemStatusCard'
+
 export function SettingsPage() {
   const { health, system } = useSystemData()
   return (
     <div className="space-y-6">
       <header className="page-heading">
-        <div>
-          <p className="eyebrow">Read-only configuration</p>
-          <h1>System Information</h1>
-          <p>
-            Safe build and simulation status. No paths, credentials, usernames, or machine names are
-            exposed.
-          </p>
-        </div>
+        <h1>System Information</h1>
+        <p>
+          Safe build and simulation status. No paths, credentials, usernames, or machine names are
+          exposed.
+        </p>
       </header>
+      <SystemStatusCard health={health} />
       <Card>
         <CardHeader>
-          <h2 className="panel-title">About AegisTwin</h2>
+          <h2 className="panel-title">About {APP_FULL_NAME}</h2>
           <span className="status-chip is-simulation">Synthetic only</span>
         </CardHeader>
         <CardContent>

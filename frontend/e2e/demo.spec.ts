@@ -141,9 +141,9 @@ test('complete deterministic synthetic demonstration workflow', async ({ page, r
   await page.goto('/predictive-analytics')
   await expect(page.getByRole('heading', { name: /Predictive Analytics/i })).toBeVisible()
   await page.goto('/digital-twin')
-  await expect(page.getByRole('heading', { name: /Cyber Digital Twin/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Cloud Digital Twin/i })).toBeVisible()
   await page.goto('/response-centre')
-  await expect(page.getByRole('heading', { name: /Response Centre/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Blue Agent/i })).toBeVisible()
   await page.goto('/response-operations')
   const orchestrationState = page.locator('p').filter({
     has: page.locator('strong').filter({ hasText: /^State:$/ }),

@@ -8,16 +8,21 @@ def test_topology_inventory_is_stable_synthetic_and_documentation_only(client: T
     second = client.get("/api/v1/topology")
     assert first.status_code == 200
     payload = first.json()
-    assert payload["topology_version"] == "aegistwin-synthetic-topology-v1"
+    assert payload["topology_version"] == "aegisarena-cloud-topology-v1"
     assert [item["asset_id"] for item in payload["nodes"]] == [
-        "employee-laptop-01",
-        "administrator-workstation-01",
-        "authentication-server-01",
-        "examination-portal-01",
-        "application-server-01",
-        "examination-database-01",
-        "backup-server-01",
-        "monitoring-server-01",
+        "external-user-01",
+        "api-gateway-01",
+        "load-balancer-01",
+        "kubernetes-cluster-01",
+        "worker-node-01",
+        "auth-pod-01",
+        "application-pod-01",
+        "admin-service-01",
+        "iam-service-01",
+        "cloud-database-01",
+        "object-storage-01",
+        "monitoring-service-01",
+        "backup-service-01",
     ]
     assert [item["edge_id"] for item in payload["edges"]] == [
         item["edge_id"] for item in second.json()["edges"]
@@ -31,22 +36,22 @@ def test_topology_inventory_is_stable_synthetic_and_documentation_only(client: T
 
 
 def test_neighbourhood_expected_path_and_errors(client: TestClient) -> None:
-    neighbourhood = client.get("/api/v1/topology/nodes/application-server-01/neighbours").json()
+    neighbourhood = client.get("/api/v1/topology/nodes/application-pod-01/neighbours").json()
     assert neighbourhood["node"]["synthetic"] is True
-    assert "examination-database-01" in {item["asset_id"] for item in neighbourhood["neighbours"]}
+    assert "cloud-database-01" in {item["asset_id"] for item in neighbourhood["neighbours"]}
     path = client.get(
         "/api/v1/topology/paths",
         params={
-            "source_asset_id": "employee-laptop-01",
-            "destination_asset_id": "examination-database-01",
+            "source_asset_id": "external-user-01",
+            "destination_asset_id": "cloud-database-01",
             "path_type": "expected",
         },
     ).json()["items"][0]
     assert path["ordered_node_ids"] == [
-        "employee-laptop-01",
-        "authentication-server-01",
-        "application-server-01",
-        "examination-database-01",
+        "external-user-01",
+        "api-gateway-01",
+        "application-pod-01",
+        "cloud-database-01",
     ]
     assert path["hypothetical"] is False
     missing = client.get("/api/v1/topology/nodes/not-real")
@@ -55,8 +60,8 @@ def test_neighbourhood_expected_path_and_errors(client: TestClient) -> None:
     unreachable = client.get(
         "/api/v1/topology/paths",
         params={
-            "source_asset_id": "examination-database-01",
-            "destination_asset_id": "employee-laptop-01",
+            "source_asset_id": "cloud-database-01",
+            "destination_asset_id": "external-user-01",
         },
     )
     assert unreachable.status_code == 404
@@ -74,7 +79,7 @@ def test_run_paths_are_causal_isolated_and_prediction_is_hypothetical(
     early = client.get(
         "/api/v1/topology/paths",
         params={
-            "source_asset_id": "application-server-01",
+            "source_asset_id": "application-pod-01",
             "destination_asset_id": "simulation-egress-sink-01",
             "path_type": "observed",
             "simulation_run_id": run_id,
@@ -85,7 +90,7 @@ def test_run_paths_are_causal_isolated_and_prediction_is_hypothetical(
     observed = client.get(
         "/api/v1/topology/paths",
         params={
-            "source_asset_id": "application-server-01",
+            "source_asset_id": "application-pod-01",
             "destination_asset_id": "simulation-egress-sink-01",
             "path_type": "observed",
             "simulation_run_id": run_id,
@@ -97,8 +102,8 @@ def test_run_paths_are_causal_isolated_and_prediction_is_hypothetical(
     predicted = client.get(
         "/api/v1/topology/paths",
         params={
-            "source_asset_id": "examination-database-01",
-            "destination_asset_id": "backup-server-01",
+            "source_asset_id": "cloud-database-01",
+            "destination_asset_id": "backup-service-01",
             "path_type": "predicted",
             "simulation_run_id": run_id,
             "model_id": model_id,

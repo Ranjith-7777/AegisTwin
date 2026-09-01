@@ -48,7 +48,7 @@ export function LiveAnomalyDashboard() {
             <p className="eyebrow">Live synthetic assessment</p>
             <h2 className="panel-title">Current Assessment</h2>
           </div>
-          <Badge>SYNTHETIC</Badge>
+          <Badge>Synthetic</Badge>
         </CardHeader>
         <CardContent aria-live="polite">
           {currentAssessment ? (

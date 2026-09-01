@@ -7,25 +7,23 @@ import type { TelemetryEvent } from '../types/simulation'
 import type { RunTopologyState, TopologySnapshot } from '../types/topology'
 
 const topology: TopologySnapshot = {
-  topology_version: 'aegistwin-synthetic-topology-v1',
-  nodes: ['employee-laptop-01', 'authentication-server-01', 'application-server-01'].map(
-    (asset_id) => ({
-      asset_id,
-      display_name: asset_id,
-      asset_type: 'endpoint',
-      zone: 'user_zone',
-      sensitivity: 'internal',
-      criticality: 'low',
-      description: 'Synthetic test asset.',
-      synthetic: true,
-      metadata: {},
-    }),
-  ),
+  topology_version: 'aegisarena-cloud-topology-v1',
+  nodes: ['external-user-01', 'api-gateway-01', 'application-pod-01'].map((asset_id) => ({
+    asset_id,
+    display_name: asset_id,
+    asset_type: 'endpoint',
+    zone: 'user_zone',
+    sensitivity: 'internal',
+    criticality: 'low',
+    description: 'Synthetic test asset.',
+    synthetic: true,
+    metadata: {},
+  })),
   edges: [
     {
-      edge_id: 'employee-laptop-01--authentication-server-01',
-      source_asset_id: 'employee-laptop-01',
-      destination_asset_id: 'authentication-server-01',
+      edge_id: 'external-user-01--api-gateway-01',
+      source_asset_id: 'external-user-01',
+      destination_asset_id: 'api-gateway-01',
       relationship_type: 'expected_relationship',
       protocol_label: 'HTTPS',
       direction: 'directed',
@@ -39,7 +37,7 @@ const topology: TopologySnapshot = {
   synthetic: true,
 }
 
-function event(sequence: number, destination = 'authentication-server-01'): TelemetryEvent {
+function event(sequence: number, destination = 'api-gateway-01'): TelemetryEvent {
   return {
     event_id: `event-${String(sequence)}`,
     scenario_id: 'synthetic',
@@ -50,7 +48,7 @@ function event(sequence: number, destination = 'authentication-server-01'): Tele
     outcome: 'success',
     severity: 'medium',
     source_type: 'device',
-    source_id: 'employee-laptop-01',
+    source_id: 'external-user-01',
     destination_id: destination,
     user_id: null,
     device_id: null,
@@ -77,9 +75,9 @@ describe('live topology reducer', () => {
       event: event(1),
       sequence: 1,
     })
-    expect(first.nodes['employee-laptop-01']?.current_focus).toBe(true)
-    expect(first.edges['employee-laptop-01--authentication-server-01']?.observed).toBe(true)
-    expect(first.nodes['application-server-01']).toBeUndefined()
+    expect(first.nodes['external-user-01']?.current_focus).toBe(true)
+    expect(first.edges['external-user-01--api-gateway-01']?.observed).toBe(true)
+    expect(first.nodes['application-pod-01']).toBeUndefined()
     const duplicate = liveTopologyReducer(first, {
       type: 'telemetry',
       event: event(1),
@@ -133,20 +131,20 @@ describe('live topology reducer', () => {
       synthetic: true,
     }
     state = liveTopologyReducer(state, { type: 'technique', observation })
-    expect(state.nodes['authentication-server-01']?.anomalous_observed).toBe(true)
-    expect(state.nodes['authentication-server-01']?.anomaly_score).toBe(0.91)
-    expect(
-      state.edges['employee-laptop-01--authentication-server-01']?.associated_technique_ids,
-    ).toEqual(['T1078'])
+    expect(state.nodes['api-gateway-01']?.anomalous_observed).toBe(true)
+    expect(state.nodes['api-gateway-01']?.anomaly_score).toBe(0.91)
+    expect(state.edges['external-user-01--api-gateway-01']?.associated_technique_ids).toEqual([
+      'T1078',
+    ])
   })
 
   it('represents known but unsupported relationships conservatively and ignores unknown assets', () => {
     const unexpected = liveTopologyReducer(configured(), {
       type: 'telemetry',
-      event: event(1, 'application-server-01'),
+      event: event(1, 'application-pod-01'),
       sequence: 1,
     })
-    expect(unexpected.edges['employee-laptop-01--application-server-01']?.unexpected).toBe(true)
+    expect(unexpected.edges['external-user-01--application-pod-01']?.unexpected).toBe(true)
     const unknown = liveTopologyReducer(unexpected, {
       type: 'telemetry',
       event: event(2, 'unknown-device'),
@@ -163,8 +161,8 @@ describe('live topology reducer', () => {
       sequence: 1,
     })
     const cleared = liveTopologyReducer(observed, { type: 'clear_transient' })
-    expect(cleared.nodes['employee-laptop-01']?.current_focus).toBe(false)
-    expect(cleared.nodes['employee-laptop-01']?.observed).toBe(true)
+    expect(cleared.nodes['external-user-01']?.current_focus).toBe(false)
+    expect(cleared.nodes['external-user-01']?.observed).toBe(true)
   })
 
   it('reconstructs the authoritative sequence without dropping recovered mappings', () => {
@@ -173,10 +171,10 @@ describe('live topology reducer', () => {
       simulation_run_id: 'run-1',
       model_id: 'model-1',
       current_sequence_limit: 1,
-      observed_asset_ids: ['employee-laptop-01', 'authentication-server-01'],
-      observed_edge_ids: ['employee-laptop-01--authentication-server-01'],
-      anomalous_observed_asset_ids: ['authentication-server-01'],
-      anomalous_observed_edge_ids: ['employee-laptop-01--authentication-server-01'],
+      observed_asset_ids: ['external-user-01', 'api-gateway-01'],
+      observed_edge_ids: ['external-user-01--api-gateway-01'],
+      anomalous_observed_asset_ids: ['api-gateway-01'],
+      anomalous_observed_edge_ids: ['external-user-01--api-gateway-01'],
       unexpected_observed_edge_ids: [],
       correlated_asset_ids: [],
       correlated_edge_ids: [],
@@ -186,9 +184,9 @@ describe('live topology reducer', () => {
         {
           event_id: 'event-1',
           sequence_number: 1,
-          source_asset_id: 'employee-laptop-01',
-          destination_asset_id: 'authentication-server-01',
-          edge_id: 'employee-laptop-01--authentication-server-01',
+          source_asset_id: 'external-user-01',
+          destination_asset_id: 'api-gateway-01',
+          edge_id: 'external-user-01--api-gateway-01',
           unexpected_observed: false,
           anomalous_observed: true,
           anomaly_score: 0.91,
@@ -206,7 +204,7 @@ describe('live topology reducer', () => {
     })
     expect(recovered.through_sequence_number).toBe(1)
     expect(recovered.history).toHaveLength(1)
-    expect(recovered.edges['employee-laptop-01--authentication-server-01']?.observed).toBe(true)
-    expect(recovered.nodes['authentication-server-01']?.anomalous_observed).toBe(true)
+    expect(recovered.edges['external-user-01--api-gateway-01']?.observed).toBe(true)
+    expect(recovered.nodes['api-gateway-01']?.anomalous_observed).toBe(true)
   })
 })

@@ -21,10 +21,10 @@ def test_playbook_catalogue_is_safe_versioned_and_deterministic(client: TestClie
     assert first.status_code == 200
     assert first.json() == second.json()
     playbooks = first.json()
-    assert len(playbooks) == 8
+    assert len(playbooks) == 9
     assert all(item["synthetic"] is True for item in playbooks)
     assert all(
-        item["catalogue_version"] == "synthetic-defensive-playbooks-v1" for item in playbooks
+        item["catalogue_version"] == "aegisarena-blue-agent-playbooks-v1" for item in playbooks
     )
     high_impact = [item for item in playbooks if item["default_operational_impact"] == "high"]
     assert all(item["approval_tier"] == "administrator_approval" for item in high_impact)
@@ -48,9 +48,28 @@ def test_response_analysis_is_ranked_idempotent_synthetic_and_causal(client: Tes
     assert payload["recommendation_count"] == 5
     recommendations = payload["recommendations"]
     assert [item["rank"] for item in recommendations] == list(range(1, 6))
-    assert [item["recommendation_score"] for item in recommendations] == sorted(
-        [item["recommendation_score"] for item in recommendations], reverse=True
+    # The Blue Agent ranks on Defense Score, not on the raw composite score.
+    assert [item["defense_score"] for item in recommendations] == sorted(
+        [item["defense_score"] for item in recommendations], reverse=True
     )
+    for item in recommendations:
+        components = item["defense_components"]
+        assert set(components) == {
+            "security_improvement",
+            "service_disruption",
+            "resource_cost",
+            "sla_penalty",
+            "defense_score",
+        }
+        assert components["defense_score"] == item["defense_score"]
+        assert item["defense_score"] == round(
+            components["security_improvement"]
+            - components["service_disruption"]
+            - components["resource_cost"]
+            - components["sla_penalty"],
+            6,
+        )
+        assert "Defense Score" in item["defense_explanation"]
     assert all(item["synthetic"] and item["simulation"]["synthetic"] for item in recommendations)
     assert all(item["through_sequence_number"] == 10 for item in recommendations)
     assert all(item["required_approval_tier"] != "prohibited" for item in recommendations)

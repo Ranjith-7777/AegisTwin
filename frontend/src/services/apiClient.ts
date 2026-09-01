@@ -18,9 +18,9 @@ export function toClientApiError(error: unknown): ClientApiError {
         ? error.response.headers['x-correlation-id']
         : undefined)
     return {
-      message: response?.message ?? 'The AegisTwin backend is unavailable.',
+      message: response?.message ?? 'The AegisArena backend is unavailable.',
       correlationId,
     }
   }
-  return { message: 'The AegisTwin backend is unavailable.' }
+  return { message: 'The AegisArena backend is unavailable.' }
 }

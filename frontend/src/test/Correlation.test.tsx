@@ -49,7 +49,7 @@ const candidate = {
   latest_sequence_number: 6,
   primary_user_id: 'synthetic-user',
   primary_device_id: 'synthetic-device',
-  involved_asset_ids: ['authentication-server-01'],
+  involved_asset_ids: ['api-gateway-01'],
   observed_tactic_ids: ['Credential Access'],
   observed_technique_ids: ['T1110.001'],
   evidence_count: 2,
@@ -100,7 +100,7 @@ beforeEach(() => {
 
 describe('synthetic correlation UI', () => {
   it('defaults correlation off and only reveals it with detection', async () => {
-    renderApp()
+    renderApp('/telemetry')
     expect(screen.queryByRole('checkbox', { name: 'Enable correlation' })).not.toBeInTheDocument()
     await userEvent.click(
       await screen.findByRole('checkbox', { name: 'Enable anomaly assessment' }),
@@ -110,14 +110,14 @@ describe('synthetic correlation UI', () => {
   it('renders the local MITRE catalogue without fabricated observations', async () => {
     renderApp('/mitre')
     expect(
-      await screen.findByRole('heading', { name: 'MITRE ATT&CK Observations' }),
+      await screen.findByRole('heading', { name: 'MITRE ATT&CK', level: 1 }),
     ).toBeInTheDocument()
     expect(await screen.findByText(/T1110.001/)).toBeInTheDocument()
     expect(screen.getByText(/unsupported or unmapped events/i)).toBeInTheDocument()
   })
   it('renders incident candidate listing and safely rejects malformed messages', async () => {
     renderApp('/incidents')
-    expect(await screen.findByRole('heading', { name: 'Incident Candidates' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Incidents', level: 1 })).toBeInTheDocument()
     await userEvent.selectOptions(
       screen.getByLabelText('Incident candidate run'),
       run.simulation_run_id,

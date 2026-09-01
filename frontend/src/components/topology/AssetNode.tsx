@@ -38,7 +38,7 @@ export function AssetNode({ data, selected }: NodeProps<AssetFlowNode>) {
       <Handle type="target" position={Position.Top} />
       <Icon className="size-4" aria-hidden="true" />
       <strong>{data.label}</strong>
-      <span>{data.state} · SYNTHETIC</span>
+      <span>{data.state}</span>
       <Handle type="source" position={Position.Bottom} />
     </div>
   )

@@ -3,7 +3,7 @@ services:
     build:
       context: ./backend
     environment:
-      APP_NAME: AegisTwin API
+      APP_NAME: AegisArena API
       ENVIRONMENT: development
       DEBUG: "false"
       API_PREFIX: /api

@@ -10,8 +10,8 @@ import { Card, CardContent, CardHeader } from '../ui/card'
 export function ZoneGroup() {
   return (
     <p className="text-xs text-slate-400">
-      Zones: User → Identity → Application → Data · Operations adjacent · Synthetic External
-      isolated
+      Zones: Edge → Cluster → Workload → Data · Identity, Management and Operations adjacent ·
+      Synthetic External isolated
     </p>
   )
 }
@@ -91,7 +91,7 @@ export function AssetInspector({
     <Card>
       <CardHeader>
         <div>
-          <p className="eyebrow">SYNTHETIC ASSET</p>
+          <p className="eyebrow">Synthetic asset</p>
           <h2 className="panel-title">{node.display_name}</h2>
         </div>
       </CardHeader>
@@ -173,7 +173,7 @@ export function RelationshipInspector({
     <Card>
       <CardHeader>
         <div>
-          <p className="eyebrow">SYNTHETIC RELATIONSHIP</p>
+          <p className="eyebrow">Synthetic relationship</p>
           <h2 className="panel-title">Relationship Inspector</h2>
         </div>
       </CardHeader>
