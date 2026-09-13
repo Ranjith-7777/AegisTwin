@@ -55,3 +55,11 @@ class EventType(StrEnum):
     PURPLE_EXPERIMENT_STARTED = "purple.experiment.started"  # published
     PURPLE_STEP_COMPLETED = "purple.step.completed"  # published
     PURPLE_EXPERIMENT_COMPLETED = "purple.experiment.completed"  # published
+
+    RESPONSE_PLAN_GENERATED = "response.plan.generated"  # published
+    RESPONSE_PLAN_SIMULATED = "response.plan.simulated"  # published
+    RESPONSE_PLAN_SELECTED = "response.plan.selected"  # published
+    POLICY_EVALUATED = "policy.evaluated"  # published
+    AUTONOMY_DECISION = "autonomy.decision"  # published
+    APPROVAL_REQUIRED = "approval.required"  # published
+    ROLLBACK_TRIGGERED = "rollback.triggered"  # published

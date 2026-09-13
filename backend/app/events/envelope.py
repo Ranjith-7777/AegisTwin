@@ -153,3 +153,53 @@ class PurpleExperimentCompletedPayload(BaseModel):
     status: str
     detection_step_coverage: float | None
     final_outcome: str
+
+
+class ResponsePlanGeneratedPayload(BaseModel):
+    incident_candidate_id: str
+    candidate_count: int
+    playbook_ids: list[str]
+
+
+class ResponsePlanSimulatedPayload(BaseModel):
+    recommendation_id: str
+    playbook_id: str
+    attack_paths_before: int
+    attack_paths_after: int
+    blast_radius_reachable_before: int
+    blast_radius_reachable_after: int
+    response_utility_score: float
+
+
+class ResponsePlanSelectedPayload(BaseModel):
+    incident_candidate_id: str
+    selected_recommendation_id: str
+    response_utility_score: float
+    candidate_count: int
+
+
+class PolicyEvaluatedPayload(BaseModel):
+    policy_id: str
+    result: str
+    reason: str
+    recommendation_id: str
+
+
+class AutonomyDecisionPayload(BaseModel):
+    autonomy_mode: str
+    recommendation_id: str
+    decision: str
+    reason: str
+
+
+class ApprovalRequiredPayload(BaseModel):
+    orchestration_id: str
+    required_role: str
+    reason: str
+
+
+class RollbackTriggeredPayload(BaseModel):
+    orchestration_id: str
+    trigger_reason: str
+    security_verified: bool
+    operational_verified: bool

@@ -705,3 +705,50 @@ class PurpleTeamStepResultRecord(Base):
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     experiment: Mapped[PurpleTeamExperimentRecord] = relationship(back_populates="steps")
+
+
+class AutonomyConfigRecord(Base):
+    """Phase 4: a singleton row holding the Blue Agent's currently
+    configured autonomy mode. See docs/architecture/AUTONOMY_MODEL.md."""
+
+    __tablename__ = "autonomy_config"
+
+    id: Mapped[str] = mapped_column(String(20), primary_key=True, default="singleton")
+    mode: Mapped[str] = mapped_column(String(30), nullable=False, default="recommend")
+    updated_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ResponsePlanAssessmentRecord(Base):
+    """Phase 4: the persisted result of comparing candidate Blue response
+    plans for one incident/sequence - reconstructable after reload without
+    re-deriving from raw evidence. See
+    docs/architecture/BLUE_RESPONSE_PLANNING.md."""
+
+    __tablename__ = "response_plan_assessments"
+    __table_args__ = (
+        UniqueConstraint(
+            "simulation_run_id",
+            "model_id",
+            "incident_candidate_id",
+            "through_sequence_number",
+            name="uq_response_plan_assessment_identity",
+        ),
+    )
+
+    assessment_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    simulation_run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    incident_candidate_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    through_sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    autonomy_mode: Mapped[str] = mapped_column(String(30), nullable=False)
+    candidates_json: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    selected_recommendation_id: Mapped[str | None] = mapped_column(String(36))
+    decision_confidence_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
