@@ -45,3 +45,13 @@ class EventType(StrEnum):
 
     ROLLBACK_STARTED = "rollback.started"  # published
     ROLLBACK_COMPLETED = "rollback.completed"  # published
+
+    ATTACK_PATH_DISCOVERED = "attack.path.discovered"  # published
+    BLAST_RADIUS_ASSESSED = "blast_radius.assessed"  # published
+
+    RED_STEP_ATTEMPTED = "red.step.attempted"  # published
+    RED_STEP_COMPLETED = "red.step.completed"  # published
+
+    PURPLE_EXPERIMENT_STARTED = "purple.experiment.started"  # published
+    PURPLE_STEP_COMPLETED = "purple.step.completed"  # published
+    PURPLE_EXPERIMENT_COMPLETED = "purple.experiment.completed"  # published

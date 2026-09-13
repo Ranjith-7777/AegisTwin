@@ -108,3 +108,48 @@ class ResourceStateChangedPayload(BaseModel):
     resource_id: str
     resource_type: str
     new_state: str
+
+
+class AttackPathDiscoveredPayload(BaseModel):
+    path_id: str
+    path_type: str
+    source_asset_id: str
+    target_asset_id: str
+    hop_count: int
+    score: float
+
+
+class BlastRadiusAssessedPayload(BaseModel):
+    compromised_asset_ids: list[str]
+    reachable_count: int
+    critical_count: int
+    score: float
+
+
+class RedStepPayload(BaseModel):
+    experiment_id: str
+    scenario_id: str
+    step_sequence: int
+    expected_technique_id: str | None
+    outcome: str
+
+
+class PurpleExperimentStartedPayload(BaseModel):
+    experiment_id: str
+    scenario_id: str
+    mode: str
+    seed: int
+
+
+class PurpleStepCompletedPayload(BaseModel):
+    experiment_id: str
+    step_sequence: int
+    outcome: str
+    detected: bool
+
+
+class PurpleExperimentCompletedPayload(BaseModel):
+    experiment_id: str
+    status: str
+    detection_step_coverage: float | None
+    final_outcome: str

@@ -644,3 +644,64 @@ class AuditEventRecord(Base):
     canonical_payload_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class PurpleTeamExperimentRecord(Base):
+    """Phase 3: a reproducible Purple Team experiment. See
+    docs/architecture/PURPLE_TEAM.md for the lifecycle this records."""
+
+    __tablename__ = "purple_team_experiments"
+    __table_args__ = (
+        UniqueConstraint("scenario_id", "mode", "seed", name="uq_purple_experiment_identity"),
+    )
+    experiment_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    scenario_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    mode: Mapped[str] = mapped_column(String(30), nullable=False)
+    seed: Mapped[int] = mapped_column(Integer, nullable=False)
+    simulation_run_id: Mapped[str | None] = mapped_column(String(36))
+    model_id: Mapped[str | None] = mapped_column(String(36))
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    error: Mapped[str | None] = mapped_column(String(500))
+    summary_json: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    steps: Mapped[list[PurpleTeamStepResultRecord]] = relationship(
+        back_populates="experiment",
+        cascade="all, delete-orphan",
+        order_by="PurpleTeamStepResultRecord.step_sequence",
+    )
+
+
+class PurpleTeamStepResultRecord(Base):
+    __tablename__ = "purple_team_step_results"
+    __table_args__ = (
+        UniqueConstraint("experiment_id", "step_sequence", name="uq_purple_step_sequence"),
+    )
+    step_result_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    experiment_id: Mapped[str] = mapped_column(
+        ForeignKey("purple_team_experiments.experiment_id"), nullable=False, index=True
+    )
+    step_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    event_id: Mapped[str | None] = mapped_column(String(36))
+    target_asset_id: Mapped[str | None] = mapped_column(String(100))
+    expected_technique_id: Mapped[str | None] = mapped_column(String(20))
+    expected_technique_name: Mapped[str | None] = mapped_column(String(120))
+    outcome: Mapped[str] = mapped_column(String(30), nullable=False)
+    detected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    anomaly_score: Mapped[float | None] = mapped_column(Float)
+    classification: Mapped[str | None] = mapped_column(String(20))
+    observed_technique_ids_json: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    incident_candidate_id: Mapped[str | None] = mapped_column(String(36))
+    response_recommendation_id: Mapped[str | None] = mapped_column(String(36))
+    orchestration_id: Mapped[str | None] = mapped_column(String(36))
+    orchestration_state: Mapped[str | None] = mapped_column(String(60))
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    experiment: Mapped[PurpleTeamExperimentRecord] = relationship(back_populates="steps")

@@ -1,12 +1,15 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    attack_graph,
+    blast_radius,
     correlation,
     detection,
     health,
     mitre,
     orchestration,
     prediction,
+    purple,
     response,
     safety,
     simulation,
@@ -28,3 +31,6 @@ api_router.include_router(mitre.router)
 api_router.include_router(topology.router)
 api_router.include_router(response.router)
 api_router.include_router(orchestration.router)
+api_router.include_router(attack_graph.router)
+api_router.include_router(blast_radius.router)
+api_router.include_router(purple.router)
