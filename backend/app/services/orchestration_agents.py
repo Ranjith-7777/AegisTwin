@@ -108,11 +108,15 @@ class SafetyGovernorAgent:
             if policy_result.failed_policy_ids
             else "Target is unavailable for this synthetic environment."
         )
-        warnings = [] if permitted else [
-            evaluation.reason
-            for evaluation in policy_result.evaluations
-            if evaluation.result == "fail"
-        ]
+        warnings = (
+            []
+            if permitted
+            else [
+                evaluation.reason
+                for evaluation in policy_result.evaluations
+                if evaluation.result == "fail"
+            ]
+        )
         if not target_exists:
             warnings.append("Target is not a known synthetic topology asset or relationship.")
         return AgentResult(

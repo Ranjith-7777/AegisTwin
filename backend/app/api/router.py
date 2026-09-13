@@ -1,13 +1,17 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    agents,
     attack_graph,
+    autonomy,
     blast_radius,
+    blue_planning,
     correlation,
     detection,
     health,
     mitre,
     orchestration,
+    policy,
     prediction,
     purple,
     response,
@@ -16,6 +20,7 @@ from app.api.routes import (
     system,
     telemetry,
     topology,
+    workflow,
 )
 
 api_router = APIRouter()
@@ -34,3 +39,8 @@ api_router.include_router(orchestration.router)
 api_router.include_router(attack_graph.router)
 api_router.include_router(blast_radius.router)
 api_router.include_router(purple.router)
+api_router.include_router(agents.router)
+api_router.include_router(policy.router)
+api_router.include_router(autonomy.router)
+api_router.include_router(blue_planning.router)
+api_router.include_router(workflow.router)

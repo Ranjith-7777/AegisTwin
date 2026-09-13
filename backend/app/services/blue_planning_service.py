@@ -15,7 +15,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy.orm import Session
 
-from app.database.models import ResponseRecommendationRecord
+from app.database.models import ResponsePlanAssessmentRecord, ResponseRecommendationRecord
 from app.schemas.attack_graph import AttackPathType
 from app.schemas.blue_planning import (
     CandidatePlanAssessment,
@@ -377,7 +377,7 @@ class BluePlanningService:
                 top_recommendation, candidates[0].security_gain_evidence
             )
 
-        return PlanComparisonResult(
+        result = PlanComparisonResult(
             simulation_run_id=run_id,
             model_id=model_id,
             incident_candidate_id=incident_candidate_id,
@@ -386,6 +386,72 @@ class BluePlanningService:
             candidates=candidates,
             recommended_recommendation_id=recommended_id,
             decision_confidence=decision_confidence,
+        )
+        self._persist(session, result)
+        return result
+
+    def _persist(self, session: Session, result: PlanComparisonResult) -> None:
+        """Persists the comparison so it is reconstructable after a reload
+        without re-deriving it from raw evidence (docs/architecture/
+        BLUE_RESPONSE_PLANNING.md "Persistence"). Idempotent per
+        (run, model, incident, sequence) - a later call with the same
+        identity overwrites the earlier assessment rather than duplicating
+        it, since the underlying evidence for that identity is immutable."""
+
+        assessment_id = self.assessment_id(
+            result.simulation_run_id,
+            result.model_id,
+            result.incident_candidate_id,
+            result.through_sequence_number,
+        )
+        record = session.get(ResponsePlanAssessmentRecord, assessment_id)
+        candidates_json = [candidate.model_dump(mode="json") for candidate in result.candidates]
+        decision_confidence_json = (
+            result.decision_confidence.model_dump(mode="json") if result.decision_confidence else {}
+        )
+        if record is None:
+            session.add(
+                ResponsePlanAssessmentRecord(
+                    assessment_id=assessment_id,
+                    simulation_run_id=result.simulation_run_id,
+                    model_id=result.model_id,
+                    incident_candidate_id=result.incident_candidate_id,
+                    through_sequence_number=result.through_sequence_number,
+                    autonomy_mode=result.autonomy_mode,
+                    candidates_json=candidates_json,
+                    selected_recommendation_id=result.recommended_recommendation_id,
+                    decision_confidence_json=decision_confidence_json,
+                )
+            )
+        else:
+            record.autonomy_mode = result.autonomy_mode
+            record.candidates_json = candidates_json
+            record.selected_recommendation_id = result.recommended_recommendation_id
+            record.decision_confidence_json = decision_confidence_json
+        session.commit()
+
+    def load(self, session: Session, assessment_id: str) -> PlanComparisonResult | None:
+        """Reconstructs a previously computed comparison from persisted
+        state only - never recomputes."""
+
+        record = session.get(ResponsePlanAssessmentRecord, assessment_id)
+        if record is None:
+            return None
+        return PlanComparisonResult(
+            simulation_run_id=record.simulation_run_id,
+            model_id=record.model_id,
+            incident_candidate_id=record.incident_candidate_id,
+            through_sequence_number=record.through_sequence_number,
+            autonomy_mode=record.autonomy_mode,
+            candidates=[
+                CandidatePlanAssessment.model_validate(item) for item in record.candidates_json
+            ],
+            recommended_recommendation_id=record.selected_recommendation_id,
+            decision_confidence=(
+                DecisionConfidence.model_validate(record.decision_confidence_json)
+                if record.decision_confidence_json
+                else None
+            ),
         )
 
     @staticmethod

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SecurityGainEvidence(BaseModel):
@@ -78,6 +78,13 @@ class DecisionConfidence(BaseModel):
     total: float
     note: str = "This is a deterministic evidence-quality score, not a calibrated probability."
     synthetic: Literal[True] = True
+
+
+class BluePlanningCompareRequest(BaseModel):
+    model_id: str
+    incident_candidate_id: str
+    through_sequence_number: int = Field(ge=1)
+    top_k: int = Field(default=5, ge=1, le=10)
 
 
 class PlanComparisonResult(BaseModel):
