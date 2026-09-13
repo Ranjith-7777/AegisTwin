@@ -1,6 +1,39 @@
+from typing import Any
+
 from fastapi.testclient import TestClient
 
 from tests.test_correlation import prepare
+
+
+def prepare_leaked_credential(client: TestClient) -> tuple[str, str]:
+    run = client.post(
+        "/api/v1/simulation/runs",
+        json={
+            "scenario_id": "leaked-api-credential",
+            "seed": 84,
+            "start_time": "2026-07-21T01:30:00Z",
+            "playback_speed": 50,
+        },
+    ).json()
+    trained = client.post(
+        "/api/v1/detection/models/train",
+        json={
+            "training_seed_range": {"start": 1, "end": 1},
+            "validation_seed_range": {"start": 2, "end": 2},
+            "evaluation_seed_range": {"start": 3, "end": 3},
+            "random_state": 17,
+            "target_false_positive_rate": 0.1,
+            "n_estimators": 100,
+        },
+    ).json()
+    run_id, model_id = str(run["simulation_run_id"]), str(trained["model_id"])
+    assert (
+        client.post(
+            f"/api/v1/detection/runs/{run_id}/score", json={"model_id": model_id}
+        ).status_code
+        == 200
+    )
+    return run_id, model_id
 
 
 def test_potential_paths_are_deterministic_and_ranked(client: TestClient) -> None:
@@ -106,3 +139,42 @@ def test_path_types_remain_semantically_distinct(client: TestClient) -> None:
         results[path_type] = response.json()
         for path in results[path_type]["paths"]:
             assert path["path_type"] == path_type
+
+
+def test_observed_path_at_sequence_n_never_uses_evidence_from_n_plus_1(
+    client: TestClient,
+) -> None:
+    """A concrete, empirical proof of sequence-bounding: the observed path
+    from external-user-01 to iam-service-01 in leaked-api-credential only
+    becomes discoverable once telemetry through sequence 3 is included
+    (that step is where the over-scoped IAM token request actually
+    happens) - it must be absent at sequences 1 and 2, which is only
+    possible if the engine truly never leaks evidence from a later
+    sequence backward."""
+
+    run_id, model_id = prepare_leaked_credential(client)
+
+    def paths_at(sequence: int) -> list[dict[str, Any]]:
+        response = client.get(
+            "/api/v1/attack-graph/paths",
+            params={
+                "source_asset_id": "external-user-01",
+                "target_asset_id": "iam-service-01",
+                "path_type": "observed",
+                "simulation_run_id": run_id,
+                "model_id": model_id,
+                "through_sequence_number": sequence,
+            },
+        )
+        assert response.status_code == 200, response.text
+        result: list[dict[str, Any]] = response.json()["paths"]
+        return result
+
+    assert paths_at(1) == []
+    assert paths_at(2) == []
+    at_three = paths_at(3)
+    assert len(at_three) == 1
+    assert at_three[0]["ordered_asset_ids"][-1] == "iam-service-01"
+    # once the evidence exists it remains discoverable at every later sequence too
+    assert len(paths_at(4)) == 1
+    assert len(paths_at(1000)) == 1
