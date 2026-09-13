@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -18,7 +18,9 @@ class Settings(BaseSettings):
     )
 
     app_name: str = Field(default="AegisArena API", validation_alias="APP_NAME")
-    environment: str = Field(default="development", validation_alias="ENVIRONMENT")
+    environment: Literal["development", "test", "demo", "production"] = Field(
+        default="development", validation_alias="ENVIRONMENT"
+    )
     debug: bool = Field(default=False, validation_alias="DEBUG")
     api_prefix: str = Field(default="/api", validation_alias="API_PREFIX")
     backend_host: str = Field(default="127.0.0.1", validation_alias="BACKEND_HOST")
