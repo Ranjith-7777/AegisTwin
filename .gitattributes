@@ -1,0 +1,8 @@
+# Repository-wide line-ending policy: normalize all text files to LF in the
+# repository and on checkout, regardless of a contributor's local
+# core.autocrlf setting. This was introduced in Phase 1 after Phase 0 found
+# that `npm run format:check` failed on ~109 files purely because Windows
+# checkouts (git config core.autocrlf=true) convert the LF blobs already
+# stored in git to CRLF on disk, which Prettier (default endOfLine: "lf")
+# then flags as unformatted. No file content changes with this policy.
+* text=auto eol=lf
