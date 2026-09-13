@@ -30,6 +30,18 @@ class BlastRadiusScore(BaseModel):
 
 
 class BlastRadiusResult(BaseModel):
+    """`mode` distinguishes the two supported analyses:
+
+    * `hypothetical` — no `simulation_run_id` was supplied; a static,
+      worst-case what-if estimate over the full permitted graph, not a
+      claim that any of `compromised_asset_ids` has actually happened.
+    * `evidence_bound` — a `simulation_run_id` was supplied; every id in
+      `compromised_asset_ids` was verified to be supported by real
+      telemetry evidence (observed or anomalous-observed) through
+      `through_sequence_number` before the traversal ran. See
+      docs/architecture/BLAST_RADIUS.md "Run/sequence semantics".
+    """
+
     compromised_asset_ids: list[str]
     directly_affected_asset_ids: list[str]
     reachable_asset_ids: list[str]
@@ -41,6 +53,7 @@ class BlastRadiusResult(BaseModel):
     dependent_count: int
     critical_count: int
     score: BlastRadiusScore
+    mode: Literal["hypothetical", "evidence_bound"]
     through_sequence_number: int | None
     statement: str
     synthetic: Literal[True] = True

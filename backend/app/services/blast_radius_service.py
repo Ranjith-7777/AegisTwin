@@ -7,6 +7,7 @@ docs/architecture/BLAST_RADIUS.md for the algorithm.
 from __future__ import annotations
 
 from collections import deque
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
@@ -61,7 +62,23 @@ class BlastRadiusService:
         run_id: str | None,
         through_sequence: int | None,
         max_depth: int,
+        correlation_id: str | None = None,
     ) -> BlastRadiusResult:
+        """Two explicit, distinct modes - see `BlastRadiusResult.mode`:
+
+        * No `run_id`: a hypothetical static what-if. The traversal always
+          uses the full permitted graph regardless of which assets are
+          named; nothing about them needs to have "really happened".
+        * `run_id` given: evidence-bound. Every requested compromised asset
+          must be supported by real telemetry evidence (observed or
+          anomalous-observed) through `through_sequence` - never evidence
+          from a later sequence. An unsupported asset is rejected with a
+          structured 422 rather than silently downgraded to hypothetical,
+          matching this codebase's existing preference for explicit
+          "precondition not met" errors (e.g. `ATTACK_GRAPH_RUN_REQUIRED`)
+          over silently reinterpreting the request.
+        """
+
         include_sink = run_id is not None
         nodes = topology_service.nodes(include_sink)
         edges = topology_service.edges(include_sink)
@@ -72,14 +89,23 @@ class BlastRadiusService:
                 "BLAST_RADIUS_ASSET_NOT_FOUND", f"Unknown asset(s): {', '.join(unknown)}.", 404
             )
 
-        # Sequence-bounded evidence, when a run is given, is used only to
-        # confirm the requested assets are consistent with what has actually
-        # been observed - it does not change the graph traversal itself,
-        # which always uses the full permitted static graph (a conservative,
-        # worst-case reachability estimate, not a claim of what has already
-        # happened).
+        mode: Literal["hypothetical", "evidence_bound"] = "hypothetical"
+        resolved_sequence: int | None = None
         if run_id is not None:
-            topology_path_service.run_state(session, run_id, None, through_sequence)
+            mode = "evidence_bound"
+            state = topology_path_service.run_state(session, run_id, None, through_sequence)
+            resolved_sequence = state.current_sequence_limit
+            evidenced = set(state.observed_asset_ids) | set(state.anomalous_observed_asset_ids)
+            unsupported = sorted(a for a in compromised_asset_ids if a not in evidenced)
+            if unsupported:
+                raise ApplicationError(
+                    "BLAST_RADIUS_EVIDENCE_REQUIRED",
+                    f"Asset(s) {', '.join(unsupported)} are not supported by telemetry evidence "
+                    f"through sequence {resolved_sequence}; evidence-bound blast radius cannot "
+                    "treat them as compromised at this point in the run. Omit simulation_run_id "
+                    "for a hypothetical static what-if estimate instead.",
+                    422,
+                )
 
         forward_adjacency: dict[str, list[InfrastructureEdge]] = {}
         reverse_adjacency: dict[str, list[InfrastructureEdge]] = {}
@@ -143,6 +169,7 @@ class BlastRadiusService:
                 event_type=EventType.BLAST_RADIUS_ASSESSED,
                 source="blast_radius",
                 run_id=run_id,
+                correlation_id=correlation_id,
                 resource_ids=sorted(all_involved),
                 payload=BlastRadiusAssessedPayload(
                     compromised_asset_ids=sorted(compromised),
@@ -164,7 +191,8 @@ class BlastRadiusService:
             dependent_count=len(dependent_ids),
             critical_count=critical_count,
             score=score,
-            through_sequence_number=through_sequence,
+            mode=mode,
+            through_sequence_number=resolved_sequence,
             statement=statement,
             synthetic=True,
         )

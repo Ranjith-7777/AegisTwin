@@ -304,6 +304,7 @@ class AttackGraphService:
         through_sequence: int | None,
         max_depth: int,
         max_paths: int,
+        correlation_id: str | None = None,
     ) -> AttackPathAnalysisResult:
         include_sink = run_id is not None
         all_nodes = topology_service.nodes(include_sink)
@@ -382,6 +383,7 @@ class AttackGraphService:
                     event_type=EventType.ATTACK_PATH_DISCOVERED,
                     source="attack_graph",
                     run_id=run_id,
+                    correlation_id=correlation_id,
                     resource_ids=top.ordered_asset_ids,
                     payload=AttackPathDiscoveredPayload(
                         path_id=top.path_id,

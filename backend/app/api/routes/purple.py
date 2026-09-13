@@ -9,6 +9,7 @@ from app.schemas.purple import (
     PurpleTeamExperimentCreate,
     RedScenarioSummary,
 )
+from app.schemas.red_scenario import RedScenarioDefinition
 from app.services.purple_team_service import purple_team_service
 
 router = APIRouter(prefix="/v1/purple-team", tags=["purple-team"])
@@ -18,6 +19,11 @@ Db = Annotated[Session, Depends(get_database_session)]
 @router.get("/scenarios", response_model=list[RedScenarioSummary])
 def list_scenarios(session: Db) -> list[RedScenarioSummary]:
     return purple_team_service.list_scenarios(session)
+
+
+@router.get("/scenarios/{scenario_id}/definition", response_model=RedScenarioDefinition)
+def get_scenario_definition(scenario_id: str, session: Db) -> RedScenarioDefinition:
+    return purple_team_service.get_scenario_definition(session, scenario_id)
 
 
 @router.post(

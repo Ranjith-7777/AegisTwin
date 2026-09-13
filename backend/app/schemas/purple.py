@@ -60,6 +60,44 @@ class PurpleTeamStepResult(BaseModel):
     synthetic: Literal[True] = True
 
 
+class PurpleAttackPathContext(BaseModel):
+    """The real top-ranked `AttackGraphService` path relevant to this
+    experiment (from the scenario's structured `initial_access_point` to
+    its `high_value_objective` — see `app/schemas/red_scenario.py`).
+    `path_type` is `observed` only when the run actually produced
+    anomalous-observed evidence; otherwise it honestly falls back to
+    `potential` rather than fabricating observed evidence. See
+    docs/architecture/PURPLE_TEAM.md "Attack Graph integration"."""
+
+    path_type: str
+    source_asset_id: str
+    target_asset_id: str
+    hop_count: int
+    score: float
+    statement: str
+    through_sequence_number: int | None
+    synthetic: Literal[True] = True
+
+
+class PurpleBlastRadiusContext(BaseModel):
+    """The real `BlastRadiusService` estimate rooted at whatever assets
+    were actually anomalous-observed during the run (falling back to the
+    scenario's `initial_access_point` if none were). `reachable_count`,
+    `critical_assets_at_risk`, and `trust_zones_reached` describe assets
+    that are AT RISK / REACHABLE from the compromised set — never a claim
+    that they were actually reached. See
+    docs/architecture/PURPLE_TEAM.md "Blast Radius integration"."""
+
+    compromised_asset_ids: list[str]
+    reachable_count: int
+    critical_assets_at_risk: list[str]
+    trust_zones_reached: list[str]
+    score: float
+    mode: Literal["hypothetical", "evidence_bound"]
+    through_sequence_number: int | None
+    synthetic: Literal[True] = True
+
+
 class PurpleTeamSummary(BaseModel):
     """See docs/architecture/PURPLE_TEAM.md "Metric definitions" for exact formulas."""
 
@@ -78,7 +116,13 @@ class PurpleTeamSummary(BaseModel):
     response_executed: bool
     verification_result: str | None
     critical_assets_reached: list[str]
-    estimated_blast_radius_count: int | None
+    """Assets that were actually OBSERVED/REACHED per real telemetry
+    evidence (anomalous-observed) AND are critical - never merely
+    reachable. See `critical_assets_at_risk` on `attack_path_context` /
+    `blast_radius_context` for the separate, broader AT-RISK/REACHABLE
+    notion."""
+    attack_path_context: PurpleAttackPathContext | None
+    blast_radius_context: PurpleBlastRadiusContext | None
     final_outcome: str
 
 

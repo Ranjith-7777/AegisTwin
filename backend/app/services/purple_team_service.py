@@ -66,8 +66,11 @@ from app.events.envelope import (
 )
 from app.events.registry import get_event_bus
 from app.events.types import EventType
+from app.schemas.attack_graph import AttackPathType
 from app.schemas.detection import DetectionTrainingRequest
 from app.schemas.purple import (
+    PurpleAttackPathContext,
+    PurpleBlastRadiusContext,
     PurpleExperimentMode,
     PurpleTeamExperiment,
     PurpleTeamExperimentCreate,
@@ -77,18 +80,27 @@ from app.schemas.purple import (
     RedScenarioTechniqueSummary,
     RedStepOutcome,
 )
+from app.schemas.red_scenario import RedScenarioDefinition
 from app.schemas.simulation import ScenarioStep, SimulationRunCreate, SimulationScenario
 from app.schemas.telemetry import TelemetryEvent
+from app.services.attack_graph_service import attack_graph_service
+from app.services.blast_radius_service import blast_radius_service
 from app.services.correlation_service import correlation_service
 from app.services.detection_scoring_service import detection_scoring_service
 from app.services.detection_training_service import detection_training_service
 from app.services.orchestration_service import orchestration_service
 from app.services.prediction_service import prediction_service
-from app.services.red_scenario_catalogue import iter_scenario_techniques, summarize_all
+from app.services.red_scenario_catalogue import (
+    definition_for,
+    iter_scenario_techniques,
+    summarize_all,
+)
 from app.services.response_service import response_service
 from app.services.scenario_service import scenario_service
 from app.services.simulation_service import simulation_run_service
 from app.services.telemetry_service import telemetry_service
+from app.services.topology_path_service import topology_path_service
+from app.services.topology_service import topology_service
 
 NAMESPACE = UUID("6f7d5b8e-1c3a-4a2f-9e0d-2b6f7a4c8d91")
 EXPERIMENT_START_TIME = datetime(2026, 1, 1, tzinfo=UTC)
@@ -133,6 +145,14 @@ class PurpleTeamService:
             )
         return summaries
 
+    def get_scenario_definition(self, session: Session, scenario_id: str) -> RedScenarioDefinition:
+        # `scenario_service.get_scenario` raises the existing
+        # SCENARIO_NOT_FOUND ApplicationError for an unknown id, so this
+        # validates before `definition_for` (which raises a bare ValueError,
+        # meant for internal/test use) ever runs.
+        scenario_service.get_scenario(session, scenario_id)
+        return definition_for(scenario_id)
+
     def run_experiment(
         self,
         session: Session,
@@ -147,6 +167,7 @@ class PurpleTeamService:
             return self._to_schema(session, existing)
 
         scenario = scenario_service.get_scenario(session, request.scenario_id)
+        definition = definition_for(request.scenario_id)
 
         record = existing or PurpleTeamExperimentRecord(
             experiment_id=experiment_id,
@@ -166,6 +187,7 @@ class PurpleTeamService:
                 event_type=EventType.PURPLE_EXPERIMENT_STARTED,
                 source="purple_team",
                 scenario_id=request.scenario_id,
+                correlation_id=experiment_id,
                 payload=PurpleExperimentStartedPayload(
                     experiment_id=experiment_id,
                     scenario_id=request.scenario_id,
@@ -226,7 +248,22 @@ class PurpleTeamService:
                 training_result.model_id,
                 defense_outcome,
             )
-            summary = self._summarize(steps, incident_candidate_id)
+            critical_assets_reached, attack_path_context, blast_radius_context = (
+                self._derive_security_context(
+                    session,
+                    run.simulation_run_id,
+                    training_result.model_id,
+                    definition,
+                    experiment_id,
+                )
+            )
+            summary = self._summarize(
+                steps,
+                incident_candidate_id,
+                critical_assets_reached,
+                attack_path_context,
+                blast_radius_context,
+            )
             record.summary_json = summary.model_dump(mode="json")
             record.status = "completed"
             get_event_bus().publish(
@@ -235,6 +272,9 @@ class PurpleTeamService:
                     source="purple_team",
                     run_id=record.simulation_run_id,
                     scenario_id=request.scenario_id,
+                    incident_id=incident_candidate_id,
+                    correlation_id=experiment_id,
+                    resource_ids=critical_assets_reached,
                     payload=PurpleExperimentCompletedPayload(
                         experiment_id=experiment_id,
                         status="completed",
@@ -252,6 +292,98 @@ class PurpleTeamService:
 
         session.flush()
         return self._to_schema(session, record)
+
+    def _derive_security_context(
+        self,
+        session: Session,
+        run_id: str,
+        model_id: str,
+        definition: RedScenarioDefinition,
+        experiment_id: str,
+    ) -> tuple[list[str], PurpleAttackPathContext | None, PurpleBlastRadiusContext | None]:
+        """Real `AttackGraphService`/`BlastRadiusService` context for this
+        experiment - never a placeholder. Reuses those services exactly as
+        the standalone Digital Twin tabs do; no graph logic is duplicated
+        here. `critical_assets_reached` (OBSERVED/REACHED) is deliberately
+        distinct from `blast_radius_context.critical_assets_at_risk`
+        (AT-RISK/REACHABLE) - the former requires real anomalous-observed
+        evidence, the latter is a static reachability estimate that never
+        claims an asset was actually compromised. See
+        docs/architecture/PURPLE_TEAM.md "Attack Graph and Blast Radius
+        integration".
+        """
+
+        state = topology_path_service.run_state(session, run_id, model_id, None)
+        reached_assets = set(state.anomalous_observed_asset_ids)
+        node_by_id = {n.asset_id: n for n in topology_service.nodes(include_sink=True)}
+        critical_assets_reached = sorted(
+            a
+            for a in reached_assets
+            if a in node_by_id and node_by_id[a].criticality in {"high", "critical"}
+        )
+
+        attack_path_context: PurpleAttackPathContext | None = None
+        try:
+            path_type = AttackPathType.OBSERVED if reached_assets else AttackPathType.POTENTIAL
+            analysis = attack_graph_service.analyze(
+                session,
+                definition.initial_access_point,
+                definition.high_value_objective,
+                path_type,
+                run_id if path_type is AttackPathType.OBSERVED else None,
+                model_id if path_type is AttackPathType.OBSERVED else None,
+                None,
+                8,
+                1,
+                correlation_id=experiment_id,
+            )
+            if analysis.paths:
+                top = analysis.paths[0]
+                attack_path_context = PurpleAttackPathContext(
+                    path_type=top.path_type.value,
+                    source_asset_id=top.source_asset_id,
+                    target_asset_id=top.target_asset_id,
+                    hop_count=top.hop_count,
+                    score=top.score.total,
+                    statement=top.statement,
+                    through_sequence_number=top.through_sequence_number,
+                )
+        except ApplicationError:
+            attack_path_context = None
+
+        blast_radius_context: PurpleBlastRadiusContext | None = None
+        try:
+            if reached_assets:
+                estimate = blast_radius_service.estimate(
+                    session,
+                    sorted(reached_assets),
+                    run_id,
+                    None,
+                    6,
+                    correlation_id=experiment_id,
+                )
+            else:
+                estimate = blast_radius_service.estimate(
+                    session,
+                    [definition.initial_access_point],
+                    None,
+                    None,
+                    6,
+                    correlation_id=experiment_id,
+                )
+            blast_radius_context = PurpleBlastRadiusContext(
+                compromised_asset_ids=estimate.compromised_asset_ids,
+                reachable_count=estimate.reachable_count,
+                critical_assets_at_risk=estimate.critical_assets_at_risk,
+                trust_zones_reached=estimate.trust_zones_reached,
+                score=estimate.score.total,
+                mode=estimate.mode,
+                through_sequence_number=estimate.through_sequence_number,
+            )
+        except ApplicationError:
+            blast_radius_context = None
+
+        return critical_assets_reached, attack_path_context, blast_radius_context
 
     def _run_defense(
         self,
@@ -418,11 +550,14 @@ class PurpleTeamService:
                 expected_technique_id=expected.technique_id if expected else None,
                 outcome=outcome.value,
             )
+            step_causation_id = event.event_id if event else None
             get_event_bus().publish(
                 DomainEvent(
                     event_type=EventType.RED_STEP_ATTEMPTED,
                     source="red_scenario",
                     run_id=run_id,
+                    correlation_id=record.experiment_id,
+                    causation_id=step_causation_id,
                     payload=red_step_payload,
                 )
             )
@@ -431,6 +566,8 @@ class PurpleTeamService:
                     event_type=EventType.RED_STEP_COMPLETED,
                     source="red_scenario",
                     run_id=run_id,
+                    correlation_id=record.experiment_id,
+                    causation_id=step_causation_id,
                     payload=red_step_payload,
                 )
             )
@@ -439,6 +576,11 @@ class PurpleTeamService:
                     event_type=EventType.PURPLE_STEP_COMPLETED,
                     source="purple_team",
                     run_id=run_id,
+                    correlation_id=record.experiment_id,
+                    causation_id=step_causation_id,
+                    incident_id=(
+                        touching_defense.incident_candidate_id if touching_defense else None
+                    ),
                     resource_ids=[a for a in [step_record.target_asset_id] if a],
                     payload=PurpleStepCompletedPayload(
                         experiment_id=record.experiment_id,
@@ -480,6 +622,9 @@ class PurpleTeamService:
         self,
         steps: list[PurpleTeamStepResultRecord],
         incident_candidate_id: str | None,
+        critical_assets_reached: list[str],
+        attack_path_context: PurpleAttackPathContext | None,
+        blast_radius_context: PurpleBlastRadiusContext | None,
     ) -> PurpleTeamSummary:
         total_steps = len(steps)
         attempted_steps = sum(1 for item in steps if item.outcome != RedStepOutcome.SKIPPED.value)
@@ -525,8 +670,9 @@ class PurpleTeamService:
             response_recommendation_created=response_created,
             response_executed=response_executed,
             verification_result=verification_result,
-            critical_assets_reached=[],
-            estimated_blast_radius_count=None,
+            critical_assets_reached=critical_assets_reached,
+            attack_path_context=attack_path_context,
+            blast_radius_context=blast_radius_context,
             final_outcome=final_outcome,
         )
 
