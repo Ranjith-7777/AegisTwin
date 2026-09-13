@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from typing import cast
 
@@ -30,3 +31,31 @@ def test_database_connectivity_check_uses_sqlite(tmp_path: Path) -> None:
         assert database.is_connected() is True
     finally:
         database.dispose()
+
+
+def test_liveness_does_not_depend_on_database(client: TestClient) -> None:
+    response = client.get("/api/health/live")
+    assert response.status_code == 200
+    assert response.json() == {"status": "alive"}
+
+
+def test_readiness_reports_all_checks_ok(client: TestClient) -> None:
+    response = client.get("/api/health/ready")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ready"
+    names = {check["name"] for check in body["checks"]}
+    assert names == {"database", "model_subsystem", "configuration", "event_bus"}
+    assert all(check["status"] == "ok" for check in body["checks"])
+
+
+def test_readiness_fails_when_model_artifact_dir_is_removed(client: TestClient) -> None:
+    application = cast(FastAPI, client.app)
+    settings = application.state.settings
+    shutil.rmtree(settings.model_artifact_dir)
+    response = client.get("/api/health/ready")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "not_ready"
+    failed = {check["name"] for check in body["checks"] if check["status"] == "failed"}
+    assert "model_subsystem" in failed

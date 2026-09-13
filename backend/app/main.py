@@ -14,6 +14,8 @@ from app.core.exceptions import ConfigurationError, register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import CorrelationIdMiddleware
 from app.database.session import Database
+from app.events.logging_subscriber import register_logging_subscriber
+from app.events.registry import get_event_bus
 from app.websocket.manager import ConnectionManager
 from app.websocket.playback_routes import router as playback_websocket_router
 from app.websocket.routes import router as websocket_router
@@ -53,6 +55,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             database.dispose()
             raise ConfigurationError("MODEL_ARTIFACT_DIR must identify a directory")
         logger.info("Model artifact directory verified")
+        event_bus = get_event_bus()
+        register_logging_subscriber(event_bus)
+        application.state.event_bus = event_bus
+        logger.info("Event bus initialised (InProcessEventBus)")
         logger.info("Application startup complete")
         try:
             yield

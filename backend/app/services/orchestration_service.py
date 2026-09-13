@@ -19,6 +19,16 @@ from app.database.models import (
     RollbackRecord,
     SyntheticExecutionRecord,
 )
+from app.events.envelope import (
+    DomainEvent,
+    ResourceStateChangedPayload,
+    ResponseDecisionPayload,
+    ResponseExecutionPayload,
+    RollbackPayload,
+    VerificationCompletedPayload,
+)
+from app.events.registry import get_event_bus
+from app.events.types import EventType
 from app.schemas.orchestration import (
     AgentDecision,
     ApprovalRequestView,
@@ -283,6 +293,27 @@ class OrchestrationService:
                 "reason": "Deterministic planning, simulation and policy workflow completed.",
             },
         )
+        decision_event_type = {
+            "approved": EventType.RESPONSE_APPROVED,
+            "rejected": EventType.RESPONSE_REJECTED,
+        }.get(record.current_state, EventType.RESPONSE_PROPOSED)
+        get_event_bus().publish(
+            DomainEvent(
+                event_type=decision_event_type,
+                source="orchestration",
+                run_id=run_id,
+                incident_id=candidate_id,
+                correlation_id=run_id,
+                resource_ids=[oid],
+                payload=ResponseDecisionPayload(
+                    orchestration_id=oid,
+                    run_id=run_id,
+                    incident_candidate_id=candidate_id,
+                    from_state="planning",
+                    to_state=record.current_state,
+                ),
+            )
+        )
         session.commit()
         return self.view(session, record)
 
@@ -371,6 +402,23 @@ class OrchestrationService:
         )
         assert recommendation is not None and step is not None
         now = datetime.now(UTC)
+        get_event_bus().publish(
+            DomainEvent(
+                event_type=EventType.RESPONSE_EXECUTION_STARTED,
+                source="orchestration",
+                run_id=record.simulation_run_id,
+                incident_id=record.incident_candidate_id,
+                correlation_id=record.simulation_run_id,
+                resource_ids=[oid, step.target_id],
+                payload=ResponseDecisionPayload(
+                    orchestration_id=oid,
+                    run_id=record.simulation_run_id,
+                    incident_candidate_id=record.incident_candidate_id,
+                    from_state=record.current_state,
+                    to_state="synthetic_execution_started",
+                ),
+            )
+        )
         changed_nodes, changed_edges, summary = synthetic_execution_agent.mutation(recommendation)
         failed = failure_mode != "none"
         execution = SyntheticExecutionRecord(
@@ -433,6 +481,40 @@ class OrchestrationService:
                 else "Declared playbook mutation applied in synthetic state.",
             },
         )
+        get_event_bus().publish(
+            DomainEvent(
+                event_type=EventType.RESPONSE_FAILED if failed else EventType.RESPONSE_EXECUTED,
+                source="orchestration",
+                run_id=record.simulation_run_id,
+                incident_id=record.incident_candidate_id,
+                correlation_id=record.simulation_run_id,
+                resource_ids=[oid, execution.execution_id, *changed_nodes],
+                payload=ResponseExecutionPayload(
+                    orchestration_id=oid,
+                    execution_id=execution.execution_id,
+                    execution_state=execution.execution_state,
+                    changed_node_count=len(execution.changed_node_ids_json),
+                    changed_edge_count=len(execution.changed_edge_ids_json),
+                ),
+            )
+        )
+        if not failed:
+            for node_id in changed_nodes:
+                get_event_bus().publish(
+                    DomainEvent(
+                        event_type=EventType.RESOURCE_STATE_CHANGED,
+                        source="topology",
+                        run_id=record.simulation_run_id,
+                        correlation_id=record.simulation_run_id,
+                        resource_ids=[node_id],
+                        payload=ResourceStateChangedPayload(
+                            orchestration_id=oid,
+                            resource_id=node_id,
+                            resource_type="node",
+                            new_state=execution.execution_state,
+                        ),
+                    )
+                )
         session.commit()
         return self.view(session, record)
 
@@ -491,6 +573,21 @@ class OrchestrationService:
                 "reason": "Compared declared and persisted synthetic mutations.",
             },
         )
+        get_event_bus().publish(
+            DomainEvent(
+                event_type=EventType.VERIFICATION_COMPLETED,
+                source="orchestration",
+                run_id=record.simulation_run_id,
+                incident_id=record.incident_candidate_id,
+                correlation_id=record.simulation_run_id,
+                resource_ids=[oid, verification.verification_id],
+                payload=VerificationCompletedPayload(
+                    orchestration_id=oid,
+                    verification_id=verification.verification_id,
+                    verification_status=status,
+                ),
+            )
+        )
         session.commit()
         return self.view(session, record)
 
@@ -512,8 +609,22 @@ class OrchestrationService:
                 "ROLLBACK_NOT_REVERSIBLE", "This synthetic playbook cannot be rolled back.", 409
             )
         now = datetime.now(UTC)
+        rollback_id = self._id("rollback", oid)
+        get_event_bus().publish(
+            DomainEvent(
+                event_type=EventType.ROLLBACK_STARTED,
+                source="orchestration",
+                run_id=record.simulation_run_id,
+                incident_id=record.incident_candidate_id,
+                correlation_id=record.simulation_run_id,
+                resource_ids=[oid],
+                payload=RollbackPayload(
+                    orchestration_id=oid, rollback_id=rollback_id, state="rollback_started"
+                ),
+            )
+        )
         rollback = RollbackRecord(
-            rollback_id=self._id("rollback", oid),
+            rollback_id=rollback_id,
             orchestration_id=oid,
             execution_id=execution.execution_id,
             reason=reason,
@@ -546,6 +657,21 @@ class OrchestrationService:
                 "to_state": record.current_state,
                 "reason": reason,
             },
+        )
+        get_event_bus().publish(
+            DomainEvent(
+                event_type=EventType.ROLLBACK_COMPLETED,
+                source="orchestration",
+                run_id=record.simulation_run_id,
+                incident_id=record.incident_candidate_id,
+                correlation_id=record.simulation_run_id,
+                resource_ids=[oid, rollback.rollback_id],
+                payload=RollbackPayload(
+                    orchestration_id=oid,
+                    rollback_id=rollback.rollback_id,
+                    state=rollback.state,
+                ),
+            )
         )
         session.commit()
         return self.view(session, record)

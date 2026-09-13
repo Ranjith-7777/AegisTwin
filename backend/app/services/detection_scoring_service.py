@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ApplicationError
 from app.database.models import AnomalyAssessmentRecord, SimulationRunRecord
+from app.events.envelope import AnomalyDetectedPayload, DomainEvent
+from app.events.registry import get_event_bus
+from app.events.types import EventType
 from app.schemas.detection import Classification, RunScoringResult
 from app.schemas.telemetry import TelemetryEvent
 from app.services.detection_training_service import detection_training_service
@@ -130,11 +133,26 @@ class DetectionScoringService:
                 )
             )
         session.flush()
+        anomalous_count = sum(item[3] is Classification.ANOMALOUS for item in scored)
+        get_event_bus().publish(
+            DomainEvent(
+                event_type=EventType.ANOMALY_DETECTED,
+                source="detection",
+                run_id=run_id,
+                correlation_id=run_id,
+                payload=AnomalyDetectedPayload(
+                    run_id=run_id,
+                    model_id=model_id,
+                    assessment_count=len(scored),
+                    anomalous_count=anomalous_count,
+                ),
+            )
+        )
         return RunScoringResult(
             model_id=model_id,
             simulation_run_id=run_id,
             assessment_count=len(scored),
-            anomalous_count=sum(item[3] is Classification.ANOMALOUS for item in scored),
+            anomalous_count=anomalous_count,
             force_rescore=force_rescore,
             synthetic=True,
         )

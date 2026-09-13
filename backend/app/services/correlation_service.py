@@ -16,6 +16,9 @@ from app.database.models import (
     SimulationRunRecord,
     TechniqueObservationRecord,
 )
+from app.events.envelope import DomainEvent, IncidentCreatedPayload
+from app.events.registry import get_event_bus
+from app.events.types import EventType
 from app.schemas.correlation import (
     CorrelationAnalysisResult,
     IncidentCandidate,
@@ -228,6 +231,24 @@ class CorrelationService:
                 )
             )
         session.flush()
+        get_event_bus().publish(
+            DomainEvent(
+                event_type=EventType.INCIDENT_CREATED,
+                source="incident",
+                run_id=run_id,
+                incident_id=candidate_id,
+                correlation_id=run_id,
+                resource_ids=assets,
+                payload=IncidentCreatedPayload(
+                    incident_candidate_id=candidate_id,
+                    run_id=run_id,
+                    model_id=model_id,
+                    priority=priority,
+                    evidence_count=len(evidence_records),
+                    technique_ids=techniques,
+                ),
+            )
+        )
         return self._result(session, candidate, force)
 
     def _map(self, events: list[TelemetryEvent], model_id: str) -> list[TechniqueObservationRecord]:

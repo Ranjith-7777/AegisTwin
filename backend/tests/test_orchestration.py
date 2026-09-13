@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import Any, cast
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 
@@ -7,7 +9,7 @@ from app.database.models import AuditEventRecord
 from tests.test_response import prepare_response
 
 
-def prepared(client: TestClient) -> tuple[str, str, dict[str, object]]:
+def prepared(client: TestClient) -> tuple[str, str, dict[str, Any]]:
     run_id, model_id = prepare_response(client)
     analysis = client.post(
         f"/api/v1/response/runs/{run_id}/analyze",
@@ -21,31 +23,37 @@ def prepared(client: TestClient) -> tuple[str, str, dict[str, object]]:
     return run_id, model_id, recommendation
 
 
-def create(client: TestClient) -> dict[str, object]:
+def create(client: TestClient) -> dict[str, Any]:
     run_id, model_id, recommendation = prepared(client)
-    return client.post(
-        f"/api/v1/orchestration/runs/{run_id}/create",
-        json={
-            "model_id": model_id,
-            "incident_candidate_id": recommendation["incident_candidate_id"],
-            "selected_recommendation_id": recommendation["recommendation_id"],
-            "through_sequence_number": 10,
-        },
-    ).json()
+    return cast(
+        "dict[str, Any]",
+        client.post(
+            f"/api/v1/orchestration/runs/{run_id}/create",
+            json={
+                "model_id": model_id,
+                "incident_candidate_id": recommendation["incident_candidate_id"],
+                "selected_recommendation_id": recommendation["recommendation_id"],
+                "through_sequence_number": 10,
+            },
+        ).json(),
+    )
 
 
-def approve(client: TestClient, orchestration: dict[str, object]) -> dict[str, object]:
+def approve(client: TestClient, orchestration: dict[str, Any]) -> dict[str, Any]:
     approval = orchestration["approvals"][0]
-    return client.post(
-        f"/api/v1/orchestration/{orchestration['orchestration_id']}/approvals/"
-        f"{approval['approval_request_id']}/decide",
-        json={
-            "actor_role": "analyst",
-            "actor_display_name": "Demo SOC Analyst",
-            "decision": "approve",
-            "reason": "Approved for simulation demonstration only.",
-        },
-    ).json()
+    return cast(
+        "dict[str, Any]",
+        client.post(
+            f"/api/v1/orchestration/{orchestration['orchestration_id']}/approvals/"
+            f"{approval['approval_request_id']}/decide",
+            json={
+                "actor_role": "analyst",
+                "actor_display_name": "Demo SOC Analyst",
+                "decision": "approve",
+                "reason": "Approved for simulation demonstration only.",
+            },
+        ).json(),
+    )
 
 
 def test_deterministic_agents_approval_execution_verification_and_rollback(
@@ -145,7 +153,7 @@ def test_audit_tampering_is_detected_and_sources_have_no_execution_integrations(
 ) -> None:
     orchestration = create(client)
     oid = orchestration["orchestration_id"]
-    sessions = client.app.state.database.session()
+    sessions = cast(FastAPI, client.app).state.database.session()
     session = next(sessions)
     try:
         session.execute(

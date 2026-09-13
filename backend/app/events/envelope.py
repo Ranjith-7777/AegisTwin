@@ -1,0 +1,110 @@
+"""Canonical domain event envelope.
+
+Every domain event published on the :class:`~app.events.bus.EventBus` is an
+instance of :class:`DomainEvent`, parameterised by a typed payload model.
+The envelope fields are stable across all event types so consumers (log
+handlers, WebSocket broadcasters, a future cloud event bus) can reason about
+identity and correlation without knowing the payload shape.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Generic, TypeVar
+from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.events.types import EventType
+
+TPayload = TypeVar("TPayload", bound=BaseModel)
+
+
+class DomainEvent(BaseModel, Generic[TPayload]):
+    """Typed envelope wrapping a domain-specific payload model."""
+
+    model_config = ConfigDict(frozen=True)
+
+    event_id: str = Field(default_factory=lambda: str(uuid4()))
+    event_type: EventType
+    event_version: int = 1
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    source: str
+    run_id: str | None = None
+    scenario_id: str | None = None
+    incident_id: str | None = None
+    correlation_id: str | None = None
+    causation_id: str | None = None
+    resource_ids: list[str] = Field(default_factory=list)
+    payload: TPayload
+
+
+# --- Typed payloads for the event types this codebase actually publishes ---
+
+
+class ScenarioStartedPayload(BaseModel):
+    scenario_id: str
+    seed: int
+    event_count: int
+
+
+class TelemetryGeneratedPayload(BaseModel):
+    run_id: str
+    event_count: int
+
+
+class AnomalyDetectedPayload(BaseModel):
+    run_id: str
+    model_id: str
+    assessment_count: int
+    anomalous_count: int
+
+
+class IncidentCreatedPayload(BaseModel):
+    incident_candidate_id: str
+    run_id: str
+    model_id: str
+    priority: str
+    evidence_count: int
+    technique_ids: list[str]
+
+
+class PredictionGeneratedPayload(BaseModel):
+    run_id: str
+    model_id: str
+    hypothesis_count: int
+
+
+class ResponseDecisionPayload(BaseModel):
+    orchestration_id: str
+    run_id: str
+    incident_candidate_id: str
+    from_state: str
+    to_state: str
+
+
+class ResponseExecutionPayload(BaseModel):
+    orchestration_id: str
+    execution_id: str
+    execution_state: str
+    changed_node_count: int
+    changed_edge_count: int
+
+
+class VerificationCompletedPayload(BaseModel):
+    orchestration_id: str
+    verification_id: str
+    verification_status: str
+
+
+class RollbackPayload(BaseModel):
+    orchestration_id: str
+    rollback_id: str
+    state: str
+
+
+class ResourceStateChangedPayload(BaseModel):
+    orchestration_id: str
+    resource_id: str
+    resource_type: str
+    new_state: str

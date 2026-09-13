@@ -17,6 +17,9 @@ from app.database.models import (
     SimulationRunRecord,
     TechniqueObservationRecord,
 )
+from app.events.envelope import DomainEvent, PredictionGeneratedPayload
+from app.events.registry import get_event_bus
+from app.events.types import EventType
 from app.schemas.prediction import (
     PredictionAnalysisResult,
     PredictionHypothesis,
@@ -216,6 +219,17 @@ class PredictionService:
                 session.add(item)
             hypothesis_count += len(hypotheses)
         session.flush()
+        get_event_bus().publish(
+            DomainEvent(
+                event_type=EventType.PREDICTION_GENERATED,
+                source="prediction",
+                run_id=run_id,
+                correlation_id=run_id,
+                payload=PredictionGeneratedPayload(
+                    run_id=run_id, model_id=model_id, hypothesis_count=hypothesis_count
+                ),
+            )
+        )
         return self._result(run_id, model_id, len(events), hypothesis_count, top_k, force)
 
     def _hypotheses(

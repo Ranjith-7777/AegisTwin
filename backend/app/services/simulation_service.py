@@ -8,6 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ApplicationError
 from app.database.models import SimulationRunRecord, TelemetryEventRecord
+from app.events.envelope import (
+    DomainEvent,
+    ScenarioStartedPayload,
+    TelemetryGeneratedPayload,
+)
+from app.events.registry import get_event_bus
+from app.events.types import EventType
 from app.schemas.simulation import SimulationRun, SimulationRunCreate, SimulationRunStatus
 from app.schemas.telemetry import TelemetryEvent
 from app.services.event_generator import event_generator
@@ -52,6 +59,31 @@ class SimulationRunService:
         session.add(run)
         session.add_all([self._event_record(event) for event in events])
         session.flush()
+        bus = get_event_bus()
+        bus.publish(
+            DomainEvent(
+                event_type=EventType.SCENARIO_STARTED,
+                source="simulation",
+                run_id=run_id,
+                scenario_id=scenario.scenario_id,
+                correlation_id=run_id,
+                payload=ScenarioStartedPayload(
+                    scenario_id=scenario.scenario_id,
+                    seed=request.seed,
+                    event_count=len(events),
+                ),
+            )
+        )
+        bus.publish(
+            DomainEvent(
+                event_type=EventType.TELEMETRY_GENERATED,
+                source="telemetry",
+                run_id=run_id,
+                scenario_id=scenario.scenario_id,
+                correlation_id=run_id,
+                payload=TelemetryGeneratedPayload(run_id=run_id, event_count=len(events)),
+            )
+        )
         return self._to_schema(run)
 
     def list_runs(self, session: Session) -> list[SimulationRun]:
