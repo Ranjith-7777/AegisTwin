@@ -16,6 +16,9 @@ export async function listOrchestrations() {
   if (!Array.isArray(data.items)) throw new Error('Malformed synthetic orchestration response.')
   return data.items.map(valid)
 }
+export async function getOrchestration(oid: string) {
+  return valid((await apiClient.get(`/api/v1/orchestration/${oid}`)).data)
+}
 export async function createOrchestration(
   runId: string,
   body: {

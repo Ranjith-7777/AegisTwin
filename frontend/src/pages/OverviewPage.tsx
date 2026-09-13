@@ -107,7 +107,7 @@ export function OverviewPage() {
       selected_recommendation_id: recommendation.recommendation_id,
       through_sequence_number: recommendation.through_sequence_number,
     })
-      .then(() => navigate('/response-operations'))
+      .then(() => navigate('/blue-agent/verification'))
       .catch(() => {
         setError('Synthetic orchestration creation failed.')
       })

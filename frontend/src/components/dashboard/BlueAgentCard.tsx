@@ -67,7 +67,7 @@ export function BlueAgentCard({
               size="sm"
               variant="outline"
               onClick={() => {
-                void navigate('/response-centre')
+                void navigate('/blue-agent/response-plans')
               }}
             >
               View Details

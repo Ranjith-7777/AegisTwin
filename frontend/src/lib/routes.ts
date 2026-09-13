@@ -5,12 +5,14 @@ import {
   FileClock,
   GitBranch,
   LayoutDashboard,
+  ListChecks,
   RadioTower,
   Radar,
   Settings,
   ShieldAlert,
   ShieldCheck,
   Target,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -61,8 +63,11 @@ export const navSections: NavSection[] = [
     label: 'Defense',
     icon: Bot,
     routes: [
-      { path: '/response-centre', label: 'Blue Agent', icon: Bot },
-      { path: '/response-operations', label: 'Response Operations', icon: GitBranch },
+      { path: '/blue-agent/overview', label: 'Overview', icon: Bot },
+      { path: '/blue-agent/agent-workflow', label: 'Agent Workflow', icon: Workflow },
+      { path: '/blue-agent/response-plans', label: 'Response Plans', icon: GitBranch },
+      { path: '/blue-agent/policies', label: 'Policies', icon: ListChecks },
+      { path: '/blue-agent/verification', label: 'Verification', icon: ShieldCheck },
     ],
   },
   {

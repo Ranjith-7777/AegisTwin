@@ -218,8 +218,8 @@ export function IncidentsPage() {
                     3,
                   ) ?? 'unavailable'}
                 </p>
-                <Link className="text-blue-600" to="/response-centre">
-                  Open Response Centre
+                <Link className="text-blue-600" to="/blue-agent/response-plans">
+                  Open Response Plans
                 </Link>
               </div>
             ) : null}
@@ -233,8 +233,8 @@ export function IncidentsPage() {
                   Verification:{' '}
                   {orchestration.verifications[0]?.verification_status ?? 'not available'}
                 </p>
-                <Link className="text-blue-600" to="/response-operations">
-                  Open Response Operations
+                <Link className="text-blue-600" to="/blue-agent/verification">
+                  Open Verification
                 </Link>
                 {' · '}
                 <Link className="text-blue-600" to="/audit-trail">

@@ -1,12 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ResponseOperationsPage } from '../pages/ResponseOperationsPage'
+import { VerificationPage } from '../pages/blueAgent/VerificationPage'
 import { AuditTrailPage } from '../pages/AuditTrailPage'
+import * as autonomyApi from '../services/autonomyApi'
 import * as orchestrationApi from '../services/orchestrationApi'
 import type { Orchestration } from '../types/orchestration'
 
 vi.mock('../services/orchestrationApi')
+vi.mock('../services/autonomyApi')
 
 const orchestration: Orchestration = {
   orchestration_id: 'orch-1',
@@ -73,7 +76,7 @@ const orchestration: Orchestration = {
   rollback: null,
 }
 
-describe('Phase 7B synthetic orchestration', () => {
+describe('Phase 4 Verification & Rollback tab', () => {
   beforeEach(() => {
     vi.mocked(orchestrationApi.listOrchestrations).mockResolvedValue([orchestration])
     vi.mocked(orchestrationApi.decideApproval).mockResolvedValue({
@@ -106,13 +109,24 @@ describe('Phase 7B synthetic orchestration', () => {
       algorithm: 'SHA-256 canonical-json-chain-v1',
       synthetic: true,
     })
+    vi.mocked(autonomyApi.getAutonomyConfig).mockResolvedValue({
+      mode: 'recommend',
+      description: 'Generate and rank candidate plans but never execute automatically.',
+      updated_by: 'system-default',
+      updated_at: '2026-07-22T00:00:00Z',
+      synthetic: true,
+    })
   })
 
-  it('renders agent workflow and enforces administrator demonstration approval', async () => {
+  it('renders agent decisions and enforces administrator demonstration approval', async () => {
     const user = userEvent.setup()
-    render(<ResponseOperationsPage />)
-    expect(await screen.findByText('Simulation agent workflow')).toBeInTheDocument()
-    expect(screen.getByText('Selected primary synthetic action.')).toBeInTheDocument()
+    render(
+      <MemoryRouter>
+        <VerificationPage />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Agent decisions')).toBeInTheDocument()
+    expect(screen.getByText('Deterministic selection.')).toBeInTheDocument()
     const approve = screen.getByRole('button', { name: 'Approve' })
     expect(approve).toBeDisabled()
     await user.selectOptions(screen.getByLabelText('Simulated actor role'), 'administrator')
@@ -127,6 +141,34 @@ describe('Phase 7B synthetic orchestration', () => {
     })
     expect(screen.getByRole('button', { name: 'Execute in Synthetic Twin' })).toBeEnabled()
     expect(screen.getByText(/No real defensive action is performed/)).toBeInTheDocument()
+  })
+
+  it('requires explicit confirmation before raising autonomy to AUTONOMOUS', async () => {
+    const user = userEvent.setup()
+    vi.mocked(autonomyApi.setAutonomyMode).mockResolvedValue({
+      mode: 'autonomous',
+      description:
+        'Eligible low-impact, reversible, policy-passing actions may execute automatically.',
+      updated_by: 'Demo SOC Analyst',
+      updated_at: '2026-07-22T00:00:00Z',
+      synthetic: true,
+    })
+    render(
+      <MemoryRouter>
+        <VerificationPage />
+      </MemoryRouter>,
+    )
+    await screen.findByText('recommend', { selector: 'strong' })
+    await user.click(screen.getByRole('button', { name: 'autonomous' }))
+    expect(screen.getByText(/Confirm to proceed/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Confirm AUTONOMOUS' }))
+    await waitFor(() => {
+      expect(autonomyApi.setAutonomyMode).toHaveBeenCalledWith(
+        'autonomous',
+        'Demo SOC Analyst',
+        true,
+      )
+    })
   })
 
   it('renders and verifies the tamper-evident audit chain', async () => {

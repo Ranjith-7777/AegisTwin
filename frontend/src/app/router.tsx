@@ -14,11 +14,6 @@ const MitrePage = lazy(() =>
 const AuditTrailPage = lazy(() =>
   import('../pages/AuditTrailPage').then((module) => ({ default: module.AuditTrailPage })),
 )
-const ResponseOperationsPage = lazy(() =>
-  import('../pages/ResponseOperationsPage').then((module) => ({
-    default: module.ResponseOperationsPage,
-  })),
-)
 
 const DigitalTwinPage = lazy(() =>
   import('../pages/DigitalTwinPage').then((module) => ({ default: module.DigitalTwinPage })),
@@ -31,9 +26,27 @@ const PredictiveAnalyticsPage = lazy(() =>
     default: module.PredictiveAnalyticsPage,
   })),
 )
-const ResponseCentrePage = lazy(() =>
-  import('../pages/ResponseCentrePage').then((module) => ({
-    default: module.ResponseCentrePage,
+const BlueAgentOverviewPage = lazy(() =>
+  import('../pages/blueAgent/BlueAgentOverviewPage').then((module) => ({
+    default: module.BlueAgentOverviewPage,
+  })),
+)
+const AgentWorkflowPage = lazy(() =>
+  import('../pages/blueAgent/AgentWorkflowPage').then((module) => ({
+    default: module.AgentWorkflowPage,
+  })),
+)
+const ResponsePlansPage = lazy(() =>
+  import('../pages/blueAgent/ResponsePlansPage').then((module) => ({
+    default: module.ResponsePlansPage,
+  })),
+)
+const PoliciesPage = lazy(() =>
+  import('../pages/blueAgent/PoliciesPage').then((module) => ({ default: module.PoliciesPage })),
+)
+const VerificationPage = lazy(() =>
+  import('../pages/blueAgent/VerificationPage').then((module) => ({
+    default: module.VerificationPage,
   })),
 )
 
@@ -65,14 +78,6 @@ export function AppRoutes() {
           }
         />
         <Route
-          path="response-centre"
-          element={
-            <LazyPage>
-              <ResponseCentrePage />
-            </LazyPage>
-          }
-        />
-        <Route
           path="audit-trail"
           element={
             <LazyPage>
@@ -81,10 +86,42 @@ export function AppRoutes() {
           }
         />
         <Route
-          path="response-operations"
+          path="blue-agent/overview"
           element={
             <LazyPage>
-              <ResponseOperationsPage />
+              <BlueAgentOverviewPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="blue-agent/agent-workflow"
+          element={
+            <LazyPage>
+              <AgentWorkflowPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="blue-agent/response-plans"
+          element={
+            <LazyPage>
+              <ResponsePlansPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="blue-agent/policies"
+          element={
+            <LazyPage>
+              <PoliciesPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="blue-agent/verification"
+          element={
+            <LazyPage>
+              <VerificationPage />
             </LazyPage>
           }
         />

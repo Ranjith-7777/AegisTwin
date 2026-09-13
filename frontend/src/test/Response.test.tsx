@@ -1,17 +1,24 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ResponseCentrePage } from '../pages/ResponseCentrePage'
+import { ResponsePlansPage } from '../pages/blueAgent/ResponsePlansPage'
+import * as bluePlanningApi from '../services/bluePlanningApi'
+import * as correlationApi from '../services/correlationApi'
 import * as detectionApi from '../services/detectionApi'
 import * as responseApi from '../services/responseApi'
 import * as simulationApi from '../services/simulationApi'
+import type { PlanComparisonResult } from '../types/bluePlanning'
+import type { IncidentPage } from '../types/correlation'
 import type { ResponseAnalysisResult } from '../types/response'
 import type { SimulationRun } from '../types/simulation'
 
 vi.mock('../services/detectionApi')
 vi.mock('../services/responseApi')
 vi.mock('../services/simulationApi')
+vi.mock('../services/bluePlanningApi')
+vi.mock('../services/correlationApi')
 
 const run: SimulationRun = {
   simulation_run_id: 'run-1',
@@ -40,6 +47,91 @@ const model = {
   created_at: '2026-07-22T00:00:00Z',
   synthetic: true,
   configuration_json: {},
+}
+const incidents: IncidentPage = {
+  items: [
+    {
+      incident_candidate_id: 'candidate-1',
+      simulation_run_id: 'run-1',
+      model_id: 'model-1',
+      title: 'Staged compromise incident',
+      correlation_state: 'high_priority',
+      priority: 'high',
+      correlation_score: 0.9,
+      component_scores: {},
+      first_sequence_number: 1,
+      latest_sequence_number: 10,
+      primary_user_id: null,
+      primary_device_id: null,
+      involved_asset_ids: [],
+      observed_tactic_ids: [],
+      observed_technique_ids: [],
+      evidence_count: 3,
+      synthetic: true,
+    },
+  ],
+  page: 1,
+  page_size: 20,
+  total: 1,
+  pages: 1,
+}
+const comparison: PlanComparisonResult = {
+  simulation_run_id: 'run-1',
+  model_id: 'model-1',
+  incident_candidate_id: 'candidate-1',
+  through_sequence_number: 10,
+  autonomy_mode: 'recommend',
+  recommended_recommendation_id: 'recommendation-1',
+  candidates: [
+    {
+      recommendation_id: 'recommendation-1',
+      playbook_id: 'block-synthetic-route',
+      playbook_name: 'Block the network route',
+      action_type: 'edge_restriction',
+      target_type: 'relationship',
+      target_id: 'application-pod-01--cloud-database-01',
+      required_approval_tier: 'analyst_approval',
+      reversibility: 'reversible',
+      operational_impact: 'medium',
+      security_gain_evidence: {
+        attack_paths_before: 2,
+        attack_paths_after: 1,
+        top_attack_path_score_before: 60,
+        top_attack_path_score_after: 40,
+        critical_targets_reachable_before: 1,
+        critical_targets_reachable_after: 0,
+        blast_radius_reachable_before: 8,
+        blast_radius_reachable_after: 6,
+        blast_radius_critical_before: 1,
+        blast_radius_critical_after: 0,
+        security_gain: 34.5,
+      },
+      utility_score: {
+        security_gain: 34.5,
+        critical_asset_protection: 20,
+        blast_radius_reduction: 4,
+        evidence_quality: 12.4,
+        reversibility_bonus: 10,
+        operational_impact_penalty: 10,
+        total: 65.5,
+      },
+      policy_pass: true,
+      policy_failed_ids: [],
+      recommended: true,
+      synthetic: true,
+    },
+  ],
+  decision_confidence: {
+    anomaly_evidence: 6.25,
+    incident_coherence: 4,
+    technique_diversity: 3,
+    attack_path_corroboration: 0,
+    response_simulation_improvement: 20,
+    total: 33.25,
+    note: 'This is a deterministic evidence-quality score, not a calibrated probability.',
+    synthetic: true,
+  },
+  synthetic: true,
 }
 const analysis: ResponseAnalysisResult = {
   response_analysis_id: 'analysis-1',
@@ -84,39 +176,10 @@ const analysis: ResponseAnalysisResult = {
       recommendation_state: 'simulation_complete',
       evidence_summary: ['Sequence-bounded evidence'],
       rationale: 'Relative ranking from synthetic evidence.',
-      warnings: ['No action has been performed.'],
+      warnings: [],
       synthetic: true,
       created_at: '2026-07-22T00:00:00Z',
-      simulation: {
-        simulation_id: 'simulation-1',
-        recommendation_id: 'recommendation-1',
-        run_id: 'run-1',
-        through_sequence_number: 10,
-        base_topology_version: 'v1',
-        simulation_engine_version: 'v1',
-        target_type: 'relationship',
-        target_id: 'application-pod-01--cloud-database-01',
-        changed_node_ids: [],
-        changed_edge_ids: ['application-pod-01--cloud-database-01'],
-        paths_before: [{}],
-        paths_after: [],
-        correlated_paths_interrupted: 1,
-        predicted_paths_interrupted: 1,
-        sensitive_assets_reachable_before: 2,
-        sensitive_assets_reachable_after: 1,
-        expected_relationships_affected: 1,
-        affected_asset_count: 2,
-        affected_edge_count: 1,
-        interruption_score: 0.7,
-        residual_exposure_score: 0.5,
-        operational_disruption_score: 0.1,
-        blast_radius: 'single_relationship',
-        reversibility: 'reversible',
-        approval_tier: 'analyst_approval',
-        warnings: ['Clone only.'],
-        synthetic: true,
-        created_at: '2026-07-22T00:00:00Z',
-      },
+      simulation: null,
     },
   ],
 }
@@ -124,44 +187,52 @@ const analysis: ResponseAnalysisResult = {
 beforeEach(() => {
   vi.mocked(simulationApi.getSimulationRuns).mockResolvedValue([run])
   vi.mocked(detectionApi.getDetectionModels).mockResolvedValue([model])
-  vi.mocked(responseApi.getResponsePlaybooks).mockResolvedValue([])
+  vi.mocked(correlationApi.getRunIncidents).mockResolvedValue(incidents)
+  vi.mocked(bluePlanningApi.compareResponsePlans).mockResolvedValue(comparison)
   vi.mocked(responseApi.analyzeResponses).mockResolvedValue(analysis)
 })
 
-describe('Blue Agent response centre', () => {
-  it('shows the safe empty state and submits a sequence-bounded analysis', async () => {
-    render(<ResponseCentrePage />)
-    expect(screen.getByText(/No real defensive action has been executed/)).toBeInTheDocument()
-    await userEvent.selectOptions(await screen.findByLabelText('Response run'), 'run-1')
-    await userEvent.selectOptions(screen.getByLabelText('Response model'), 'model-1')
-    await userEvent.clear(screen.getByLabelText('Response through sequence'))
-    await userEvent.type(screen.getByLabelText('Response through sequence'), '10')
-    await userEvent.click(screen.getByRole('button', { name: 'Rank Mitigations' }))
+describe('Blue Agent response plan comparison', () => {
+  it('ranks candidate plans and shows the Response Utility Score, not just Defense Score', async () => {
+    render(
+      <MemoryRouter>
+        <ResponsePlansPage />
+      </MemoryRouter>,
+    )
+    await userEvent.selectOptions(await screen.findByLabelText('Blue Agent run'), 'run-1')
+    await userEvent.selectOptions(screen.getByLabelText('Blue Agent model'), 'model-1')
+    await userEvent.selectOptions(
+      await screen.findByLabelText('Blue Agent incident candidate'),
+      'candidate-1',
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Compare Candidate Plans' }))
     await waitFor(() => {
-      expect(responseApi.analyzeResponses).toHaveBeenCalled()
+      expect(bluePlanningApi.compareResponsePlans).toHaveBeenCalled()
     })
     expect(await screen.findByText('Block the network route')).toBeInTheDocument()
-    expect(screen.getAllByLabelText('Defense score breakdown').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Security improvement').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('SLA penalty').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('0.620').length).toBeGreaterThan(0)
-    expect(screen.getByText(/Approval: analyst approval/)).toBeInTheDocument()
-    expect(screen.getByText(/Correlated paths interrupted: 1/)).toBeInTheDocument()
-    expect(screen.getByText('Baseline synthetic topology')).toBeInTheDocument()
-    expect(screen.getByText('Simulated post-response topology')).toBeInTheDocument()
-    expect(screen.getByText(/heuristic simulation measures, not probabilities/)).toBeInTheDocument()
+    expect(screen.getByText('Recommended plan')).toBeInTheDocument()
+    expect(screen.getAllByText(/Response Utility Score/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/not a calibrated probability/)).toBeInTheDocument()
   })
 
-  it('handles malformed response failures without crashing', async () => {
-    vi.mocked(responseApi.analyzeResponses).mockRejectedValue(
-      new Error('Malformed synthetic response analysis.'),
+  it('surfaces plan-comparison failures without crashing', async () => {
+    vi.mocked(bluePlanningApi.compareResponsePlans).mockRejectedValue(
+      new Error('Malformed synthetic plan comparison.'),
     )
-    render(<ResponseCentrePage />)
-    await userEvent.selectOptions(await screen.findByLabelText('Response run'), 'run-1')
-    await userEvent.selectOptions(screen.getByLabelText('Response model'), 'model-1')
-    await userEvent.click(screen.getByRole('button', { name: 'Rank Mitigations' }))
+    render(
+      <MemoryRouter>
+        <ResponsePlansPage />
+      </MemoryRouter>,
+    )
+    await userEvent.selectOptions(await screen.findByLabelText('Blue Agent run'), 'run-1')
+    await userEvent.selectOptions(screen.getByLabelText('Blue Agent model'), 'model-1')
+    await userEvent.selectOptions(
+      await screen.findByLabelText('Blue Agent incident candidate'),
+      'candidate-1',
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Compare Candidate Plans' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Malformed synthetic response analysis.',
+      'Malformed synthetic plan comparison.',
     )
   })
 })
