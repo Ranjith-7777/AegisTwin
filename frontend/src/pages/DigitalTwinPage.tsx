@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
+import { AttackPathsPanel } from '../components/topology/AttackPathsPanel'
+import { BlastRadiusPanel } from '../components/topology/BlastRadiusPanel'
+import { PurpleTeamPanel } from '../components/topology/PurpleTeamPanel'
 import { CyberDigitalTwin } from '../components/topology/CyberDigitalTwin'
 import { TopologyControls } from '../components/topology/TopologyControls'
 import { TopologyHistory } from '../components/topology/TopologyHistory'
@@ -12,6 +15,7 @@ import {
   TopologyStatusSummary,
   ZoneGroup,
 } from '../components/topology/TopologyPanels'
+import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
 import { useTopology } from '../hooks/useTopology'
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
@@ -25,7 +29,17 @@ import type { ResponseImpactSimulation } from '../types/response'
 import { listOrchestrations } from '../services/orchestrationApi'
 import type { SyntheticExecution } from '../types/orchestration'
 
+type DigitalTwinTab = 'topology' | 'attack-paths' | 'blast-radius' | 'purple-team'
+
+const TABS: { id: DigitalTwinTab; label: string }[] = [
+  { id: 'topology', label: 'Topology' },
+  { id: 'attack-paths', label: 'Attack Paths' },
+  { id: 'blast-radius', label: 'Blast Radius' },
+  { id: 'purple-team', label: 'Purple Team' },
+]
+
 export function DigitalTwinPage() {
+  const [tab, setTab] = useState<DigitalTwinTab>('topology')
   const playback = useSimulationPlayback()
   const topologyState = useTopology(playback.activeRun?.scenario_id === 'staged-compromise-demo')
   const [runs, setRuns] = useState<SimulationRun[]>([])
@@ -190,13 +204,45 @@ export function DigitalTwinPage() {
         Observed and anomalous states describe synthetic replay evidence and do not confirm
         compromise.
       </p>
-      {topologyState.error ? (
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Digital Twin views">
+        {TABS.map((item) => (
+          <Button
+            key={item.id}
+            role="tab"
+            aria-selected={tab === item.id}
+            variant={tab === item.id ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setTab(item.id)
+            }}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </div>
+      {tab === 'attack-paths' ? (
+        <AttackPathsPanel
+          nodes={topologyState.topology?.nodes ?? []}
+          runId={runId}
+          modelId={modelId}
+          sequence={sequence}
+        />
+      ) : null}
+      {tab === 'blast-radius' ? (
+        <BlastRadiusPanel
+          nodes={topologyState.topology?.nodes ?? []}
+          runId={runId}
+          sequence={sequence}
+        />
+      ) : null}
+      {tab === 'purple-team' ? <PurpleTeamPanel /> : null}
+      {tab !== 'topology' ? null : topologyState.error ? (
         <p className="text-red-700" role="alert">
           {topologyState.error}
         </p>
       ) : null}
-      {topologyState.loading ? <p>Loading synthetic topology…</p> : null}
-      {topologyState.topology ? (
+      {tab === 'topology' && topologyState.loading ? <p>Loading synthetic topology…</p> : null}
+      {tab === 'topology' && topologyState.topology ? (
         <>
           <TopologyStatusSummary
             version={topologyState.topology.topology_version}
