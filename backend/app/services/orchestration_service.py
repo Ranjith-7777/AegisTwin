@@ -40,6 +40,7 @@ from app.schemas.orchestration import (
     SyntheticExecutionView,
     VerificationView,
 )
+from app.services import policy_service
 from app.services.autonomy_service import autonomy_service
 from app.services.orchestration_agents import (
     AGENT_VERSION,
@@ -564,6 +565,10 @@ class OrchestrationService:
             execution.changed_node_ids_json,
             execution.changed_edge_ids_json,
             simulation.expected_relationships_affected,
+            simulation.sensitive_assets_reachable_before,
+            simulation.sensitive_assets_reachable_after,
+            simulation.correlated_paths_interrupted,
+            simulation.operational_disruption_score,
         )
         verification = ResponseVerificationRecord(
             verification_id=self._id("verification", execution.execution_id),
@@ -610,6 +615,17 @@ class OrchestrationService:
             )
         )
         session.commit()
+        if record.current_state == "rollback_recommended":
+            rollback_policy = policy_service.evaluate_rollback_policy(
+                verification_failed=True, reversible=execution.reversible
+            )
+            if rollback_policy.result == "fail":
+                return self.rollback(
+                    session,
+                    oid,
+                    f"Automatic rollback: {rollback_policy.reason}",
+                    "Verification Agent (automatic policy-triggered rollback)",
+                )
         return self.view(session, record)
 
     def rollback(

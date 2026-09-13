@@ -189,22 +189,47 @@ class SyntheticExecutionAgent:
         )
 
 
+OPERATIONAL_DISRUPTION_THRESHOLD = 0.5
+
+
 class VerificationAgent:
+    """Checks BOTH the security effect AND operational health of a real
+    synthetic execution against the Impact Simulation computed before
+    execution - a mutation merely existing is never, by itself, success
+    (see docs/architecture/VERIFICATION_AND_ROLLBACK.md)."""
+
     name = "Verification Agent"
 
     def verify(
-        self, changed_nodes: list[str], changed_edges: list[str], expected_edges: int
+        self,
+        changed_nodes: list[str],
+        changed_edges: list[str],
+        expected_edges: int,
+        sensitive_assets_reachable_before: int,
+        sensitive_assets_reachable_after: int,
+        correlated_paths_interrupted: int,
+        operational_disruption_score: float,
     ) -> tuple[str, dict[str, object]]:
-        applied = bool(changed_nodes or changed_edges) or expected_edges == 0
+        mutation_applied = bool(changed_nodes or changed_edges) or expected_edges == 0
+        no_security_claim = expected_edges == 0
+        security_effect_confirmed = no_security_claim or (
+            sensitive_assets_reachable_after < sensitive_assets_reachable_before
+            or correlated_paths_interrupted > 0
+        )
+        operational_health_ok = operational_disruption_score <= OPERATIONAL_DISRUPTION_THRESHOLD
+        applied = mutation_applied and security_effect_confirmed and operational_health_ok
         status = "successful_simulation" if applied else "unsuccessful_simulation"
         return status, {
-            "intended_mutations_applied": applied,
+            "intended_mutations_applied": mutation_applied,
+            "security_effect_confirmed": security_effect_confirmed,
+            "operational_health_ok": operational_health_ok,
             "correlated_paths_remaining": max(0, expected_edges - len(changed_edges)),
             "predicted_paths_remaining": 0,
             "expected_relationships_affected": expected_edges,
             "operational_disruption": round(
                 len(changed_edges) / max(1, len(topology_service.edges(True))), 6
             ),
+            "operational_disruption_score": operational_disruption_score,
             "residual_exposure_score": 0.0 if applied else 1.0,
         }
 
