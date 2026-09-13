@@ -8,6 +8,7 @@ export interface AssetNodeData extends Record<string, unknown> {
   assetType: string
   criticality: string
   state: string
+  dimmed?: boolean
   synthetic: true
 }
 
@@ -30,6 +31,7 @@ export function AssetNode({ data, selected }: NodeProps<AssetFlowNode>) {
         'topology-asset-node',
         `is-${data.criticality}`,
         `state-${data.state}`,
+        data.dimmed && 'dimmed',
         selected && 'is-selected',
       )}
       tabIndex={0}

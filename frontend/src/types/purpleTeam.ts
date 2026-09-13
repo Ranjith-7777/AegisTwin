@@ -43,6 +43,28 @@ export interface PurpleTeamStepResult {
   synthetic: true
 }
 
+export interface PurpleAttackPathContext {
+  path_type: 'potential' | 'observed' | 'inferred' | 'predicted'
+  source_asset_id: string
+  target_asset_id: string
+  hop_count: number
+  score: number
+  statement: string
+  through_sequence_number: number | null
+  synthetic: true
+}
+
+export interface PurpleBlastRadiusContext {
+  compromised_asset_ids: string[]
+  reachable_count: number
+  critical_assets_at_risk: string[]
+  trust_zones_reached: string[]
+  score: number
+  mode: 'hypothetical' | 'evidence_bound'
+  through_sequence_number: number | null
+  synthetic: true
+}
+
 export interface PurpleTeamSummary {
   total_steps: number
   attempted_steps: number
@@ -58,8 +80,13 @@ export interface PurpleTeamSummary {
   response_recommendation_created: boolean
   response_executed: boolean
   verification_result: string | null
+  /** Assets actually OBSERVED/REACHED per real telemetry evidence (anomalous
+   * -observed) AND critical - never merely reachable. See
+   * `blast_radius_context.critical_assets_at_risk` for the separate,
+   * broader AT-RISK/REACHABLE notion. */
   critical_assets_reached: string[]
-  estimated_blast_radius_count: number | null
+  attack_path_context: PurpleAttackPathContext | null
+  blast_radius_context: PurpleBlastRadiusContext | null
   final_outcome: string
 }
 

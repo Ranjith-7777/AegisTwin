@@ -4,6 +4,7 @@ import type {
   PurpleTeamExperiment,
   RedScenarioSummary,
 } from '../types/purpleTeam'
+import type { RedScenarioDefinition } from '../types/redScenario'
 
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value))
@@ -16,6 +17,18 @@ export async function listRedScenarios(): Promise<RedScenarioSummary[]> {
   if (!Array.isArray(data) || data.some((item) => record(item).synthetic !== true))
     throw new Error('Malformed synthetic scenario catalogue.')
   return data as RedScenarioSummary[]
+}
+
+export async function getScenarioDefinition(scenarioId: string): Promise<RedScenarioDefinition> {
+  const data: unknown = (
+    await apiClient.get(
+      `/api/v1/purple-team/scenarios/${encodeURIComponent(scenarioId)}/definition`,
+    )
+  ).data
+  const item = record(data)
+  if (item.synthetic !== true || !Array.isArray(item.steps))
+    throw new Error('Malformed synthetic Red scenario definition.')
+  return item as unknown as RedScenarioDefinition
 }
 
 export async function runPurpleTeamExperiment(input: {

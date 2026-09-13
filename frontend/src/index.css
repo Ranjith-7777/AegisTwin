@@ -936,6 +936,52 @@ summary:focus-visible {
   stroke: #db2777;
   stroke-dasharray: 3 6;
 }
+/* Phase 3 correction pass: selected attack-path focus and blast-radius
+   overlay states. Reuse existing tokens only - no new palette. */
+.topology-asset-node.dimmed,
+.topology-edge.dimmed {
+  opacity: 0.22;
+}
+.topology-asset-node.state-attack-path-node {
+  border-color: var(--accent);
+  border-width: 2px;
+  background: rgba(37, 99, 235, 0.06);
+}
+.topology-asset-node.state-attack-path-target {
+  border-color: var(--state-attack);
+  border-width: 3px;
+  background: rgba(220, 38, 38, 0.07);
+}
+.topology-edge.state-attack-path {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.topology-edge.state-attack-path-boundary {
+  stroke: var(--state-attack);
+  stroke-width: 3;
+  stroke-dasharray: 6 3;
+}
+.topology-asset-node.state-blast-compromised {
+  border-color: var(--state-attack);
+  border-width: 3px;
+  background: rgba(220, 38, 38, 0.08);
+}
+.topology-asset-node.state-blast-reachable {
+  border-color: var(--state-degraded);
+  background: rgba(217, 119, 6, 0.06);
+}
+.topology-asset-node.state-blast-dependent {
+  border-color: var(--state-predicted);
+  border-style: dotted;
+}
+.topology-edge.state-blast-reachable {
+  stroke: var(--state-degraded);
+  stroke-width: 2.5;
+}
+.topology-edge.state-blast-dependent {
+  stroke: var(--state-predicted);
+  stroke-dasharray: 2 4;
+}
 .topology-edge-label {
   position: absolute;
   padding: 1px 4px;

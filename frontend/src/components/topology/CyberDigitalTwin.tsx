@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   Background,
   Controls,
+  MarkerType,
   MiniMap,
   ReactFlow,
   type EdgeMouseHandler,
@@ -48,6 +49,19 @@ const FIT_PADDING = 16
 const FIT_MIN_ZOOM = 0.2
 const FIT_MAX_ZOOM = 1.25
 
+export interface AttackPathHighlight {
+  pathType: string
+  targetAssetId: string
+  orderedAssetIds: string[]
+  steps: { edgeId: string; sequence: number; boundaryCrossing: boolean }[]
+}
+
+export interface BlastRadiusOverlay {
+  compromisedAssetIds: string[]
+  reachableAssetIds: string[]
+  dependentAssetIds: string[]
+}
+
 function stateFor(id: string, state: RunTopologyState | null, live: LiveTopologyOverlay | null) {
   const liveNode = live?.nodes[id]
   if (liveNode?.current_focus) return 'current-focus'
@@ -71,6 +85,8 @@ export function CyberDigitalTwin({
   animationPaused = false,
   responseImpact = null,
   syntheticExecution = null,
+  attackPathHighlight = null,
+  blastRadiusOverlay = null,
 }: {
   topology: TopologySnapshot
   runState: RunTopologyState | null
@@ -81,38 +97,84 @@ export function CyberDigitalTwin({
   animationPaused?: boolean
   responseImpact?: ResponseImpactSimulation | null
   syntheticExecution?: SyntheticExecution | null
+  attackPathHighlight?: AttackPathHighlight | null
+  blastRadiusOverlay?: BlastRadiusOverlay | null
 }) {
   const compact = variant === 'workspace'
+  const attackPathAssetSet = useMemo(
+    () => (attackPathHighlight ? new Set(attackPathHighlight.orderedAssetIds) : null),
+    [attackPathHighlight],
+  )
+  const blastAssetSet = useMemo(
+    () =>
+      blastRadiusOverlay
+        ? new Set([
+            ...blastRadiusOverlay.compromisedAssetIds,
+            ...blastRadiusOverlay.reachableAssetIds,
+            ...blastRadiusOverlay.dependentAssetIds,
+          ])
+        : null,
+    [blastRadiusOverlay],
+  )
   const nodes = useMemo<AssetFlowNode[]>(
     () =>
-      topology.nodes.map((item) => ({
-        id: item.asset_id,
-        type: 'asset',
-        position: positions[item.asset_id] ?? { x: 0, y: 0 },
-        // Declared up front so the first fit does not wait on measurement.
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        data: {
-          label: item.display_name,
-          assetType: item.asset_type,
-          criticality: item.criticality,
-          state: syntheticExecution?.changed_node_ids.includes(item.asset_id)
-            ? syntheticExecution.execution_state === 'rolled_back_simulated'
-              ? 'synthetic-rollback-restored'
-              : 'synthetic-execution-applied'
-            : responseImpact?.changed_node_ids.includes(item.asset_id)
-              ? 'simulated-response-impact'
-              : stateFor(item.asset_id, runState, liveOverlay),
-          synthetic: true,
-        },
-      })),
-    [liveOverlay, responseImpact, topology.nodes, runState, syntheticExecution],
+      topology.nodes.map((item) => {
+        let state = syntheticExecution?.changed_node_ids.includes(item.asset_id)
+          ? syntheticExecution.execution_state === 'rolled_back_simulated'
+            ? 'synthetic-rollback-restored'
+            : 'synthetic-execution-applied'
+          : responseImpact?.changed_node_ids.includes(item.asset_id)
+            ? 'simulated-response-impact'
+            : stateFor(item.asset_id, runState, liveOverlay)
+        let dimmed = false
+        if (attackPathHighlight) {
+          if (item.asset_id === attackPathHighlight.targetAssetId) state = 'attack-path-target'
+          else if (attackPathAssetSet?.has(item.asset_id)) state = 'attack-path-node'
+          else dimmed = true
+        } else if (blastRadiusOverlay) {
+          if (blastRadiusOverlay.compromisedAssetIds.includes(item.asset_id)) {
+            state = 'blast-compromised'
+          } else if (blastRadiusOverlay.reachableAssetIds.includes(item.asset_id)) {
+            state = 'blast-reachable'
+          } else if (blastRadiusOverlay.dependentAssetIds.includes(item.asset_id)) {
+            state = 'blast-dependent'
+          } else {
+            dimmed = true
+          }
+        }
+        return {
+          id: item.asset_id,
+          type: 'asset' as const,
+          position: positions[item.asset_id] ?? { x: 0, y: 0 },
+          // Declared up front so the first fit does not wait on measurement.
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+          data: {
+            label: item.display_name,
+            assetType: item.asset_type,
+            criticality: item.criticality,
+            state,
+            dimmed,
+            synthetic: true as const,
+          },
+        }
+      }),
+    [
+      attackPathAssetSet,
+      attackPathHighlight,
+      blastRadiusOverlay,
+      liveOverlay,
+      responseImpact,
+      topology.nodes,
+      runState,
+      syntheticExecution,
+    ],
   )
   const edges = useMemo<RelationshipFlowEdge[]>(
     () =>
       topology.edges.map((item) => {
         const liveEdge = liveOverlay?.edges[item.edge_id]
-        const state = syntheticExecution?.changed_edge_ids.includes(item.edge_id)
+        let state = syntheticExecution?.changed_edge_ids.includes(item.edge_id)
           ? syntheticExecution.execution_state === 'rolled_back_simulated'
             ? 'synthetic-rollback-restored'
             : 'synthetic-execution-applied'
@@ -139,16 +201,51 @@ export function CyberDigitalTwin({
                               : item.relationship_type.includes('external')
                                 ? 'simulation-only-external'
                                 : 'expected'
+        let label = compact ? '' : (item.protocol_label ?? item.relationship_type)
+        let dimmed = false
+        let markerEnd: { type: MarkerType } | undefined
+        const pathStep = attackPathHighlight?.steps.find((step) => step.edgeId === item.edge_id)
+        if (attackPathHighlight) {
+          if (pathStep) {
+            state = pathStep.boundaryCrossing ? 'attack-path-boundary' : 'attack-path'
+            label = `${String(pathStep.sequence)}. ${item.protocol_label ?? item.relationship_type}`
+            markerEnd = { type: MarkerType.ArrowClosed }
+          } else {
+            dimmed = true
+          }
+        } else if (blastAssetSet) {
+          const involved =
+            blastAssetSet.has(item.source_asset_id) && blastAssetSet.has(item.destination_asset_id)
+          if (involved) {
+            state = blastRadiusOverlay?.dependentAssetIds.includes(item.source_asset_id)
+              ? 'blast-dependent'
+              : 'blast-reachable'
+            markerEnd = { type: MarkerType.ArrowClosed }
+          } else {
+            dimmed = true
+          }
+        }
         return {
           id: item.edge_id,
           source: item.source_asset_id,
           target: item.destination_asset_id,
           type: 'relationship',
-          data: { label: compact ? '' : (item.protocol_label ?? item.relationship_type), state },
+          data: { label, state, dimmed },
           animated: state === 'predicted',
+          markerEnd,
         }
       }),
-    [compact, liveOverlay, responseImpact, runState, syntheticExecution, topology.edges],
+    [
+      attackPathHighlight,
+      blastAssetSet,
+      blastRadiusOverlay,
+      compact,
+      liveOverlay,
+      responseImpact,
+      runState,
+      syntheticExecution,
+      topology.edges,
+    ],
   )
   // The panel height is only known after layout and the library fit runs before
   // that, so the viewport is computed from the declared node grid instead and

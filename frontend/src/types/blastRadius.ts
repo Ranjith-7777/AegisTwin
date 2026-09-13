@@ -6,6 +6,8 @@ export interface BlastRadiusScore {
   zone_crossing_contribution: number
 }
 
+export type BlastRadiusMode = 'hypothetical' | 'evidence_bound'
+
 export interface BlastRadiusResult {
   compromised_asset_ids: string[]
   directly_affected_asset_ids: string[]
@@ -18,6 +20,7 @@ export interface BlastRadiusResult {
   dependent_count: number
   critical_count: number
   score: BlastRadiusScore
+  mode: BlastRadiusMode
   through_sequence_number: number | null
   statement: string
   synthetic: true

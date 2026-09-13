@@ -9,6 +9,7 @@ import {
 export interface RelationshipEdgeData extends Record<string, unknown> {
   label: string
   state: string
+  dimmed?: boolean
 }
 
 export type RelationshipFlowEdge = Edge<RelationshipEdgeData, 'relationship'>
@@ -21,7 +22,7 @@ export function RelationshipEdge(props: EdgeProps<RelationshipFlowEdge>) {
         id={props.id}
         path={path}
         markerEnd={props.markerEnd}
-        className={`topology-edge state-${props.data?.state ?? 'expected'}`}
+        className={`topology-edge state-${props.data?.state ?? 'expected'}${props.data?.dimmed ? ' dimmed' : ''}`}
       />
       <EdgeLabelRenderer>
         <span

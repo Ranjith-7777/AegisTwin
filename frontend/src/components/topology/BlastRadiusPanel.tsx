@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Card, CardContent, CardHeader } from '../ui/card'
 import { Button } from '../ui/button'
+import { CyberDigitalTwin } from './CyberDigitalTwin'
 import { estimateBlastRadius } from '../../services/blastRadiusApi'
 import { toClientApiError } from '../../services/apiClient'
+import { getTopology } from '../../services/topologyApi'
 import type { BlastRadiusResult } from '../../types/blastRadius'
-import type { InfrastructureNode } from '../../types/topology'
+import type { InfrastructureNode, TopologySnapshot } from '../../types/topology'
 
 export function BlastRadiusPanel({
   nodes,
@@ -20,6 +22,13 @@ export function BlastRadiusPanel({
   const [result, setResult] = useState<BlastRadiusResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [topology, setTopology] = useState<TopologySnapshot | null>(null)
+
+  useEffect(() => {
+    void getTopology()
+      .then(setTopology)
+      .catch(() => undefined)
+  }, [])
 
   function toggle(assetId: string) {
     setCompromised((current) =>
@@ -93,7 +102,36 @@ export function BlastRadiusPanel({
         ) : null}
         {result ? (
           <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="chip chip-accent">
+                {result.mode === 'evidence_bound' ? 'Evidence-bound' : 'Hypothetical what-if'}
+              </span>
+              {result.mode === 'evidence_bound' ? (
+                <span className="text-xs text-slate-500">
+                  through sequence {result.through_sequence_number}
+                </span>
+              ) : null}
+            </div>
             <p className="text-sm text-slate-700">{result.statement}</p>
+            {topology ? (
+              <div style={{ height: 360 }}>
+                <CyberDigitalTwin
+                  topology={topology}
+                  runState={null}
+                  variant="workspace"
+                  blastRadiusOverlay={{
+                    compromisedAssetIds: result.compromised_asset_ids,
+                    reachableAssetIds: result.reachable_asset_ids,
+                    dependentAssetIds: result.dependent_asset_ids,
+                  }}
+                />
+              </div>
+            ) : null}
+            <p className="topology-legend" aria-label="Blast radius legend">
+              <span className="state-anomalous-observed">compromised</span>
+              <span className="state-correlated">reachable</span>
+              <span className="state-predicted">dependent</span>
+            </p>
             <div className="playback-facts">
               <div>
                 <span>Reachable</span>
