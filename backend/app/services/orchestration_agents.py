@@ -2,10 +2,18 @@ from dataclasses import dataclass
 
 from app.database.models import ResponseImpactSimulationRecord, ResponseRecommendationRecord
 from app.schemas.response import DefensivePlaybook
+from app.services import policy_service
 from app.services.response_playbook_service import response_playbook_service
 from app.services.topology_service import topology_service
 
-AGENT_VERSION = "deterministic-simulation-agent-v1"
+# v2 (Phase 4): Safety Governor now calls `policy_service.evaluate_response_policies`
+# (POL-001..POL-006) instead of re-implementing autonomous-eligibility checks inline,
+# and both it and the Approval Router are now autonomy-mode-aware - RECOMMEND and
+# APPROVAL_REQUIRED never auto-execute regardless of playbook tier, and AUTONOMOUS
+# only auto-executes when every applicable policy passes. Agent identities, the
+# planner/impact-simulation/execution/verification contracts, and the orchestration
+# state machine are unchanged from v1.
+AGENT_VERSION = "deterministic-resilience-agent-v2"
 
 
 @dataclass(frozen=True)
@@ -67,6 +75,9 @@ class SafetyGovernorAgent:
         self,
         recommendation: ResponseRecommendationRecord,
         playbook: DefensivePlaybook,
+        autonomy_mode: str,
+        target_criticality: str | None,
+        target_asset_type: str | None,
     ) -> AgentResult:
         nodes = {node.asset_id for node in topology_service.nodes(True)}
         edges = {edge.edge_id for edge in topology_service.edges(True)}
@@ -75,31 +86,44 @@ class SafetyGovernorAgent:
             or recommendation.target_id in nodes
             or recommendation.target_id in edges
         )
-        prohibited = playbook.approval_tier == "prohibited"
-        permitted = target_exists and not prohibited and recommendation.synthetic
+        policy_result = policy_service.evaluate_response_policies(
+            synthetic=recommendation.synthetic and target_exists,
+            playbook=playbook,
+            autonomy_mode=autonomy_mode,
+            target_criticality=target_criticality,
+            target_asset_type=target_asset_type,
+        )
+        permitted = target_exists and policy_result.overall_pass
         automatic = (
             permitted
+            and autonomy_mode == "autonomous"
             and playbook.approval_tier == "automatic_candidate"
-            and playbook.default_operational_impact == "low"
-            and playbook.default_blast_radius == "single_asset"
-            and playbook.reversibility == "reversible"
-            and playbook.automatic_eligibility
         )
         summary = (
-            "Automatically approved for synthetic execution by simulation policy."
+            "Automatically approved for synthetic execution: every applicable policy passed."
             if automatic
             else "Synthetic target and policy constraints validated."
             if permitted
-            else "Simulation policy blocked this plan."
+            else "Blocked by policy: " + "; ".join(policy_result.failed_policy_ids)
+            if policy_result.failed_policy_ids
+            else "Target is unavailable for this synthetic environment."
         )
+        warnings = [] if permitted else [
+            evaluation.reason
+            for evaluation in policy_result.evaluations
+            if evaluation.result == "fail"
+        ]
+        if not target_exists:
+            warnings.append("Target is not a known synthetic topology asset or relationship.")
         return AgentResult(
             self.name,
             "policy_review",
             "automatic_approved" if automatic else "permitted" if permitted else "blocked",
             summary,
-            "Policy checks cover target inventory, impact, blast radius, reversibility "
-            "and approval tier.",
-            [] if permitted else ["Target is unavailable or the action is prohibited."],
+            "Policy checks (POL-001..POL-006, see policy_service.catalogue()) cover synthetic "
+            "targeting, prohibited playbooks, and - in autonomous mode - reversibility, "
+            "operational impact, blast radius and critical data-store isolation.",
+            warnings,
             "Approval Router Agent" if permitted else None,
         )
 
@@ -107,17 +131,25 @@ class SafetyGovernorAgent:
 class ApprovalRouterAgent:
     name = "Approval Router Agent"
 
-    def decide(self, tier: str) -> AgentResult:
+    def decide(self, tier: str, autonomy_mode: str, policy_pass: bool) -> AgentResult:
         role = "administrator" if tier == "administrator_approval" else "analyst"
-        automatic = tier == "automatic_candidate"
+        automatic = autonomy_mode == "autonomous" and tier == "automatic_candidate" and policy_pass
+        if autonomy_mode in {"recommend", "approval_required"}:
+            rationale = (
+                f"Autonomy mode is '{autonomy_mode}': candidate plans are generated and "
+                "validated but execution always requires human approval, regardless of "
+                "playbook tier."
+            )
+        else:
+            rationale = "High-impact actions always require the administrator demonstration role."
         return AgentResult(
             self.name,
             "approval_routing",
             "automatic" if automatic else f"requires_{role}",
-            "No human gate required by synthetic simulation policy."
+            "No human gate required: autonomous mode and every applicable policy passed."
             if automatic
             else f"Routed to synthetic demo {role}.",
-            "High-impact actions always require the administrator demonstration role.",
+            rationale,
             [],
             "Synthetic Execution Agent" if automatic else None,
         )

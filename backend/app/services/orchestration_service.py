@@ -40,6 +40,7 @@ from app.schemas.orchestration import (
     SyntheticExecutionView,
     VerificationView,
 )
+from app.services.autonomy_service import autonomy_service
 from app.services.orchestration_agents import (
     AGENT_VERSION,
     AgentResult,
@@ -51,6 +52,7 @@ from app.services.orchestration_agents import (
     verification_agent,
 )
 from app.services.response_playbook_service import response_playbook_service
+from app.services.topology_service import topology_service
 
 VERSION = "synthetic-response-orchestration-v1"
 GENESIS_HASH = "0" * 64
@@ -240,6 +242,15 @@ class OrchestrationService:
                 ResponseImpactSimulationRecord.recommendation_id == recommendation_id
             )
         )
+        autonomy_mode = autonomy_service.require_mode(session).value
+        target_node = next(
+            (
+                node
+                for node in topology_service.nodes(include_sink=True)
+                if node.asset_id == recommendation.target_id
+            ),
+            None,
+        )
         results = [
             response_planner_agent.decide(recommendation),
             impact_simulation_agent.decide(recommendation, simulation, sequence),
@@ -247,12 +258,22 @@ class OrchestrationService:
         if results[-1].decision == "stale":
             record.current_state = "simulation_validation"
         else:
-            governor = safety_governor_agent.decide(recommendation, playbook)
+            governor = safety_governor_agent.decide(
+                recommendation,
+                playbook,
+                autonomy_mode,
+                target_node.criticality if target_node else None,
+                target_node.asset_type if target_node else None,
+            )
             results.append(governor)
             if governor.decision == "blocked":
                 record.current_state = "rejected"
             else:
-                router = approval_router_agent.decide(recommendation.required_approval_tier)
+                router = approval_router_agent.decide(
+                    recommendation.required_approval_tier,
+                    autonomy_mode,
+                    governor.decision == "automatic_approved",
+                )
                 results.append(router)
                 if router.decision == "automatic":
                     record.current_state = "approved"
