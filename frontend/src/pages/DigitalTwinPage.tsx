@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { CyberDigitalTwin } from '../components/topology/CyberDigitalTwin'
 import { TopologyControls } from '../components/topology/TopologyControls'
@@ -32,9 +33,16 @@ export function DigitalTwinPage() {
   const [source, setSource] = useState('external-user-01')
   const [destination, setDestination] = useState('cloud-database-01')
   const [pathType, setPathType] = useState<TopologyPathType>('expected')
-  const [runId, setRunId] = useState('')
-  const [modelId, setModelId] = useState('')
-  const [sequence, setSequence] = useState(1)
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Run/model/sequence context is mirrored into the URL (?run=&model=&seq=) so a
+  // hard reload or a shared link restores the same view instead of resetting to
+  // "no run selected" — see docs/ui/PHASE_2_DESIGN_SYSTEM.md, "Run context".
+  const [runId, setRunId] = useState(searchParams.get('run') ?? '')
+  const [modelId, setModelId] = useState(searchParams.get('model') ?? '')
+  const [sequence, setSequence] = useState(() => {
+    const raw = Number(searchParams.get('seq'))
+    return Number.isFinite(raw) && raw > 0 ? raw : 1
+  })
   const [layers, setLayers] = useState({ observed: true, correlated: true, predicted: true })
   const [followLive, setFollowLive] = useState(true)
   const [reducedMotion, setReducedMotion] = useState(false)
@@ -59,9 +67,48 @@ export function DigitalTwinPage() {
       .then(([runItems, modelItems]) => {
         setRuns(runItems)
         setModels(modelItems.filter((item) => item.synthetic))
+        // Restore (or gracefully drop) the run context carried in the URL now
+        // that the real run list is known. A stale/unknown run id is cleared
+        // rather than left selected against nonexistent data.
+        if (runId) {
+          const known = runItems.some((item) => item.simulation_run_id === runId)
+          if (known) {
+            void topologyState.loadRunState(runId, modelId || undefined, sequence)
+          } else {
+            setRunId('')
+            setModelId('')
+            setSequence(1)
+            setSearchParams((current) => {
+              const next = new URLSearchParams(current)
+              next.delete('run')
+              next.delete('model')
+              next.delete('seq')
+              return next
+            })
+          }
+        }
       })
       .catch(() => undefined)
+    // Runs once on mount to restore URL-carried context; intentionally not
+    // re-run when runId/modelId/sequence change afterwards.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function updateParams(next: { run?: string; model?: string; seq?: number }) {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current)
+      if (next.run !== undefined) {
+        if (next.run) params.set('run', next.run)
+        else params.delete('run')
+      }
+      if (next.model !== undefined) {
+        if (next.model) params.set('model', next.model)
+        else params.delete('model')
+      }
+      if (next.seq !== undefined) params.set('seq', String(next.seq))
+      return params
+    })
+  }
 
   function changeRun(value: string) {
     setRunId(value)
@@ -69,7 +116,18 @@ export function DigitalTwinPage() {
     setSequence(1)
     setResponseImpact(null)
     setSyntheticExecution(null)
+    updateParams({ run: value, model: '', seq: 1 })
     if (value) void topologyState.loadRunState(value, undefined, 1)
+  }
+
+  function changeModel(value: string) {
+    setModelId(value)
+    updateParams({ model: value })
+  }
+
+  function changeSequence(value: number) {
+    setSequence(value)
+    updateParams({ seq: value })
   }
 
   function query() {
@@ -160,7 +218,7 @@ export function DigitalTwinPage() {
                   />{' '}
                   Reduced animation
                 </label>
-                <button className="text-cyan-300" onClick={playback.resetTopologyOverlay}>
+                <button className="text-blue-600" onClick={playback.resetTopologyOverlay}>
                   Reset topology overlay
                 </button>
                 <button
@@ -184,7 +242,7 @@ export function DigitalTwinPage() {
                 </button>
                 {responseImpact ? (
                   <button
-                    className="text-slate-300"
+                    className="text-slate-600"
                     onClick={() => {
                       setResponseImpact(null)
                     }}
@@ -220,8 +278,8 @@ export function DigitalTwinPage() {
                 onDestination={setDestination}
                 onPathType={setPathType}
                 onRun={changeRun}
-                onModel={setModelId}
-                onSequence={setSequence}
+                onModel={changeModel}
+                onSequence={changeSequence}
                 onQuery={query}
               />
             </CardContent>
