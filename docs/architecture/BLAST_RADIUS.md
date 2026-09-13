@@ -6,19 +6,37 @@ compromised. It is explicitly an *estimate over the synthetic graph*,
 computed once per request from real topology data — never a production
 blast-radius claim, and never based on random or fabricated data.
 
-## Why the traversal always uses the full static graph
+## Run/sequence semantics: two explicit modes (`BlastRadiusResult.mode`)
 
-Unlike the Attack Graph engine's `observed`/`inferred`/`predicted` path
-types, blast-radius estimation always traverses the full set of
-`permitted` static edges, regardless of whether a `simulation_run_id`
-is supplied. This is a deliberate, conservative choice: blast radius
+The traversal always uses the full set of `permitted` static edges
+regardless of mode — that part is unchanged and deliberate: blast radius
 answers "what *could* be reached from here, worst case", not "what
-*has* been reached so far" — the latter question is already answered by
-the Attack Graph engine's `observed` path type. When a `run_id` is
-given, `topology_path_service.run_state(...)` is still called, but only
-to confirm the requested compromised assets are consistent with what
-has actually been observed in that run; it never narrows or changes the
-traversal itself.
+*has* been reached so far" (the latter question is already answered by
+the Attack Graph engine's `observed` path type). What changed is what
+"compromised" is allowed to mean:
+
+* **`hypothetical`** — no `simulation_run_id` supplied. A static
+  what-if: any asset may be named as compromised, with no claim that it
+  has actually happened. This is the original, unconditional behavior.
+* **`evidence_bound`** — a `simulation_run_id` is supplied. Every id in
+  `compromised_asset_ids` is checked against
+  `topology_path_service.run_state(...)`'s `observed_asset_ids ∪
+  anomalous_observed_asset_ids` computed through `through_sequence`
+  (never a later sequence — this is the same sequence-bounding
+  guarantee `topology_path_service.run_state` already enforces
+  everywhere else it's used). An asset not supported by evidence at
+  that point in the run raises `BLAST_RADIUS_EVIDENCE_REQUIRED` (422)
+  rather than being silently accepted or silently downgraded to
+  hypothetical — chosen over the "mark hypothetical" alternative
+  because a caller who explicitly supplied a `run_id` has asked for an
+  evidence-bound answer, and a silent mode switch would let a caller
+  believe they got one when they didn't. `through_sequence_number` on
+  the response is the *resolved* sequence limit (never the raw,
+  possibly-`None` input), so it's always inspectable.
+
+The traversal itself never narrows based on evidence — it always uses
+the full permitted static graph. Evidence only bounds the *starting
+set*, never the graph the search is run over.
 
 ## Algorithm
 
@@ -59,7 +77,9 @@ alongside the total.
 a `BlastRadiusQuery` body: `compromised_asset_ids` (1-10 items,
 required), optional `simulation_run_id`, `through_sequence_number`,
 `max_depth` (1-10, default 6). Returns `BlastRadiusResult`. An unknown
-asset id raises `BLAST_RADIUS_ASSET_NOT_FOUND` (404).
+asset id raises `BLAST_RADIUS_ASSET_NOT_FOUND` (404); an asset
+unsupported by evidence at the given sequence (evidence-bound mode
+only) raises `BLAST_RADIUS_EVIDENCE_REQUIRED` (422).
 
 ## Events
 

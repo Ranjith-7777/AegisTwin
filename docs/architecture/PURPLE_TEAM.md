@@ -88,6 +88,41 @@ For every experiment (`PurpleTeamService.run_experiment`):
 - `final_outcome` = `"contained"` if any step is `blocked_synthetic`,
   else `"detected"` if any step was detected, else `"undetected"`.
 
+## Attack Graph and Blast Radius integration
+
+`PurpleTeamService._derive_security_context` runs after step evaluation
+and calls the real `AttackGraphService`/`BlastRadiusService` — the same
+services the standalone Digital Twin tabs use, never a duplicate. It
+never claims an asset was compromised merely because it is statically
+reachable; two distinct notions are kept separate:
+
+* **OBSERVED / REACHED** (`PurpleTeamSummary.critical_assets_reached`,
+  `attack_path_context.path_type == "observed"`) — derived from
+  `topology_path_service.run_state(...).anomalous_observed_asset_ids`,
+  i.e. real telemetry evidence that anomaly detection actually flagged
+  during this run. `critical_assets_reached` is the subset of that set
+  with `criticality in {high, critical}`.
+* **AT RISK / REACHABLE** (`blast_radius_context.critical_assets_at_risk`,
+  `.reachable_count`, `.trust_zones_reached`) — a `BlastRadiusService`
+  estimate, always a reachability claim, never an "actually happened"
+  claim, per `docs/architecture/BLAST_RADIUS.md`.
+
+Concretely: `attack_path_context` is the real top-ranked path (`max_paths=1`)
+from the scenario's structured `initial_access_point` to its
+`high_value_objective` (see `app/schemas/red_scenario.py`) —
+`path_type=observed` (evidence-bound, run-scoped) when the run actually
+produced anomalous-observed evidence, honestly falling back to
+`path_type=potential` (no run/model passed) when it did not, rather than
+fabricating observed evidence that doesn't exist. `blast_radius_context`
+is rooted at the real anomalous-observed asset set when non-empty
+(queried in `evidence_bound` mode, which is always internally consistent
+since that same set is what defines the evidence), falling back to the
+scenario's `initial_access_point` in `hypothetical` mode when no
+anomalies were observed at all (e.g. `normal-operations`). Both calls
+pass the experiment id as `correlation_id` so their published events
+(`attack.path.discovered`, `blast_radius.assessed`) correlate with this
+experiment's own event stream.
+
 ## Idempotency
 
 `experiment_id = uuid5(NAMESPACE, f"{scenario_id}:{mode}:{seed}")`,
