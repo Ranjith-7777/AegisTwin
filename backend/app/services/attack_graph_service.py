@@ -305,13 +305,31 @@ class AttackGraphService:
         max_depth: int,
         max_paths: int,
         correlation_id: str | None = None,
+        exclude_edge_ids: frozenset[str] = frozenset(),
+        exclude_node_ids: frozenset[str] = frozenset(),
+        publish_event: bool = True,
     ) -> AttackPathAnalysisResult:
+        """`exclude_edge_ids`/`exclude_node_ids` support a hypothetical
+        WHAT-IF query (Phase 4 Blue candidate-plan evaluation): edges named
+        directly, or touching a named node, are removed from the allowed
+        traversal set only for this call - the real, persisted topology
+        (`topology_service`) is never mutated. Defaults to empty, so every
+        existing caller's behavior is unchanged."""
+
         include_sink = run_id is not None
         all_nodes = topology_service.nodes(include_sink)
         all_edges = topology_service.edges(include_sink)
         allowed_edges, evidence_list, evidence_source = _allowed_edges(
             session, path_type, all_edges, run_id, model_id, through_sequence
         )
+        if exclude_edge_ids or exclude_node_ids:
+            allowed_edges = [
+                edge
+                for edge in allowed_edges
+                if edge.edge_id not in exclude_edge_ids
+                and edge.source_asset_id not in exclude_node_ids
+                and edge.destination_asset_id not in exclude_node_ids
+            ]
         graph_full = _Graph.build(all_edges, all_nodes)
         graph_allowed = _Graph.build(allowed_edges, all_nodes)
         evidence_assets = set(evidence_list)
@@ -376,7 +394,7 @@ class AttackGraphService:
             )
         scored.sort(key=lambda item: (-item.score.total, item.hop_count, item.path_id))
         top_paths = scored[:max_paths]
-        if top_paths:
+        if top_paths and publish_event:
             top = top_paths[0]
             get_event_bus().publish(
                 DomainEvent(

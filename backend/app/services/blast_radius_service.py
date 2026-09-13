@@ -63,6 +63,9 @@ class BlastRadiusService:
         through_sequence: int | None,
         max_depth: int,
         correlation_id: str | None = None,
+        exclude_edge_ids: frozenset[str] = frozenset(),
+        exclude_node_ids: frozenset[str] = frozenset(),
+        publish_event: bool = True,
     ) -> BlastRadiusResult:
         """Two explicit, distinct modes - see `BlastRadiusResult.mode`:
 
@@ -77,6 +80,12 @@ class BlastRadiusService:
           matching this codebase's existing preference for explicit
           "precondition not met" errors (e.g. `ATTACK_GRAPH_RUN_REQUIRED`)
           over silently reinterpreting the request.
+
+        `exclude_edge_ids`/`exclude_node_ids` support a hypothetical WHAT-IF
+        query (Phase 4 Blue candidate-plan evaluation): edges named
+        directly, or touching a named node, are removed from the traversal
+        only for this call - the real, persisted topology is never
+        mutated. Defaults to empty, so every existing caller is unaffected.
         """
 
         include_sink = run_id is not None
@@ -106,6 +115,15 @@ class BlastRadiusService:
                     "for a hypothetical static what-if estimate instead.",
                     422,
                 )
+
+        if exclude_edge_ids or exclude_node_ids:
+            edges = [
+                edge
+                for edge in edges
+                if edge.edge_id not in exclude_edge_ids
+                and edge.source_asset_id not in exclude_node_ids
+                and edge.destination_asset_id not in exclude_node_ids
+            ]
 
         forward_adjacency: dict[str, list[InfrastructureEdge]] = {}
         reverse_adjacency: dict[str, list[InfrastructureEdge]] = {}
@@ -164,21 +182,22 @@ class BlastRadiusService:
             f"{len(dependent_ids)} dependent service(s) would be operationally affected; "
             f"{critical_count} critical asset(s) are at risk across {len(zones)} trust zone(s)."
         )
-        get_event_bus().publish(
-            DomainEvent(
-                event_type=EventType.BLAST_RADIUS_ASSESSED,
-                source="blast_radius",
-                run_id=run_id,
-                correlation_id=correlation_id,
-                resource_ids=sorted(all_involved),
-                payload=BlastRadiusAssessedPayload(
-                    compromised_asset_ids=sorted(compromised),
-                    reachable_count=len(reachable),
-                    critical_count=critical_count,
-                    score=score.total,
-                ),
+        if publish_event:
+            get_event_bus().publish(
+                DomainEvent(
+                    event_type=EventType.BLAST_RADIUS_ASSESSED,
+                    source="blast_radius",
+                    run_id=run_id,
+                    correlation_id=correlation_id,
+                    resource_ids=sorted(all_involved),
+                    payload=BlastRadiusAssessedPayload(
+                        compromised_asset_ids=sorted(compromised),
+                        reachable_count=len(reachable),
+                        critical_count=critical_count,
+                        score=score.total,
+                    ),
+                )
             )
-        )
         return BlastRadiusResult(
             compromised_asset_ids=sorted(compromised),
             directly_affected_asset_ids=sorted(compromised),
