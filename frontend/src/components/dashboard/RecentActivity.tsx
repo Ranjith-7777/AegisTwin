@@ -26,7 +26,7 @@ export function RecentActivity({ items }: { items: ActivityItem[] }) {
                 aria-hidden="true"
               />
             ) : (
-              <Circle className="mt-0.5 size-4 shrink-0 text-slate-300" aria-hidden="true" />
+              <Circle className="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden="true" />
             )}
             <div>
               <p className={item.done ? 'font-medium text-slate-900' : 'text-slate-500'}>

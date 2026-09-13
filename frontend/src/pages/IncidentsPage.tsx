@@ -182,7 +182,7 @@ export function IncidentsPage() {
                 Sequence {item.sequence_number}: {item.rationale}
               </p>
             ))}
-            <p className="mt-4 text-xs text-amber-200">
+            <p className="mt-4 text-xs text-amber-700">
               Correlation indicates related unusual synthetic activity. It does not confirm a real
               attack.
             </p>
@@ -193,13 +193,13 @@ export function IncidentsPage() {
                   {prediction.current_stage_estimate} · through sequence{' '}
                   {prediction.through_sequence_number}
                 </p>
-                <p className="text-xs text-amber-200">
+                <p className="text-xs text-amber-700">
                   Ranked synthetic hypothesis; separate from observed incident evidence.
                 </p>
               </div>
             ) : null}
             {responseSummary?.top_recommendation ? (
-              <div className="mt-4 rounded border border-emerald-900 p-3">
+              <div className="mt-4 rounded border border-emerald-200 p-3">
                 <h3 className="font-semibold">Top synthetic response recommendation</h3>
                 <p>
                   {responseSummary.top_recommendation.playbook_name} ·{' '}
@@ -224,7 +224,7 @@ export function IncidentsPage() {
               </div>
             ) : null}
             {orchestration ? (
-              <div className="mt-4 rounded border border-violet-900 p-3">
+              <div className="mt-4 rounded border border-violet-200 p-3">
                 <h3 className="font-semibold">Synthetic response orchestration</h3>
                 <p>State: {orchestration.current_state.replaceAll('_', ' ')}</p>
                 <p>Approval: {orchestration.approvals[0]?.approval_state ?? 'simulation policy'}</p>

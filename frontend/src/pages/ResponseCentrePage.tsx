@@ -95,7 +95,7 @@ export function ResponseCentrePage() {
           </p>
         </div>
       </header>
-      <p className="rounded border border-amber-800 bg-amber-950/30 p-3 text-sm text-amber-100">
+      <p className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
         Recommendations are generated and evaluated only against the synthetic cloud twin. No real
         defensive action has been executed.
       </p>
@@ -177,7 +177,7 @@ export function ResponseCentrePage() {
         </CardContent>
       </Card>
       {error ? (
-        <p ref={errorRef} tabIndex={-1} role="alert" className="text-red-200">
+        <p ref={errorRef} tabIndex={-1} role="alert" className="text-red-700">
           {error}
         </p>
       ) : null}
@@ -276,7 +276,7 @@ export function ResponseCentrePage() {
                   {label(name)}: {value.toFixed(3)}
                 </p>
               ))}
-              <div role="status" className="mt-3 text-amber-200">
+              <div role="status" className="mt-3 text-amber-700">
                 {[...selected.warnings, ...selected.simulation.warnings].map((item) => (
                   <p key={item}>{item}</p>
                 ))}

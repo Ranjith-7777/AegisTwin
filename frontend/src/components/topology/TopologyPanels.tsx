@@ -133,7 +133,7 @@ export function AssetInspector({
             ) : null}
           </>
         ) : null}
-        <p className="text-xs text-amber-200">
+        <p className="text-xs text-amber-700">
           No health, availability, or confirmed compromise state is inferred.
         </p>
       </CardContent>
@@ -154,7 +154,7 @@ export function PathInspection({ path }: { path: TopologyPath | null }) {
           Length {path.path_length} · Evidence: {path.evidence_source} · Sequence:{' '}
           {path.through_sequence_number ?? 'not applicable'}
         </p>
-        <p className={path.hypothetical ? 'text-amber-200' : 'text-slate-500'}>{path.statement}</p>
+        <p className={path.hypothetical ? 'text-amber-700' : 'text-slate-500'}>{path.statement}</p>
       </CardContent>
     </Card>
   )
@@ -209,7 +209,7 @@ export function RelationshipInspector({
               {liveEdge.predicted ? 'hypothetical predicted path' : 'not predicted'}
             </p>
             {liveEdge.unexpected ? (
-              <p className="text-amber-200">
+              <p className="text-amber-700">
                 Unexpected observed relationship: both assets are known, but this directed edge is
                 outside the expected synthetic architecture.
               </p>

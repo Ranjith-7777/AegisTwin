@@ -53,7 +53,7 @@ export function LiveCorrelationDashboard() {
               No incident candidate update has been streamed.
             </p>
           )}
-          <p className="mt-4 text-xs text-amber-200">
+          <p className="mt-4 text-xs text-amber-700">
             Correlation indicates related unusual synthetic activity. It does not confirm a real
             attack.
           </p>

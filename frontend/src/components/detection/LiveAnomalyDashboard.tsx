@@ -57,8 +57,8 @@ export function LiveAnomalyDashboard() {
                 <strong
                   className={
                     currentAssessment.classification === 'anomalous'
-                      ? 'text-amber-300'
-                      : 'text-emerald-300'
+                      ? 'text-amber-700'
+                      : 'text-emerald-700'
                   }
                 >
                   {currentAssessment.classification}

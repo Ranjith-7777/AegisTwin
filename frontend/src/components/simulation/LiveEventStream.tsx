@@ -53,10 +53,10 @@ export function LiveEventStream({ expanded = false }: { expanded?: boolean }) {
         </div>
         {error && activeRun ? (
           <div
-            className="mb-3 flex items-center justify-between rounded-lg border border-red-900/60 bg-red-950/20 p-3"
+            className="mb-3 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3"
             role="alert"
           >
-            <span className="text-sm text-red-200">Playback connection error.</span>
+            <span className="text-sm text-red-700">Playback connection error.</span>
             <Button size="sm" variant="outline" onClick={retry}>
               Retry
             </Button>

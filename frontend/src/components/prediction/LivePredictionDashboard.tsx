@@ -45,7 +45,7 @@ export function LivePredictionDashboard({
               {current.current_tactic_estimate} · through sequence {current.through_sequence_number}
             </p>
             {current.insufficient_evidence_reason ? (
-              <p className="text-amber-200">{current.insufficient_evidence_reason}</p>
+              <p className="text-amber-700">{current.insufficient_evidence_reason}</p>
             ) : null}
             {Object.entries(groups).map(([kind, items]) => (
               <section key={kind}>
@@ -69,7 +69,7 @@ export function LivePredictionDashboard({
                         .join(' · ')}
                     </p>
                     {item.contradictory_evidence.length ? (
-                      <p className="text-xs text-amber-300">
+                      <p className="text-xs text-amber-700">
                         Contradictions: {item.contradictory_evidence.join('; ')}
                       </p>
                     ) : null}
@@ -86,7 +86,7 @@ export function LivePredictionDashboard({
                 )
                 .join(' → ')}
             </p>
-            <p className="text-xs text-amber-200">
+            <p className="text-xs text-amber-700">
               Ranked hypotheses from local synthetic evidence—not probabilities, certainty, or a
               confirmed attack.
             </p>

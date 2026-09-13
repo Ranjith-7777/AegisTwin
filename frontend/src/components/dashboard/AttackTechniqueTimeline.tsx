@@ -40,7 +40,7 @@ export function AttackTechniqueTimeline() {
           </p>
         )}
         {currentIncidentCandidate ? (
-          <p className="mt-4 text-xs text-amber-200">
+          <p className="mt-4 text-xs text-amber-700">
             Correlated candidate state: {currentIncidentCandidate.correlation_state} · priority{' '}
             {currentIncidentCandidate.priority}. This is correlated evidence, not a confirmed
             attack.

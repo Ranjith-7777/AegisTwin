@@ -96,7 +96,7 @@ export function ModelAnalyticsPage() {
       <AnomalyActivityChart />
       <div ref={statusRef} tabIndex={-1} aria-live="polite">
         {error ? (
-          <p role="alert" className="text-red-300">
+          <p role="alert" className="text-red-700">
             {error}
           </p>
         ) : busy ? (

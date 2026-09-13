@@ -143,7 +143,7 @@ export function PredictiveAnalyticsPage() {
         </CardContent>
       </Card>
       {error ? (
-        <p role="alert" className="text-red-200">
+        <p role="alert" className="text-red-700">
           {error}
         </p>
       ) : null}
@@ -165,7 +165,7 @@ export function PredictiveAnalyticsPage() {
               Predicted paths hypothetically interrupted:{' '}
               {responseSummary.top_recommendation.simulation?.predicted_paths_interrupted ?? 0}
             </p>
-            <p className="text-xs text-amber-200">
+            <p className="text-xs text-amber-700">
               Prediction evidence and response simulation remain separate; no action has been
               executed.
             </p>
@@ -178,7 +178,7 @@ export function PredictiveAnalyticsPage() {
             <h2 className="panel-title">Outcome review</h2>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-amber-200">
+            <p className="text-xs text-amber-700">
               Tiny synthetic manifest; these metrics do not represent production performance.
             </p>
             {Object.entries(evaluation.metrics).map(([name, value]) => (

@@ -48,6 +48,29 @@ export function DigitalTwinPage() {
   const [reducedMotion, setReducedMotion] = useState(false)
   const [responseImpact, setResponseImpact] = useState<ResponseImpactSimulation | null>(null)
   const [syntheticExecution, setSyntheticExecution] = useState<SyntheticExecution | null>(null)
+  // The page tracks two independent notions of "current run": a live playback
+  // session (playback.activeRun, driven from the Telemetry page's WebSocket)
+  // and the run selected/restored here for topology inspection (runId, which
+  // survives a hard reload via the URL). The status line must reflect
+  // whichever one is actually driving what the canvas shows: live playback
+  // takes precedence when one is active (the canvas overlays liveTopology in
+  // that case too), otherwise the restored/selected run context is shown
+  // instead of a misleading "Run: none".
+  const restoredRun = runId ? (runs.find((item) => item.simulation_run_id === runId) ?? null) : null
+  const displayRunId = playback.activeRun?.simulation_run_id ?? (runId || null)
+  const displayModelId = playback.activeRun
+    ? (playback.selectedModel?.model_id ?? null)
+    : modelId || null
+  const displaySequence = playback.activeRun ? playback.currentEventIndex : runId ? sequence : 0
+  const displayTotal = playback.activeRun
+    ? playback.totalEventCount
+    : (restoredRun?.event_count ?? 0)
+  const displayPlaybackLabel = playback.activeRun
+    ? playback.playbackState
+    : runId
+      ? 'restored'
+      : 'idle'
+
   const visibleRunState = useMemo(() => {
     const state = topologyState.runState
     if (!state) return null
@@ -151,20 +174,24 @@ export function DigitalTwinPage() {
           <p>Inspect the synthetic cloud estate and sequence-bounded path evidence.</p>
         </div>
         <span className="chip chip-muted">
-          {playback.activeRun ? 'Live synthetic replay' : 'Static topology'}
+          {playback.activeRun
+            ? 'Live synthetic replay'
+            : runId
+              ? 'Restored replay'
+              : 'Static topology'}
         </span>
       </header>
       <p className="text-sm" aria-live="polite">
-        Playback: {playback.playbackState} · Run:{' '}
-        {playback.activeRun?.simulation_run_id.slice(0, 8) ?? 'none'} · Sequence{' '}
-        {playback.currentEventIndex} / {playback.totalEventCount}
+        Playback: {displayPlaybackLabel} · Run: {displayRunId ? displayRunId.slice(0, 8) : 'none'}
+        {displayModelId ? ` · Model: ${displayModelId.slice(0, 8)}` : ''} · Sequence{' '}
+        {displaySequence} / {displayTotal}
       </p>
-      <p className="text-xs text-amber-200">
+      <p className="text-xs text-amber-700">
         Observed and anomalous states describe synthetic replay evidence and do not confirm
         compromise.
       </p>
       {topologyState.error ? (
-        <p className="text-red-200" role="alert">
+        <p className="text-red-700" role="alert">
           {topologyState.error}
         </p>
       ) : null}
@@ -222,7 +249,7 @@ export function DigitalTwinPage() {
                   Reset topology overlay
                 </button>
                 <button
-                  className="text-emerald-300"
+                  className="text-emerald-700"
                   disabled={!runId || !modelId}
                   onClick={() => {
                     void getResponseSummary(runId, modelId)
@@ -251,7 +278,7 @@ export function DigitalTwinPage() {
                   </button>
                 ) : null}
                 <button
-                  className="text-violet-300"
+                  className="text-violet-700"
                   disabled={!runId}
                   onClick={() => {
                     void listOrchestrations().then((rows) => {
@@ -295,7 +322,7 @@ export function DigitalTwinPage() {
             syntheticExecution={syntheticExecution}
           />
           {syntheticExecution ? (
-            <p className="text-sm text-violet-200" aria-live="polite">
+            <p className="text-sm text-violet-700" aria-live="polite">
               {syntheticExecution.execution_state === 'rolled_back_simulated'
                 ? 'Restored by synthetic rollback'
                 : 'Applied in synthetic twin'}
@@ -305,7 +332,7 @@ export function DigitalTwinPage() {
             </p>
           ) : null}
           {responseImpact ? (
-            <p className="text-sm text-emerald-200" aria-live="polite">
+            <p className="text-sm text-emerald-700" aria-live="polite">
               Simulated response impact overlay: hypothetically restricted{' '}
               {responseImpact.changed_node_ids.length} nodes and{' '}
               {responseImpact.changed_edge_ids.length} edges. This does not alter playback and is

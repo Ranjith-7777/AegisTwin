@@ -123,7 +123,7 @@ export function MitrePage() {
                   )
                   .join(' · ')}
               </p>
-              <p className="text-xs text-amber-200">
+              <p className="text-xs text-amber-700">
                 Cautious synthetic rankings remain separate from the observed timeline above.
               </p>
             </div>

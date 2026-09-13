@@ -243,7 +243,7 @@ export function SimulationControlPanel() {
           </Button>
         </form>
         {detectionEnabled && models.length === 0 && !modelsLoading ? (
-          <p className="mt-3 text-sm text-amber-300">
+          <p className="mt-3 text-sm text-amber-700">
             No synthetic detection model is available.{' '}
             <Link className="underline" to="/model-analytics">
               Create a synthetic demo model
@@ -274,7 +274,7 @@ export function SimulationControlPanel() {
         </p>
         {predictionError ? (
           <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
-            <span className="text-sm text-red-200">{predictionError}</span>
+            <span className="text-sm text-red-700">{predictionError}</span>
             <Button size="sm" variant="outline" onClick={() => void retryPrediction()}>
               Analyze Predictions
             </Button>
@@ -285,7 +285,7 @@ export function SimulationControlPanel() {
         ) : null}
         {correlationError ? (
           <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
-            <span className="text-sm text-red-200">{correlationError}</span>
+            <span className="text-sm text-red-700">{correlationError}</span>
             <Button size="sm" variant="outline" onClick={() => void retryCorrelation()}>
               Analyze Synthetic Run
             </Button>
@@ -296,7 +296,7 @@ export function SimulationControlPanel() {
         ) : null}
         {detectionError ? (
           <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
-            <span className="text-sm text-red-200">{detectionError}</span>
+            <span className="text-sm text-red-700">{detectionError}</span>
             <Button
               size="sm"
               variant="outline"
@@ -370,7 +370,7 @@ export function SimulationControlPanel() {
           </div>
         </div>
         {error ? (
-          <p className="mt-4 text-sm text-red-300" role="alert">
+          <p className="mt-4 text-sm text-red-700" role="alert">
             {error}
           </p>
         ) : null}
