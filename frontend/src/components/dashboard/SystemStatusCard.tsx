@@ -12,7 +12,7 @@ export function SystemStatusCard({ health }: { health: HealthResponse | null }) 
           <p className="eyebrow">Foundation status</p>
           <h2 className="panel-title">Live system checks</h2>
         </div>
-        <Server className="size-5 text-cyan-400" aria-hidden="true" />
+        <Server className="size-5 text-blue-600" aria-hidden="true" />
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="status-row">

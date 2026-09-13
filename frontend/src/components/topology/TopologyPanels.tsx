@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader } from '../ui/card'
 
 export function ZoneGroup() {
   return (
-    <p className="text-xs text-slate-400">
+    <p className="text-xs text-slate-500">
       Zones: Edge → Cluster → Workload → Data · Identity, Management and Operations adjacent ·
       Synthetic External isolated
     </p>
@@ -154,7 +154,7 @@ export function PathInspection({ path }: { path: TopologyPath | null }) {
           Length {path.path_length} · Evidence: {path.evidence_source} · Sequence:{' '}
           {path.through_sequence_number ?? 'not applicable'}
         </p>
-        <p className={path.hypothetical ? 'text-amber-200' : 'text-slate-400'}>{path.statement}</p>
+        <p className={path.hypothetical ? 'text-amber-200' : 'text-slate-500'}>{path.statement}</p>
       </CardContent>
     </Card>
   )

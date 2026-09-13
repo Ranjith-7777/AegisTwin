@@ -30,7 +30,7 @@ export function LiveCorrelationDashboard() {
         </CardHeader>
         <CardContent aria-live="polite">
           {candidate ? (
-            <div className="space-y-2 text-sm text-slate-300">
+            <div className="space-y-2 text-sm text-slate-600">
               <strong>{candidate.title}</strong>
               <p>
                 {candidate.correlation_state} · priority {candidate.priority} · coherence score{' '}
@@ -72,7 +72,7 @@ export function LiveCorrelationDashboard() {
               {techniqueTimeline.map((item) => (
                 <li
                   key={item.mapping_id}
-                  className="border-l border-cyan-800 pl-3 text-sm text-slate-300"
+                  className="border-l border-blue-200 pl-3 text-sm text-slate-600"
                 >
                   <strong>
                     {item.technique_id} — {item.technique_name}
@@ -81,7 +81,7 @@ export function LiveCorrelationDashboard() {
                     {item.tactic} · confidence {item.mapping_confidence.toFixed(2)} (heuristic, not
                     probability)
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     Sequence {item.sequence_number}: {item.rationale}
                   </p>
                 </li>
@@ -102,7 +102,7 @@ export function LiveCorrelationDashboard() {
         <CardContent className="space-y-2">
           {Object.entries(labels).map(([key, label]) => (
             <div key={key}>
-              <div className="flex justify-between text-xs text-slate-400">
+              <div className="flex justify-between text-xs text-slate-500">
                 <span>{label}</span>
                 <span>{(candidate?.component_scores[key] ?? 0).toFixed(3)}</span>
               </div>
@@ -130,7 +130,7 @@ export function LiveCorrelationDashboard() {
                   techniqueTimeline.some((item) => item.event_id === event.event_id),
               )
               .map((event) => (
-                <p key={event.event_id} className="mb-2 text-xs text-slate-300">
+                <p key={event.event_id} className="mb-2 text-xs text-slate-600">
                   {event.action} · {event.source_id} → {event.destination_id ?? 'none'} ·{' '}
                   {assessmentsByEventId[event.event_id]?.classification ?? 'mapped evidence'}
                 </p>

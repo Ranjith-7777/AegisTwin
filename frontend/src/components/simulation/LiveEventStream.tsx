@@ -35,11 +35,11 @@ export function LiveEventStream({ expanded = false }: { expanded?: boolean }) {
           <p className="eyebrow">Persisted simulator playback</p>
           <h2 className="panel-title">Live Synthetic Event Stream</h2>
         </div>
-        <Radio className="size-5 text-cyan-400" aria-hidden="true" />
+        <Radio className="size-5 text-blue-600" aria-hidden="true" />
       </CardHeader>
       <CardContent>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-xs text-slate-400">
+          <label className="flex items-center gap-2 text-xs text-slate-500">
             <input
               type="checkbox"
               checked={autoScroll}
@@ -70,7 +70,7 @@ export function LiveEventStream({ expanded = false }: { expanded?: boolean }) {
         ) : null}
         {activeRun && connectionState === 'disconnected' && events.length === 0 && !error ? (
           <div
-            className="flex items-center gap-2 rounded-lg border border-slate-700 p-4 text-sm text-slate-400"
+            className="flex items-center gap-2 rounded-lg border border-slate-200 p-4 text-sm text-slate-500"
             role="status"
           >
             <WifiOff className="size-4" />
@@ -91,17 +91,17 @@ export function LiveEventStream({ expanded = false }: { expanded?: boolean }) {
                     key={event.event_id}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="technical text-xs text-slate-400">
+                      <span className="technical text-xs text-slate-500">
                         {new Date(event.timestamp).toISOString()}
                       </span>
                       <div className="flex items-center gap-2">
-                        <Badge className="border-cyan-800 bg-cyan-950/60 text-cyan-300">
+                        <Badge className="border-blue-200 bg-blue-50 text-blue-600">
                           Synthetic
                         </Badge>
                         <SeverityBadge severity={event.severity} />
                       </div>
                     </div>
-                    <div className="mt-2 grid gap-1 text-sm text-slate-300 sm:grid-cols-3">
+                    <div className="mt-2 grid gap-1 text-sm text-slate-600 sm:grid-cols-3">
                       <p>
                         <span className="text-slate-500">Type:</span> {event.event_type}
                       </p>
@@ -112,7 +112,7 @@ export function LiveEventStream({ expanded = false }: { expanded?: boolean }) {
                         <span className="text-slate-500">Outcome:</span> {event.outcome}
                       </p>
                     </div>
-                    <p className="technical mt-2 text-xs text-slate-400">
+                    <p className="technical mt-2 text-xs text-slate-500">
                       {event.source_id} → {event.destination_id ?? 'none'}
                       {event.user_id ? ` · ${event.user_id}` : ''}
                     </p>
@@ -120,7 +120,7 @@ export function LiveEventStream({ expanded = false }: { expanded?: boolean }) {
                       Suspicious-looking exercise data is not a confirmed attack.
                     </p>
                     {detectionEnabled ? (
-                      <p className="mt-2 text-xs text-slate-300">
+                      <p className="mt-2 text-xs text-slate-600">
                         <strong>Assessment: </strong>
                         {assessment
                           ? assessment.classification

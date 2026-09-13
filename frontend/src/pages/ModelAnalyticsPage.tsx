@@ -100,7 +100,7 @@ export function ModelAnalyticsPage() {
             {error}
           </p>
         ) : busy ? (
-          <p className="text-slate-400">{busy}…</p>
+          <p className="text-slate-500">{busy}…</p>
         ) : null}
       </div>
       <Card>
@@ -115,7 +115,7 @@ export function ModelAnalyticsPage() {
             <p>No synthetic detection model is available.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
+              <table className="w-full text-left text-xs text-slate-600">
                 <thead>
                   <tr>
                     {[
@@ -138,10 +138,10 @@ export function ModelAnalyticsPage() {
                 </thead>
                 <tbody>
                   {models.map((model) => (
-                    <tr className="border-t border-slate-800" key={model.model_id}>
+                    <tr className="border-t border-slate-200" key={model.model_id}>
                       <td className="p-2">
                         <button
-                          className="technical text-cyan-300"
+                          className="technical text-blue-600"
                           onClick={() => {
                             setSelectedId(model.model_id)
                           }}
@@ -180,7 +180,7 @@ export function ModelAnalyticsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <p className="mb-4 text-sm text-slate-400">
+          <p className="mb-4 text-sm text-slate-500">
             Training uses synthetic normal-operation telemetry only.
           </p>
           <form
@@ -246,11 +246,11 @@ export function ModelAnalyticsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <label className="block text-sm text-slate-400">
+          <label className="block text-sm text-slate-500">
             Selected model
             <select
               aria-label="Model to evaluate"
-              className="ml-3 bg-slate-950 p-2"
+              className="ml-3 bg-slate-50 p-2"
               value={selectedId}
               onChange={(event) => {
                 setSelectedId(event.target.value)

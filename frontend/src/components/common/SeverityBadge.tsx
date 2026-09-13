@@ -2,11 +2,11 @@ import { Badge } from '../ui/badge'
 import type { Severity } from '../../types/dashboard'
 
 const styles: Record<Severity, string> = {
-  informational: 'border-cyan-800 bg-cyan-950/60 text-cyan-300',
-  low: 'border-emerald-800 bg-emerald-950/60 text-emerald-300',
-  medium: 'border-amber-800 bg-amber-950/60 text-amber-300',
-  high: 'border-orange-800 bg-orange-950/60 text-orange-300',
-  critical: 'border-red-800 bg-red-950/60 text-red-300',
+  informational: 'border-blue-200 bg-blue-50 text-blue-700',
+  low: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  medium: 'border-amber-200 bg-amber-50 text-amber-700',
+  high: 'border-orange-200 bg-orange-50 text-orange-700',
+  critical: 'border-red-200 bg-red-50 text-red-700',
 }
 
 export function SeverityBadge({ severity }: { severity: Severity }) {

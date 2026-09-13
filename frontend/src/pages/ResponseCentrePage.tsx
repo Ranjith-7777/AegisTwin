@@ -117,7 +117,7 @@ export function ResponseCentrePage() {
                 )
                 clearAnalysis()
               }}
-              className="mt-1 block bg-slate-950 p-2"
+              className="mt-1 block bg-slate-50 p-2"
             >
               <option value="">Select run</option>
               {runs.map((run) => (
@@ -136,7 +136,7 @@ export function ResponseCentrePage() {
                 setModelId(event.target.value)
                 clearAnalysis()
               }}
-              className="mt-1 block bg-slate-950 p-2"
+              className="mt-1 block bg-slate-50 p-2"
             >
               <option value="">Select model</option>
               {models.map((model) => (
@@ -157,7 +157,7 @@ export function ResponseCentrePage() {
                 setSequence(Number(event.target.value))
                 clearAnalysis()
               }}
-              className="mt-1 block w-28 bg-slate-950 p-2"
+              className="mt-1 block w-28 bg-slate-50 p-2"
             />
           </label>
           <label className="flex items-center gap-2">
@@ -196,7 +196,7 @@ export function ResponseCentrePage() {
           {analysis.recommendations.map((item) => (
             <button
               key={item.recommendation_id}
-              className={`rounded border p-4 text-left ${selected?.recommendation_id === item.recommendation_id ? 'border-cyan-400' : 'border-slate-800'}`}
+              className={`rounded border p-4 text-left ${selected?.recommendation_id === item.recommendation_id ? 'border-blue-300' : 'border-slate-200'}`}
               onClick={() => {
                 setSelected(item)
               }}
@@ -289,7 +289,7 @@ export function ResponseCentrePage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded border border-slate-700 p-3">
+                <div className="rounded border border-slate-200 p-3">
                   <h3>Baseline synthetic topology</h3>
                   <p>
                     Sensitive assets reachable:{' '}
@@ -297,7 +297,7 @@ export function ResponseCentrePage() {
                   </p>
                   <p>Paths represented: {selected.simulation.paths_before.length}</p>
                 </div>
-                <div className="rounded border border-cyan-800 p-3">
+                <div className="rounded border border-blue-200 p-3">
                   <h3>Simulated post-response topology</h3>
                   <p>
                     Hypothetically restricted nodes:{' '}

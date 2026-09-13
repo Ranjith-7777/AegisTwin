@@ -58,7 +58,7 @@ describe('AegisArena command centre', () => {
   it('renders the five grouped sidebar entries', async () => {
     renderApp()
     const nav = screen.getByRole('navigation', { name: 'Primary navigation' })
-    for (const label of ['Overview', 'Digital Twin', 'Threat Analysis', 'Defense', 'Results'])
+    for (const label of ['Command Centre', 'Digital Twin', 'Threat Analysis', 'Defense', 'Results'])
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument()
     expect(within(nav).getAllByRole('link')).toHaveLength(5)
     expect(await screen.findByText('Backend connected')).toBeInTheDocument()

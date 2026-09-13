@@ -91,7 +91,7 @@ export function PredictiveAnalyticsPage() {
         <CardContent className="flex flex-wrap gap-3">
           <select
             aria-label="Prediction run"
-            className="bg-slate-950 p-2"
+            className="bg-slate-50 p-2"
             value={runId}
             onChange={(event) => {
               setRunId(event.target.value)
@@ -108,7 +108,7 @@ export function PredictiveAnalyticsPage() {
           </select>
           <select
             aria-label="Prediction model"
-            className="bg-slate-950 p-2"
+            className="bg-slate-50 p-2"
             value={modelId}
             onChange={(event) => {
               setModelId(event.target.value)

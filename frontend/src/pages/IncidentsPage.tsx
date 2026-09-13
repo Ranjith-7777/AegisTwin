@@ -90,7 +90,7 @@ export function IncidentsPage() {
                 setEvidence([])
                 setRunId(event.target.value)
               }}
-              className="ml-2 bg-slate-950 p-2"
+              className="ml-2 bg-slate-50 p-2"
             >
               <option value="">Select run</option>
               {runs.map((run) => (
@@ -108,7 +108,7 @@ export function IncidentsPage() {
               onChange={(event) => {
                 setPriorityFilter(event.target.value)
               }}
-              className="ml-2 bg-slate-950 p-2"
+              className="ml-2 bg-slate-50 p-2"
             >
               <option value="">All</option>
               <option>low</option>
@@ -124,7 +124,7 @@ export function IncidentsPage() {
               onChange={(event) => {
                 setStateFilter(event.target.value)
               }}
-              className="ml-2 bg-slate-950 p-2"
+              className="ml-2 bg-slate-50 p-2"
             >
               <option value="">All</option>
               <option>monitoring</option>
@@ -136,7 +136,7 @@ export function IncidentsPage() {
           {shown.map((item) => (
             <button
               key={item.incident_candidate_id}
-              className="mt-3 block w-full rounded border border-slate-800 p-3 text-left"
+              className="mt-3 block w-full rounded border border-slate-200 p-3 text-left"
               onClick={() => {
                 setEvidence([])
                 setSelected(item)
@@ -187,7 +187,7 @@ export function IncidentsPage() {
               attack.
             </p>
             {prediction ? (
-              <div className="mt-4 rounded border border-cyan-900 p-3">
+              <div className="mt-4 rounded border border-blue-200 p-3">
                 <h3 className="font-semibold">Latest predicted progression</h3>
                 <p>
                   {prediction.current_stage_estimate} · through sequence{' '}
@@ -218,7 +218,7 @@ export function IncidentsPage() {
                     3,
                   ) ?? 'unavailable'}
                 </p>
-                <Link className="text-cyan-300" to="/response-centre">
+                <Link className="text-blue-600" to="/response-centre">
                   Open Response Centre
                 </Link>
               </div>
@@ -233,11 +233,11 @@ export function IncidentsPage() {
                   Verification:{' '}
                   {orchestration.verifications[0]?.verification_status ?? 'not available'}
                 </p>
-                <Link className="text-cyan-300" to="/response-operations">
+                <Link className="text-blue-600" to="/response-operations">
                   Open Response Operations
                 </Link>
                 {' · '}
-                <Link className="text-cyan-300" to="/audit-trail">
+                <Link className="text-blue-600" to="/audit-trail">
                   Open Audit Trail
                 </Link>
               </div>

@@ -84,7 +84,7 @@ export function SimulationControlPanel() {
       </CardHeader>
       <CardContent>
         {DEMO_MODE ? (
-          <p className="mb-3 text-sm text-cyan-200" role="status">
+          <p className="mb-3 text-sm text-blue-600" role="status">
             Demo Mode preselects frozen synthetic inputs; scoring, analysis, approval, and audit
             gates are unchanged.
           </p>
@@ -256,7 +256,7 @@ export function SimulationControlPanel() {
                 (item) => item.model_id === (modelId || models[0]?.model_id),
               )
               return model ? (
-                <p className="mt-3 text-xs text-slate-400">
+                <p className="mt-3 text-xs text-slate-500">
                   Schema: {model.feature_schema_version} · Calibration: {model.calibration_method} ·
                   Detector: {model.model_type}
                 </p>

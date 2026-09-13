@@ -52,7 +52,7 @@ export function LiveAnomalyDashboard() {
         </CardHeader>
         <CardContent aria-live="polite">
           {currentAssessment ? (
-            <div className="space-y-3 text-sm text-slate-300">
+            <div className="space-y-3 text-sm text-slate-600">
               <p>
                 <strong
                   className={
@@ -78,7 +78,7 @@ export function LiveAnomalyDashboard() {
               </p>
             </div>
           ) : (
-            <p className="text-sm text-slate-400">No streamed assessment yet.</p>
+            <p className="text-sm text-slate-500">No streamed assessment yet.</p>
           )}
         </CardContent>
       </Card>
@@ -90,12 +90,12 @@ export function LiveAnomalyDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          <p className="mb-3 text-xs text-slate-400">
+          <p className="mb-3 text-xs text-slate-500">
             Contributing signals explain deviation from the synthetic normal baseline. They are not
             proof of malicious activity.
           </p>
           {currentAssessment?.contributing_signals.length ? (
-            <ul className="list-disc space-y-1 pl-5 text-sm text-slate-300">
+            <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
               {currentAssessment.contributing_signals.map((signal) => (
                 <li key={signal}>{signal}</li>
               ))}
@@ -117,7 +117,7 @@ export function LiveAnomalyDashboard() {
             const value = currentAssessment?.component_scores[key] ?? 0
             return (
               <div key={key}>
-                <div className="flex justify-between text-xs text-slate-400">
+                <div className="flex justify-between text-xs text-slate-500">
                   <span>{label}</span>
                   <span>{value.toFixed(3)}</span>
                 </div>
@@ -171,7 +171,7 @@ export function LiveAnomalyDashboard() {
               The timeline will use streamed assessment values when detection playback begins.
             </p>
           )}
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500">
             Text summary: {assessmentTimeline.length} assessments; {anomalous.length} anomalous;
             maximum score {maximum.toFixed(3)}.
           </p>

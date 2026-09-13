@@ -1,5 +1,5 @@
 export const APP_NAME = 'AegisArena'
-export const APP_TAGLINE = 'Cloud Cyber Defense Range'
+export const APP_TAGLINE = 'Autonomous Cloud Cyber-Resilience Digital Twin'
 export const APP_FULL_NAME = `${APP_NAME} — ${APP_TAGLINE}`
 export const FALLBACK_SAFETY_MESSAGE =
   'AegisArena uses synthetic telemetry and a simulated cloud estate. No action affects real systems.'

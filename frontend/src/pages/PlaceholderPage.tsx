@@ -22,7 +22,7 @@ export function PlaceholderPage({
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
-        <Icon className="size-7 text-cyan-400" />
+        <Icon className="size-7 text-blue-600" />
       </header>
       <Card>
         <CardContent>

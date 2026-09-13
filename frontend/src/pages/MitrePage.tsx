@@ -61,12 +61,12 @@ export function MitrePage() {
           {catalogue.map((item) => (
             <article
               key={item.technique_id}
-              className="rounded border border-slate-800 p-3 text-sm"
+              className="rounded border border-slate-200 p-3 text-sm"
             >
               <strong>
                 {item.technique_id} — {item.name}
               </strong>
-              <p className="text-slate-400">{item.tactics.join(', ')}</p>
+              <p className="text-slate-500">{item.tactics.join(', ')}</p>
               <p>{item.description}</p>
               <p className="mt-2 text-xs text-slate-500">Requires: {item.mapping_conditions}</p>
             </article>
@@ -87,7 +87,7 @@ export function MitrePage() {
                 setObservations([])
                 setRunId(event.target.value)
               }}
-              className="ml-2 bg-slate-950 p-2"
+              className="ml-2 bg-slate-50 p-2"
             >
               <option value="">Select run</option>
               {runs.map((run) => (
@@ -113,7 +113,7 @@ export function MitrePage() {
             </p>
           )}
           {prediction ? (
-            <div className="mt-4 rounded border border-cyan-900 p-3">
+            <div className="mt-4 rounded border border-blue-200 p-3">
               <strong>Predicted, not observed</strong>
               <p>
                 {prediction.hypotheses

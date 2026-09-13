@@ -35,7 +35,7 @@ export interface NavSection {
 export const navSections: NavSection[] = [
   {
     id: 'overview',
-    label: 'Overview',
+    label: 'Command Centre',
     icon: LayoutDashboard,
     routes: [{ path: '/', label: 'Command Centre', icon: LayoutDashboard }],
   },

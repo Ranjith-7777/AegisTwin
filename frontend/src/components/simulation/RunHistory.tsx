@@ -17,7 +17,7 @@ export function RunHistory() {
           <p className="eyebrow">Persisted synthetic runs</p>
           <h2 className="panel-title">Run History</h2>
         </div>
-        <History className="size-5 text-cyan-400" />
+        <History className="size-5 text-blue-600" />
       </CardHeader>
       <CardContent>
         {runs.length === 0 ? (
@@ -31,10 +31,10 @@ export function RunHistory() {
               <article key={run.simulation_run_id} className="run-history-row">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-slate-200">
+                    <p className="font-medium text-slate-800">
                       {scenarioNames.get(run.scenario_id) ?? run.scenario_id}
                     </p>
-                    <Badge className="border-cyan-800 text-cyan-300">Synthetic</Badge>
+                    <Badge className="border-blue-200 text-blue-600">Synthetic</Badge>
                   </div>
                   <p className="technical mt-1 truncate text-xs text-slate-500">
                     {run.simulation_run_id}

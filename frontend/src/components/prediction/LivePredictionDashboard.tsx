@@ -53,15 +53,15 @@ export function LivePredictionDashboard({
                 {items.map((item) => (
                   <article
                     key={item.hypothesis_id}
-                    className="mt-2 rounded border border-slate-800 p-3"
+                    className="mt-2 rounded border border-slate-200 p-3"
                   >
                     <strong>
                       #{item.rank} {label(item)}
                     </strong>
-                    <span className="ml-2 text-xs text-slate-400">
+                    <span className="ml-2 text-xs text-slate-500">
                       score {item.prediction_score.toFixed(3)}
                     </span>
-                    <p className="text-sm text-slate-300">{item.rationale}</p>
+                    <p className="text-sm text-slate-600">{item.rationale}</p>
                     <p className="text-xs text-slate-500">
                       Components:{' '}
                       {Object.entries(item.component_scores)

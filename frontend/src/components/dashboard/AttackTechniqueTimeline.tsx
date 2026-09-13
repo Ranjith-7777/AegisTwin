@@ -12,7 +12,7 @@ export function AttackTechniqueTimeline() {
           <p className="eyebrow">Observed synthetic evidence</p>
           <h2 className="panel-title">MITRE ATT&amp;CK Timeline</h2>
         </div>
-        <Link className="text-sm text-cyan-300" to="/mitre">
+        <Link className="text-sm text-blue-600" to="/mitre">
           Open catalogue
         </Link>
       </CardHeader>
@@ -23,7 +23,7 @@ export function AttackTechniqueTimeline() {
               <li key={item.mapping_id}>
                 <span>{String(item.sequence_number).padStart(2, '0')}</span>
                 <p>
-                  <strong className="text-slate-200">{item.technique_id}</strong> ·{' '}
+                  <strong className="text-slate-800">{item.technique_id}</strong> ·{' '}
                   {item.technique_name}
                   <br />
                   <span className="agent-detail">
@@ -34,7 +34,7 @@ export function AttackTechniqueTimeline() {
             ))}
           </ol>
         ) : (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             No ATT&amp;CK technique has been observed in the current replay. Techniques appear only
             when synthetic telemetry explicitly supports the mapping.
           </p>

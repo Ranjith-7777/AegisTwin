@@ -21,7 +21,7 @@ export function TopologyHistory({
           {items.map((item) => (
             <li key={item.event_id}>
               <button
-                className="w-full rounded border border-slate-800 p-2 text-left text-sm"
+                className="w-full rounded border border-slate-200 p-2 text-left text-sm"
                 onClick={() => {
                   onSelect(item)
                 }}
@@ -29,7 +29,7 @@ export function TopologyHistory({
                 <strong>#{item.sequence_number}</strong>{' '}
                 {item.source_asset_id ?? 'non-topology source'} →{' '}
                 {item.destination_asset_id ?? 'non-topology destination'} · {item.action}
-                <span className="block text-xs text-slate-400">
+                <span className="block text-xs text-slate-500">
                   {item.anomaly_classification ?? 'assessment pending'}
                   {item.technique_ids.length ? ` · ${item.technique_ids.join(', ')}` : ''}
                   {item.candidate_state ? ` · candidate ${item.candidate_state}` : ''}

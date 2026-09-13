@@ -76,7 +76,7 @@ export function AnomalyActivityChart() {
             </ResponsiveContainer>
           </div>
         ) : (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             No assessments yet. Start a scenario with detection enabled to plot hybrid anomaly
             scores against the calibrated threshold.
           </p>

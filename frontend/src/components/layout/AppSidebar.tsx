@@ -1,6 +1,7 @@
-import { PanelLeftClose, PanelLeftOpen, Shield } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 
+import { APP_NAME, APP_TAGLINE } from '../../lib/constants'
 import { navSections, sectionForPath } from '../../lib/routes'
 import { cn } from '../../lib/utils'
 
@@ -21,8 +22,14 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapse, onNavigate }: Ap
     >
       <div className="sidebar-brand">
         <span className="brand-mark">
-          <Shield className="size-[1.05rem]" aria-hidden="true" />
+          <ShieldCheck className="size-[1.05rem]" aria-hidden="true" />
         </span>
+        {!collapsed && (
+          <span className="brand-text">
+            <span className="brand-name">{APP_NAME}</span>
+            <span className="brand-tagline">{APP_TAGLINE}</span>
+          </span>
+        )}
       </div>
       <nav className="sidebar-nav" aria-label="Primary navigation">
         {navSections.map((section) => (
@@ -39,6 +46,12 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapse, onNavigate }: Ap
         ))}
       </nav>
       <div className="sidebar-foot">
+        {!collapsed && (
+          <div className="sidebar-env">
+            <span className="chip-dot" aria-hidden="true" />
+            Safe Simulation
+          </div>
+        )}
         <button
           className="nav-item"
           onClick={onCollapse}
