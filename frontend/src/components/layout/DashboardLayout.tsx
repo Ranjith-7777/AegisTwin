@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 
 import { AppHeader } from './AppHeader'
 import { AppSidebar } from './AppSidebar'
@@ -8,8 +8,6 @@ import { SectionNav } from './SectionNav'
 export function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { pathname } = useLocation()
-  const isOverview = pathname === '/'
   return (
     <div className={collapsed ? 'dashboard-shell sidebar-collapsed' : 'dashboard-shell'}>
       <a href="#main-content" className="skip-link">
@@ -40,11 +38,7 @@ export function DashboardLayout() {
             setMobileOpen(true)
           }}
         />
-        <main
-          id="main-content"
-          className={isOverview ? 'page-content is-fixed' : 'page-content'}
-          tabIndex={-1}
-        >
+        <main id="main-content" className="page-content" tabIndex={-1}>
           <SectionNav />
           <Outlet />
         </main>

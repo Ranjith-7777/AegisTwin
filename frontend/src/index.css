@@ -399,19 +399,19 @@ summary:focus-visible {
 /* ---------------------------------------------------- overview workspace */
 .overview {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  min-height: 0;
+  gap: 1.1rem;
 }
-.page-content.is-fixed {
-  display: flex;
-  height: calc(100vh - var(--header-h));
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0.9rem 1.25rem 1rem;
+.overview-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1rem;
+  align-items: start;
 }
-.page-content.is-fixed > .overview {
-  flex: 1;
+.overview-risk-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 1.1rem;
+  align-items: stretch;
 }
 .workspace {
   display: grid;
@@ -426,8 +426,7 @@ summary:focus-visible {
   overflow: hidden;
 }
 .twin-canvas-wrap {
-  flex: 1;
-  min-height: 0;
+  height: 420px;
   padding: 0.5rem;
 }
 .twin-loading {
@@ -1161,15 +1160,9 @@ summary:focus-visible {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
   }
-  .twin-canvas-wrap {
-    min-height: 22rem;
-  }
-  .page-content.is-fixed {
-    height: auto;
-    overflow: visible;
-  }
-  .overview {
-    grid-template-rows: none;
+  .overview-row,
+  .overview-risk-row {
+    grid-template-columns: minmax(0, 1fr);
   }
   .rail {
     overflow: visible;

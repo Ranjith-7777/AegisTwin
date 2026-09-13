@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { ActiveIncidentCard } from '../components/dashboard/ActiveIncidentCard'
 import { BlueAgentCard } from '../components/dashboard/BlueAgentCard'
+import { DetectionSummaryCard } from '../components/dashboard/DetectionSummaryCard'
 import { KpiCards } from '../components/dashboard/KpiCards'
 import { MissionProgress, type StageKey } from '../components/dashboard/MissionProgress'
+import { RecentActivity, type ActivityItem } from '../components/dashboard/RecentActivity'
+import { RiskGauge } from '../components/dashboard/RiskGauge'
+import { PageHeader } from '../components/layout/PageHeader'
 import { RedAgentPanel } from '../components/simulation/RedAgentPanel'
 import { CyberDigitalTwin } from '../components/topology/CyberDigitalTwin'
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
@@ -142,16 +147,63 @@ export function OverviewPage() {
     recover: recovered,
   }
 
+  const activityItems: ActivityItem[] = [
+    {
+      label: 'Scenario started',
+      detail: playback.activeRun
+        ? `${playback.activeRun.scenario_id} · seed ${String(playback.activeRun.seed)}`
+        : 'No scenario has been started in this session.',
+      done: playback.activeRun !== null,
+    },
+    {
+      label: 'Anomaly detected',
+      detail:
+        playback.assessmentTimeline.length > 0
+          ? `${String(playback.assessmentTimeline.length)} events assessed`
+          : 'Awaiting scored telemetry.',
+      done: playback.assessmentTimeline.some((item) => item.classification === 'anomalous'),
+    },
+    {
+      label: 'Incident created',
+      detail: playback.currentIncidentCandidate
+        ? `${playback.currentIncidentCandidate.priority} priority · ${String(playback.currentIncidentCandidate.evidence_count)} evidence items`
+        : 'No incident has been correlated yet.',
+      done: playback.currentIncidentCandidate !== null,
+    },
+    {
+      label: 'Response proposed',
+      detail: recommendation
+        ? `${recommendation.playbook_name} · defense score ${recommendation.defense_score.toFixed(2)}`
+        : 'No mitigation has been ranked yet.',
+      done: recommendation !== null,
+    },
+    {
+      label: 'Verification completed',
+      detail: recovered
+        ? 'Synthetic execution verified and rolled back.'
+        : 'Awaiting synthetic execution and verification.',
+      done: recovered,
+    },
+  ]
+
   return (
     <div className="overview">
+      <PageHeader
+        title="Command Centre"
+        subtitle="Autonomous cloud cyber-resilience overview — simulation environment"
+      />
       <MissionProgress completed={completed} />
-      <KpiCards state={state} />
-      <div className="workspace">
+      <div className="overview-risk-row">
+        <RiskGauge state={state} hasEvidence={playback.activeRun !== null} />
+        <KpiCards state={state} />
+      </div>
+      <div className="overview-row">
+        <ActiveIncidentCard incident={playback.currentIncidentCandidate} />
         <section className="card twin-panel" aria-label="Cloud Digital Twin">
           <div className="card-head">
-            <h2 className="card-title">Cloud Digital Twin</h2>
+            <h2 className="card-title">Digital Twin</h2>
             <Link className="card-link" to="/digital-twin">
-              Full topology
+              Open Digital Twin
             </Link>
           </div>
           <div className="twin-canvas-wrap">
@@ -167,17 +219,32 @@ export function OverviewPage() {
               <p className="twin-loading">Loading synthetic cloud topology…</p>
             )}
           </div>
+          <p className="px-4 pb-3 text-xs text-slate-500">
+            {topology
+              ? `${String(topology.nodes.length)} synthetic assets · ${String(topology.edges.length)} relationships`
+              : null}
+          </p>
         </section>
-        <RedAgentPanel state={state} />
       </div>
-      <BlueAgentCard
-        recommendation={recommendation}
-        busy={busy}
-        ready={ready}
-        error={error}
-        onAnalyze={analyze}
-        onApprove={approve}
-      />
+      <div className="overview-row">
+        <DetectionSummaryCard
+          model={playback.selectedModel}
+          assessments={playback.assessmentTimeline}
+          prediction={playback.currentPrediction}
+        />
+        <BlueAgentCard
+          recommendation={recommendation}
+          busy={busy}
+          ready={ready}
+          error={error}
+          onAnalyze={analyze}
+          onApprove={approve}
+        />
+      </div>
+      <div className="workspace">
+        <RedAgentPanel state={state} />
+        <RecentActivity items={activityItems} />
+      </div>
     </div>
   )
 }
