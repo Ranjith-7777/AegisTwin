@@ -3,6 +3,7 @@ import {
   Bot,
   Boxes,
   FileClock,
+  FlaskConical,
   GitBranch,
   LayoutDashboard,
   ListChecks,
@@ -68,6 +69,18 @@ export const navSections: NavSection[] = [
       { path: '/blue-agent/response-plans', label: 'Response Plans', icon: GitBranch },
       { path: '/blue-agent/policies', label: 'Policies', icon: ListChecks },
       { path: '/blue-agent/verification', label: 'Verification', icon: ShieldCheck },
+    ],
+  },
+  {
+    id: 'evaluation',
+    label: 'Evaluation',
+    icon: FlaskConical,
+    routes: [
+      { path: '/evaluation', label: 'Overview', icon: FlaskConical },
+      { path: '/evaluation/experiments', label: 'Experiments', icon: ListChecks },
+      { path: '/evaluation/compare', label: 'Compare', icon: GitBranch },
+      { path: '/evaluation/aggregate', label: 'Aggregate', icon: Activity },
+      { path: '/evaluation/batches', label: 'Batches', icon: Boxes },
     ],
   },
   {

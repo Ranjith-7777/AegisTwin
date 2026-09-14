@@ -49,6 +49,39 @@ const VerificationPage = lazy(() =>
     default: module.VerificationPage,
   })),
 )
+const EvaluationOverviewPage = lazy(() =>
+  import('../pages/evaluation/EvaluationOverviewPage').then((module) => ({
+    default: module.EvaluationOverviewPage,
+  })),
+)
+const ExperimentListPage = lazy(() =>
+  import('../pages/evaluation/ExperimentListPage').then((module) => ({
+    default: module.ExperimentListPage,
+  })),
+)
+const ExperimentDetailPage = lazy(() =>
+  import('../pages/evaluation/ExperimentDetailPage').then((module) => ({
+    default: module.ExperimentDetailPage,
+  })),
+)
+const ComparisonPage = lazy(() =>
+  import('../pages/evaluation/ComparisonPage').then((module) => ({
+    default: module.ComparisonPage,
+  })),
+)
+const AggregatePage = lazy(() =>
+  import('../pages/evaluation/AggregatePage').then((module) => ({
+    default: module.AggregatePage,
+  })),
+)
+const BatchesPage = lazy(() =>
+  import('../pages/evaluation/BatchesPage').then((module) => ({ default: module.BatchesPage })),
+)
+const ExperimentReportPage = lazy(() =>
+  import('../pages/evaluation/ExperimentReportPage').then((module) => ({
+    default: module.ExperimentReportPage,
+  })),
+)
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<p role="status">Loading dashboard module…</p>}>{children}</Suspense>
@@ -122,6 +155,62 @@ export function AppRoutes() {
           element={
             <LazyPage>
               <VerificationPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="evaluation"
+          element={
+            <LazyPage>
+              <EvaluationOverviewPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="evaluation/experiments"
+          element={
+            <LazyPage>
+              <ExperimentListPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="evaluation/experiments/:experimentId"
+          element={
+            <LazyPage>
+              <ExperimentDetailPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="evaluation/experiments/:experimentId/report"
+          element={
+            <LazyPage>
+              <ExperimentReportPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="evaluation/compare"
+          element={
+            <LazyPage>
+              <ComparisonPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="evaluation/aggregate"
+          element={
+            <LazyPage>
+              <AggregatePage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="evaluation/batches"
+          element={
+            <LazyPage>
+              <BatchesPage />
             </LazyPage>
           }
         />

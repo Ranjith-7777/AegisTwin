@@ -1256,3 +1256,22 @@ summary:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Print-friendly Experiment Report (PM spec Section 70): hide site chrome
+   and let the report content flow as a plain document. The report page
+   itself marks its own controls with `print-hidden`. */
+@media print {
+  .app-sidebar,
+  .app-header,
+  .section-nav,
+  .skip-link,
+  .print-hidden {
+    display: none !important;
+  }
+  .dashboard-main {
+    margin: 0 !important;
+  }
+  .page-content {
+    padding: 0 !important;
+  }
+}

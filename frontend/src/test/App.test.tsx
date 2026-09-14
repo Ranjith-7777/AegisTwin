@@ -55,12 +55,19 @@ describe('AegisArena command centre', () => {
     expect(screen.getByLabelText('Cloud Digital Twin')).toBeInTheDocument()
     expect(screen.getByLabelText('Demonstration progress')).toBeInTheDocument()
   })
-  it('renders the five grouped sidebar entries', async () => {
+  it('renders the six grouped sidebar entries', async () => {
     renderApp()
     const nav = screen.getByRole('navigation', { name: 'Primary navigation' })
-    for (const label of ['Command Centre', 'Digital Twin', 'Threat Analysis', 'Defense', 'Results'])
+    for (const label of [
+      'Command Centre',
+      'Digital Twin',
+      'Threat Analysis',
+      'Defense',
+      'Evaluation',
+      'Results',
+    ])
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument()
-    expect(within(nav).getAllByRole('link')).toHaveLength(5)
+    expect(within(nav).getAllByRole('link')).toHaveLength(6)
     expect(await screen.findByText('Backend connected')).toBeInTheDocument()
   })
   it('exposes every original route through section sub-navigation', async () => {
