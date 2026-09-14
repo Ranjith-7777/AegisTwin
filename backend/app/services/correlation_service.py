@@ -88,8 +88,7 @@ class CorrelationService:
         if force:
             self._delete_existing(session, run_id, model_id)
         mitre_catalogue_service.ensure(session)
-        visible_events = [event for event in events if event.event_id not in excluded]
-        observations = self._map(visible_events, model_id)
+        observations = self._map(events, model_id, excluded)
         for item in observations:
             session.add(item)
         assessment_by_event = {item.event_id: item for item in assessments}
@@ -263,11 +262,31 @@ class CorrelationService:
         )
         return self._result(session, candidate, force)
 
-    def _map(self, events: list[TelemetryEvent], model_id: str) -> list[TechniqueObservationRecord]:
+    def _map(
+        self,
+        events: list[TelemetryEvent],
+        model_id: str,
+        excluded_event_ids: frozenset[str] = frozenset(),
+    ) -> list[TechniqueObservationRecord]:
+        """Maps ATT&CK technique observations from `events` - always the
+        COMPLETE, original full-run event list, never a pre-filtered/
+        compacted one. `sequence` (and therefore every persisted
+        `TechniqueObservationRecord.sequence_number`) is derived from
+        `enumerate(events, 1)` over that full list, so a visible event's
+        sequence number always matches its true original position -
+        excluding events by skipping them mid-loop (rather than compacting
+        the input list first) is what preserves this. Skipping an excluded
+        event before any state mutation (`failed_users`) also ensures a
+        hidden event can never seed cross-event mapping state (e.g. a
+        hidden failed-login must not make a later visible success match the
+        T1078 rule)."""
+
         results: list[TechniqueObservationRecord] = []
         failed_users: set[str] = set()
         catalogue = {item[0]: item for item in CATALOGUE}
         for sequence, event in enumerate(events, 1):
+            if event.event_id in excluded_event_ids:
+                continue
             metadata = event.metadata
             selected: tuple[str, float, str] | None = None
             if event.failed_attempts >= 5 or metadata.get("attempt_pattern") == "repeated":

@@ -29,7 +29,11 @@ from typing import cast
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.database.models import IncidentEvidenceRecord, TechniqueObservationRecord
+from app.database.models import (
+    IncidentCandidateSnapshotRecord,
+    IncidentEvidenceRecord,
+    TechniqueObservationRecord,
+)
 from app.services.correlation_service import correlation_service
 from app.services.telemetry_service import telemetry_service
 
@@ -258,5 +262,173 @@ def test_excluded_event_ids_empty_or_omitted_is_byte_for_byte_identical(
         assert default_result.snapshot_count == explicit_empty_result.snapshot_count
         assert default_observations == explicit_empty_observations
         assert default_evidence == explicit_empty_evidence
+    finally:
+        session.close()
+
+
+def test_technique_observation_keeps_true_full_run_sequence_number_when_a_prior_event_is_hidden(
+    client: TestClient,
+) -> None:
+    """Regression test for the exact bug the PM reported: `_map()` used to
+    receive an already-filtered `visible_events` list and enumerate it from
+    1, so a technique observation for an event that is genuinely LATER in
+    the full run (e.g. true sequence 3) would be persisted with a SMALLER,
+    WRONG `sequence_number` (e.g. 2) whenever an earlier event was hidden.
+    `_map()` now always receives the COMPLETE, original event list and skips
+    excluded events mid-loop, so `enumerate(events, 1)` always reflects true
+    full-run position regardless of what's hidden."""
+
+    session = _session(client)
+    try:
+        run_id, model_id = _prepare(client)
+        events = telemetry_service.list_run_events(session, run_id)
+
+        # Establish ground truth: under the fully-visible pass, find a real
+        # technique observation and its TRUE full-run sequence position.
+        visible_result = correlation_service.analyze(session, run_id, model_id, force=True)
+        assert visible_result.incident_candidate_id is not None
+        t1098 = (
+            session.query(TechniqueObservationRecord)
+            .filter(
+                TechniqueObservationRecord.simulation_run_id == run_id,
+                TechniqueObservationRecord.model_id == model_id,
+                TechniqueObservationRecord.technique_id == "T1098",
+            )
+            .one()
+        )
+        true_index = next(i for i, e in enumerate(events) if e.event_id == t1098.event_id)
+        true_sequence = true_index + 1
+        assert t1098.sequence_number == true_sequence, "sanity: unperturbed pass is already correct"
+        assert true_index >= 1, (
+            "need at least one earlier event to hide - adjust the fixture if this ever fails"
+        )
+
+        # Hide an event strictly BEFORE the technique-mapped event. A
+        # compacting/renumbering bug would shift T1098's observed
+        # sequence_number DOWN by one; the fix must keep it at true_sequence.
+        hidden_event_id = events[0].event_id
+        assert hidden_event_id != t1098.event_id
+
+        perturbed_result = correlation_service.analyze(
+            session,
+            run_id,
+            model_id,
+            force=True,
+            excluded_event_ids=frozenset({hidden_event_id}),
+        )
+        assert perturbed_result.incident_candidate_id is not None
+
+        remaining_t1098 = (
+            session.query(TechniqueObservationRecord)
+            .filter(
+                TechniqueObservationRecord.simulation_run_id == run_id,
+                TechniqueObservationRecord.model_id == model_id,
+                TechniqueObservationRecord.event_id == t1098.event_id,
+            )
+            .one()
+        )
+        assert remaining_t1098.sequence_number == true_sequence, (
+            f"T1098's observation must keep its true full-run sequence_number "
+            f"{true_sequence} even though an earlier event was hidden, got "
+            f"{remaining_t1098.sequence_number}"
+        )
+
+        # The hidden event itself must produce no observation at all.
+        hidden_observation = (
+            session.query(TechniqueObservationRecord)
+            .filter(
+                TechniqueObservationRecord.simulation_run_id == run_id,
+                TechniqueObservationRecord.model_id == model_id,
+                TechniqueObservationRecord.event_id == hidden_event_id,
+            )
+            .one_or_none()
+        )
+        assert hidden_observation is None
+
+        # IncidentEvidenceRecord sequencing must be consistent with the
+        # (now-correct) TechniqueObservationRecord sequencing.
+        evidence_for_t1098 = (
+            session.query(IncidentEvidenceRecord)
+            .filter(
+                IncidentEvidenceRecord.incident_candidate_id
+                == perturbed_result.incident_candidate_id,
+                IncidentEvidenceRecord.event_id == t1098.event_id,
+            )
+            .one()
+        )
+        assert evidence_for_t1098.sequence_number == true_sequence
+    finally:
+        session.close()
+
+
+def test_snapshot_chronology_does_not_expose_a_technique_before_its_true_sequence(
+    client: TestClient,
+) -> None:
+    """Snapshot causality proof: `IncidentCandidateSnapshotRecord`s are keyed
+    by cumulative evidence up to a given sequence boundary
+    (`available_observations = [o for o in observations if
+    o.sequence_number <= sequence]`). Before the fix, a renumbered-too-low
+    `sequence_number` could make a technique appear "available" in a
+    snapshot boundary EARLIER than the event that produced it truly
+    occurred. Prove that no snapshot's `observed_technique_ids` includes a
+    technique before the snapshot's own `latest_sequence_number` reaches (or
+    passes) that technique's TRUE full-run sequence position."""
+
+    session = _session(client)
+    try:
+        run_id, model_id = _prepare(client)
+        events = telemetry_service.list_run_events(session, run_id)
+
+        visible_result = correlation_service.analyze(session, run_id, model_id, force=True)
+        assert visible_result.incident_candidate_id is not None
+        # A technique may be observed from more than one event in this
+        # scenario - track the EARLIEST true sequence per technique, since a
+        # snapshot legitimately exposes a technique as soon as its first
+        # (not last) contributing event has occurred.
+        true_sequence_by_technique: dict[str, int] = {}
+        for observation in session.query(TechniqueObservationRecord).filter(
+            TechniqueObservationRecord.simulation_run_id == run_id,
+            TechniqueObservationRecord.model_id == model_id,
+        ):
+            true_index = next(i for i, e in enumerate(events) if e.event_id == observation.event_id)
+            true_sequence = true_index + 1
+            existing = true_sequence_by_technique.get(observation.technique_id)
+            if existing is None or true_sequence < existing:
+                true_sequence_by_technique[observation.technique_id] = true_sequence
+
+        hidden_event_id = events[0].event_id
+        perturbed_result = correlation_service.analyze(
+            session,
+            run_id,
+            model_id,
+            force=True,
+            excluded_event_ids=frozenset({hidden_event_id}),
+        )
+        assert perturbed_result.incident_candidate_id is not None
+
+        snapshots = list(
+            session.query(IncidentCandidateSnapshotRecord).filter(
+                IncidentCandidateSnapshotRecord.incident_candidate_id
+                == perturbed_result.incident_candidate_id
+            )
+        )
+        assert snapshots, "expected at least one snapshot in this fixture"
+
+        checked_techniques = 0
+        for snapshot in snapshots:
+            latest_sequence = cast(int, snapshot.snapshot_json["latest_sequence_number"])
+            observed_techniques = cast(list[str], snapshot.snapshot_json["observed_technique_ids"])
+            for technique_id in observed_techniques:
+                earliest_true_sequence = true_sequence_by_technique.get(technique_id)
+                if earliest_true_sequence is None:
+                    continue  # technique came solely from the hidden event - not checked here
+                assert earliest_true_sequence <= latest_sequence, (
+                    f"snapshot at sequence {latest_sequence} exposes technique "
+                    f"{technique_id}, whose true full-run sequence is "
+                    f"{earliest_true_sequence} - a technique must never appear before its "
+                    "real original sequence"
+                )
+                checked_techniques += 1
+        assert checked_techniques >= 1, "expected to check at least one technique/snapshot pair"
     finally:
         session.close()

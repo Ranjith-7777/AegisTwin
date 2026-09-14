@@ -295,6 +295,48 @@ passed, 0 failed) or the Phase 4 regression subset (57 passed) while
 verifying this fix, so re-running the 80-run matrix was correctly judged
 unnecessary.
 
+## Robustness results, re-verified after the sequence-preservation fix (2026-09-14)
+
+A final micro-fix closed one more correctness gap, distinct from the
+evidence-visibility leak above: `CorrelationService._map()` was receiving an
+already-COMPACTED `visible_events` list and numbering
+`TechniqueObservationRecord.sequence_number` via `enumerate(events, 1)` over
+that shortened list — so a technique observation for an event genuinely
+later in the full run (e.g. true position 10) could be persisted with an
+incorrectly SMALLER sequence number (e.g. 9) whenever an earlier event was
+hidden. This corrupted causal `IncidentCandidateSnapshotRecord` chronology
+(a technique could appear "available" in a snapshot boundary before the
+event that produced it had truly occurred) even though the excluded event
+itself still correctly produced no observation. `_map()` now always receives
+the COMPLETE, original event list and skips excluded events mid-loop (never
+compacting first), so `enumerate(events, 1)` always reflects true full-run
+position regardless of what is hidden — proven by
+`test_technique_observation_keeps_true_full_run_sequence_number_when_a_prior_event_is_hidden`
+and `test_snapshot_chronology_does_not_expose_a_technique_before_its_true_sequence`
+in `backend/tests/test_correlation_perturbation_visibility.py`.
+
+The same 16-pair/32-experiment robustness set (identical methodology,
+`seed=42`, `hidden_fraction=0.3`, fresh standalone scratch-sqlite rerun) was
+re-run under this fix. **Result: all 16 pairs remain numerically identical
+to the two tables above** — same baseline/perturbed ARS, MCI, detection
+coverage, and detected-step counts in every case. This is expected and
+correctly so: the sequence-numbering bug affected `sequence_number`
+metadata on `TechniqueObservationRecord`/causal snapshot chronology only —
+none of which feeds into `EvaluationMetricsService`'s raw/normalized metrics
+(`attack_path_reduction`, `blast_radius_reduction`,
+`critical_exposure_reduction`, `detection_coverage`, `operational_disruption`,
+etc., which derive from Attack Graph/Blast Radius evidence and persisted
+`AnomalyAssessmentRecord`/`IncidentEvidenceRecord` membership, not from the
+sequence-number field's numeric value) or therefore into ARS/MCI. The fix is
+a genuine correctness improvement to causal-snapshot provenance and
+`TechniqueObservationRecord` accuracy, not a scoring change — the canonical
+80-run matrix was, again, correctly judged unnecessary to re-run, for the
+same "empty `excluded_event_ids` is byte-for-byte unaffected" reasoning as
+above, additionally confirmed by the full backend suite (302 passed, 0
+failed) and Phase 4 regression subset (64 passed, including
+`test_correlation.py`/`test_correlation_identity.py`) showing zero
+regressions.
+
 ## Research Integrity Findings — old vs. new interpretation, reported explicitly
 
 Per the PM's instruction: **did the correction change which mode "wins"
