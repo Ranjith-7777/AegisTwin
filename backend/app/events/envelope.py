@@ -10,7 +10,7 @@ identity and correlation without knowing the payload shape.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -203,3 +203,58 @@ class RollbackTriggeredPayload(BaseModel):
     trigger_reason: str
     security_verified: bool
     operational_verified: bool
+
+
+# --- Phase 5 (Section 101): additive evaluation-engine lifecycle payloads.
+# See the `EVALUATION_*` block in `app.events.types.EventType` for why these
+# exist alongside (not instead of) the reconstruction-based Experiment
+# Timeline. ---
+
+
+class EvaluationBatchCreatedPayload(BaseModel):
+    batch_id: str
+    total_experiments: int
+    scenario_ids: list[str]
+    seeds: list[int]
+    defence_modes: list[str]
+
+
+class EvaluationExperimentStartedPayload(BaseModel):
+    experiment_id: str
+    scenario_id: str
+    seed: int
+    defence_mode: str
+
+
+class EvaluationDefenceCompletedPayload(BaseModel):
+    experiment_id: str
+    defence_mode: str
+    orchestration_id: str | None
+    verification_status: str | None
+
+
+class EvaluationMetricsComputedPayload(BaseModel):
+    experiment_id: str
+    ars_total: float | None
+    mci: float | None
+
+
+class EvaluationExperimentCompletedPayload(BaseModel):
+    experiment_id: str
+    status: str
+
+
+class EvaluationExperimentFailedPayload(BaseModel):
+    experiment_id: str
+    failure_stage: str | None
+    failure_code: str | None
+
+
+class EvaluationExportGeneratedPayload(BaseModel):
+    export_format: Literal["csv", "json"]
+    experiment_count: int
+    scenario_id: str | None
+    defence_mode: str | None
+    seed: int | None
+    status: str | None
+    batch_id: str | None

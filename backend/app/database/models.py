@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -718,6 +728,174 @@ class AutonomyConfigRecord(Base):
     updated_by: Mapped[str] = mapped_column(String(120), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ExperimentRecord(Base):
+    """Phase 5: a reproducible evaluation experiment - one deterministic
+    attack scenario/seed run through common detection groundwork and then
+    one of the four defence-strategy modes. See
+    app/services/evaluation/experiment_service.py.
+
+    Unlike other Phase 3/4 records, `experiment_id` is intentionally a
+    random uuid4, NOT a deterministic hash of its inputs - re-running the
+    identical scenario/seed/defence_mode combination ("Re-run Experiment")
+    must always create a NEW experiment row, never collide with a prior
+    one."""
+
+    __tablename__ = "experiments"
+    __table_args__ = (
+        Index(
+            "ix_experiments_identity",
+            "scenario_id",
+            "seed",
+            "defence_mode",
+        ),
+        Index("ix_experiments_batch_id", "batch_id"),
+    )
+
+    experiment_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    scenario_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    scenario_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    seed: Mapped[int] = mapped_column(Integer, nullable=False)
+    defence_mode: Mapped[str] = mapped_column(String(30), nullable=False)
+    detection_model_id: Mapped[str | None] = mapped_column(String(36))
+    topology_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    red_scenario_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    autonomy_mode: Mapped[str | None] = mapped_column(String(30))
+    configuration_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    run_id: Mapped[str | None] = mapped_column(String(36))
+    incident_candidate_id: Mapped[str | None] = mapped_column(String(36))
+    orchestration_id: Mapped[str | None] = mapped_column(String(36))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="created")
+    failure_stage: Mapped[str | None] = mapped_column(String(30))
+    failure_code: Mapped[str | None] = mapped_column(String(80))
+    failure_message: Mapped[str | None] = mapped_column(String(1000))
+    verification_status: Mapped[str | None] = mapped_column(String(50))
+    batch_id: Mapped[str | None] = mapped_column(String(36))
+    rerun_of_experiment_id: Mapped[str | None] = mapped_column(String(36))
+    # Phase 5 Stage 2 additions - persisted so the metrics stage never has to
+    # re-derive them from the strategy dispatch (which only happens once,
+    # during `ExperimentService.create_and_run`).
+    changed_node_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    changed_edge_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    autonomous_action_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    manual_action_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Real wall-clock latency of the `get_strategy(...).execute(...)` call,
+    # measured with `time.perf_counter()` in `ExperimentService.create_and_run`.
+    # None only if the experiment failed before a strategy was dispatched.
+    workflow_latency_ms: Mapped[float | None] = mapped_column(Float)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class ExperimentMetricRecord(Base):
+    """Phase 5 Stage 2: the persisted evaluation-metrics result for one
+    `ExperimentRecord`. See `app.services.evaluation.metrics_service` for the
+    full methodology, the logical-time measurement convention, and the
+    applicability/N/A representation used in `normalized_metrics_json`.
+
+    One-to-one with `ExperimentRecord.experiment_id`, keyed the same way
+    (`experiment_id` is both PK and reference) - matching the plain
+    String(36) reference style already used for `ResponseVerificationRecord`
+    /`RollbackRecord` etc. elsewhere in this module (no `ForeignKey` - this
+    codebase does not enforce real FK constraints on Phase 3/4-style
+    workflow child records, only on the earlier core telemetry/detection
+    tables), rather than introducing a new convention for this table alone.
+    """
+
+    __tablename__ = "experiment_metrics"
+
+    experiment_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    metrics_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    logical_timeline_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    computation_latency_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    raw_metrics_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    normalized_metrics_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Phase 5 Stage 3 additions - Mission Continuity Index and Aegis
+    # Resilience Score, computed by
+    # `app.services.evaluation.mission_continuity_service`/
+    # `resilience_score_service` as a follow-on step after `.compute()`
+    # above. Both are `None` until that follow-on step runs (see
+    # `app.services.evaluation.evaluation_pipeline.evaluate_experiment`);
+    # never guessed or defaulted to 0.0 in the meantime.
+    mci: Mapped[float | None] = mapped_column(Float)
+    mci_version: Mapped[str | None] = mapped_column(String(40))
+    ars_total: Mapped[float | None] = mapped_column(Float)
+    ars_pillars_json: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    ars_version: Mapped[str | None] = mapped_column(String(40))
+
+
+class MissionHealthPointRecord(Base):
+    """Phase 5 Stage 3: one event-driven point on an experiment's Mission
+    Health resilience curve `H(t)`. See
+    `app.services.evaluation.mission_continuity_service` for the exact
+    "healthy" definition and how points are chosen (baseline, attack
+    observed, detection, incident confirmed, response start, containment,
+    verification, recovery - only the stages an experiment actually
+    reached, deduplicated when a stage lands at the same logical time with
+    the same health value as the previous one).
+
+    `id` is deterministically `f"{experiment_id}:{sequence}"` - readable and
+    trivially reconstructable, unlike a random uuid, and stable across a
+    `compute_curve()` re-run for the same experiment (idempotent replace)."""
+
+    __tablename__ = "mission_health_points"
+    __table_args__ = (
+        Index("ix_mission_health_points_experiment_seq", "experiment_id", "sequence"),
+    )
+
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    experiment_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    logical_time_sim: Mapped[float] = mapped_column(Float, nullable=False)
+    mission_health: Mapped[float] = mapped_column(Float, nullable=False)
+    stage: Mapped[str] = mapped_column(String(30), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class EvaluationBatchRecord(Base):
+    """Phase 5 Stage 4: one requested scenario x seed x defence_mode matrix,
+    run sequentially to completion by
+    `app.services.evaluation.batch_service.BatchService`. Individual
+    experiment failures do not fail the whole batch (see `status`'s
+    `completed_with_failures` value) - `experiment_ids_json` is the
+    authoritative list of every `ExperimentRecord` this batch produced,
+    including failed ones, so nothing is ever silently dropped."""
+
+    __tablename__ = "evaluation_batches"
+
+    batch_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    scenario_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    seeds_json: Mapped[list[int]] = mapped_column(JSON, nullable=False)
+    defence_modes_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="created")
+    total_experiments: Mapped[int] = mapped_column(Integer, nullable=False)
+    completed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    experiment_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    max_experiments: Mapped[int | None] = mapped_column(Integer)
+    # True iff `max_experiments` was set AND the full requested
+    # scenario x seed x defence_mode matrix exceeded it, so only the first
+    # `max_experiments` combinations (in scenario -> seed -> mode order)
+    # were actually run. See `batch_service.BatchService.create_batch`.
+    truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    runtime_seconds: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
     )
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
