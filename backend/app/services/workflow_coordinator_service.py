@@ -30,6 +30,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.schemas.workflow import WorkflowRunResult
+from app.services.autonomy_service import autonomy_service
 from app.services.blue_planning_service import blue_planning_service
 from app.services.orchestration_service import orchestration_service
 
@@ -44,14 +45,17 @@ class WorkflowCoordinator:
         through_sequence: int,
         top_k: int = 5,
     ) -> WorkflowRunResult:
-        comparison = blue_planning_service.compare(
-            session, run_id, model_id, incident_candidate_id, through_sequence, top_k
-        )
-        autonomy_mode = comparison.autonomy_mode
-
+        autonomy_mode = autonomy_service.require_mode(session).value
         if autonomy_mode == "observe":
+            # OBSERVE means detection/evidence only - candidate plans must
+            # never be generated, ranked, or persisted in this mode, so the
+            # autonomy check happens BEFORE blue_planning_service.compare()
+            # is ever called (a real Phase 4 correction: an earlier version
+            # called compare() unconditionally and only checked the mode
+            # afterward, which silently generated and persisted a
+            # ResponsePlanAssessmentRecord even in OBSERVE mode).
             return WorkflowRunResult(
-                comparison=comparison,
+                comparison=None,
                 orchestration=None,
                 autonomy_mode=autonomy_mode,
                 auto_executed=False,
@@ -59,6 +63,10 @@ class WorkflowCoordinator:
                 stopped_reason="Autonomy mode is OBSERVE: evidence only, no response plan "
                 "is generated or executed.",
             )
+
+        comparison = blue_planning_service.compare(
+            session, run_id, model_id, incident_candidate_id, through_sequence, top_k
+        )
         if comparison.recommended_recommendation_id is None:
             return WorkflowRunResult(
                 comparison=comparison,

@@ -42,7 +42,7 @@ def test_autonomous_mode_blocks_a_non_reversible_or_high_impact_playbook() -> No
     assert "POL-004" in result.failed_policy_ids or "POL-005" in result.failed_policy_ids
 
 
-def test_autonomous_mode_permits_the_one_low_impact_reversible_playbook() -> None:
+def test_autonomous_mode_permits_the_observation_only_playbook() -> None:
     playbook = response_playbook_service.get("increase-synthetic-monitoring")
     result = policy_service.evaluate_response_policies(
         synthetic=True,
@@ -53,6 +53,49 @@ def test_autonomous_mode_permits_the_one_low_impact_reversible_playbook() -> Non
     )
     assert result.overall_pass is True
     assert result.failed_policy_ids == []
+
+
+def test_autonomous_mode_permits_the_real_containment_playbook_with_explicit_reasons() -> None:
+    """The one playbook eligible for full automation that actually changes
+    synthetic connectivity - `quarantine-synthetic-ingress-edge` - must pass
+    every applicable policy, and each pass must carry a real, specific
+    reason (never a bare boolean)."""
+
+    playbook = response_playbook_service.get("quarantine-synthetic-ingress-edge")
+    result = policy_service.evaluate_response_policies(
+        synthetic=True,
+        playbook=playbook,
+        autonomy_mode="autonomous",
+        target_criticality=None,
+        target_asset_type=None,
+    )
+    assert result.overall_pass is True
+    assert result.failed_policy_ids == []
+    by_id = {e.policy_id: e for e in result.evaluations}
+    assert by_id["POL-003"].result == "pass"
+    assert "reversible" in by_id["POL-003"].reason.lower()
+    assert by_id["POL-004"].result == "pass"
+    assert "low" in by_id["POL-004"].reason.lower()
+    assert by_id["POL-005"].result == "pass"
+    assert "single-resource" in by_id["POL-005"].reason.lower()
+    assert by_id["POL-006"].result == "not_applicable"
+
+
+def test_the_containment_playbook_cannot_target_a_critical_datastore_automatically() -> None:
+    """Even though the catalogue tiers it automatic_candidate, POL-006 still
+    blocks automation if it were ever pointed at a critical database or
+    object store - autonomy can never bypass this."""
+
+    playbook = response_playbook_service.get("quarantine-synthetic-ingress-edge")
+    result = policy_service.evaluate_response_policies(
+        synthetic=True,
+        playbook=playbook,
+        autonomy_mode="autonomous",
+        target_criticality="critical",
+        target_asset_type="database",
+    )
+    assert result.overall_pass is False
+    assert "POL-006" in result.failed_policy_ids
 
 
 def test_critical_datastore_requires_administrator_approval_even_when_reversible() -> None:

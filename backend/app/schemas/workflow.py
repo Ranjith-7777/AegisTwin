@@ -15,7 +15,12 @@ from app.schemas.orchestration import OrchestrationView
 
 
 class WorkflowRunResult(BaseModel):
-    comparison: PlanComparisonResult
+    """`comparison` is None in OBSERVE mode - OBSERVE means detection/evidence
+    only, so the Coordinator must never generate, rank, or persist candidate
+    response plans in that mode. It is only populated once at least
+    `blue_planning_service.compare()` has actually run."""
+
+    comparison: PlanComparisonResult | None
     orchestration: OrchestrationView | None
     autonomy_mode: str
     auto_executed: bool
