@@ -40,7 +40,7 @@ from app.schemas.orchestration import (
     SyntheticExecutionView,
     VerificationView,
 )
-from app.services import policy_service
+from app.services import policy_service, what_if_evidence_service
 from app.services.autonomy_service import autonomy_service
 from app.services.orchestration_agents import (
     AGENT_VERSION,
@@ -157,6 +157,44 @@ class OrchestrationService:
             },
         )
         return decision
+
+    def _bystander_isolated_assets(
+        self, intended_target_id: str, changed_edge_ids: list[str]
+    ) -> list[str]:
+        """Real operational-health check: did removing these edges fully cut
+        off any asset OTHER than the plan's own intended target? Pure edge-set
+        arithmetic over the existing synthetic topology - no Attack Graph/
+        Blast Radius traversal is duplicated here.
+
+        `intended_target_id` is either a plain asset id (node-isolation
+        playbooks) or a `source--destination` relationship id (edge-
+        restriction playbooks) - for a relationship target, BOTH endpoints
+        are the intended effect (e.g. quarantining an ingress edge is
+        expected to fully disconnect the attacker-controlled source on the
+        other end of it), so neither is a "bystander"."""
+
+        edges = topology_service.edges(True)
+        removed = set(changed_edge_ids)
+        if not removed:
+            return []
+        intended_asset_ids = set(intended_target_id.split("--", 1))
+        touched_by_removal = {
+            node_id
+            for edge in edges
+            if edge.edge_id in removed
+            for node_id in (edge.source_asset_id, edge.destination_asset_id)
+        }
+        remaining_connected = {
+            node_id
+            for edge in edges
+            if edge.edge_id not in removed
+            for node_id in (edge.source_asset_id, edge.destination_asset_id)
+        }
+        return sorted(
+            node_id
+            for node_id in touched_by_removal
+            if node_id not in intended_asset_ids and node_id not in remaining_connected
+        )
 
     def create(
         self,
@@ -561,14 +599,50 @@ class OrchestrationService:
         )
         assert execution is not None and simulation is not None
         now = datetime.now(UTC)
+        anchors, has_evidence = what_if_evidence_service.anchor_asset_ids(
+            session, record.simulation_run_id, record.model_id, record.through_sequence_number
+        )
+        edge_source_asset_id = (
+            execution.target_id.split("--", 1)[0]
+            if execution.target_type == "relationship" and "--" in execution.target_id
+            else None
+        )
+        if anchors:
+            expected_evidence = what_if_evidence_service.best_security_gain_evidence(
+                session,
+                record.simulation_run_id,
+                record.model_id,
+                record.through_sequence_number,
+                anchors,
+                has_evidence,
+                frozenset(),
+                frozenset(simulation.changed_edge_ids_json),
+                edge_source_asset_id,
+            )
+            actual_evidence = what_if_evidence_service.best_security_gain_evidence(
+                session,
+                record.simulation_run_id,
+                record.model_id,
+                record.through_sequence_number,
+                anchors,
+                has_evidence,
+                frozenset(),
+                frozenset(execution.changed_edge_ids_json),
+                edge_source_asset_id,
+            )
+        else:
+            expected_evidence = what_if_evidence_service.ZERO_EVIDENCE
+            actual_evidence = what_if_evidence_service.ZERO_EVIDENCE
+        bystander_isolated = self._bystander_isolated_assets(
+            execution.target_id, execution.changed_edge_ids_json
+        )
         status, metrics = verification_agent.verify(
             execution.changed_node_ids_json,
             execution.changed_edge_ids_json,
             simulation.expected_relationships_affected,
-            simulation.sensitive_assets_reachable_before,
-            simulation.sensitive_assets_reachable_after,
-            simulation.correlated_paths_interrupted,
-            simulation.operational_disruption_score,
+            expected_evidence,
+            actual_evidence,
+            bystander_isolated,
         )
         verification = ResponseVerificationRecord(
             verification_id=self._id("verification", execution.execution_id),
@@ -586,6 +660,49 @@ class OrchestrationService:
             "verified" if status == "successful_simulation" else "rollback_recommended"
         )
         record.updated_at = now
+        verified_ok = status == "successful_simulation"
+        decision_warnings: list[str] = []
+        if not metrics["security_effect_confirmed"]:
+            decision_warnings.append(
+                "Actual post-execution security effect did not improve over the before-state."
+            )
+        if not metrics["operational_health_ok"]:
+            decision_warnings.append(
+                "Operational health check failed "
+                f"(bystander isolated assets: {bystander_isolated})."
+                if bystander_isolated
+                else "Operational disruption exceeded the acceptable threshold."
+            )
+        decision_result = AgentResult(
+            verification_agent.name,
+            "verification",
+            status,
+            "Independently recomputed post-execution security effect and operational health "
+            "both confirmed the expected containment."
+            if verified_ok
+            else "Independent post-execution recomputation did not confirm the expected "
+            "containment outcome - rollback will be evaluated.",
+            "Compares the ACTUAL executed synthetic mutation's real Attack Graph/Blast Radius "
+            "recomputation against the EXPECTED pre-execution simulation - a mutation existing "
+            "is never itself treated as success.",
+            decision_warnings,
+            None,
+        )
+        count = int(
+            session.scalar(
+                select(func.count())
+                .select_from(AgentDecisionRecord)
+                .where(AgentDecisionRecord.orchestration_id == oid)
+            )
+            or 0
+        )
+        self._decision(
+            session,
+            oid,
+            count + 1,
+            decision_result,
+            [execution.execution_id, verification.verification_id],
+        )
         self._audit(
             session,
             oid,
@@ -596,7 +713,7 @@ class OrchestrationService:
             {
                 "verification_status": status,
                 "to_state": record.current_state,
-                "reason": "Compared declared and persisted synthetic mutations.",
+                "reason": "Compared expected vs. actual post-execution synthetic mutation.",
             },
         )
         get_event_bus().publish(
@@ -625,11 +742,17 @@ class OrchestrationService:
                     oid,
                     f"Automatic rollback: {rollback_policy.reason}",
                     "Verification Agent (automatic policy-triggered rollback)",
+                    automatic=True,
                 )
         return self.view(session, record)
 
     def rollback(
-        self, session: Session, oid: str, reason: str, requested_by: str
+        self,
+        session: Session,
+        oid: str,
+        reason: str,
+        requested_by: str,
+        automatic: bool = False,
     ) -> OrchestrationView:
         record = self._get(session, oid)
         existing = session.scalar(
@@ -686,13 +809,14 @@ class OrchestrationService:
             session,
             oid,
             "synthetic_rollback_completed",
-            "human",
-            "demo-operator",
+            "simulation_agent" if automatic else "human",
+            "verification-agent" if automatic else "demo-operator",
             rollback.requested_by,
             {
                 "rollback_id": rollback.rollback_id,
                 "to_state": record.current_state,
                 "reason": reason,
+                "automatic": automatic,
             },
         )
         get_event_bus().publish(

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.database.models import ResponseImpactSimulationRecord, ResponseRecommendationRecord
+from app.schemas.blue_planning import SecurityGainEvidence
 from app.schemas.response import DefensivePlaybook
 from app.services import policy_service
 from app.services.response_playbook_service import response_playbook_service
@@ -197,10 +198,14 @@ OPERATIONAL_DISRUPTION_THRESHOLD = 0.5
 
 
 class VerificationAgent:
-    """Checks BOTH the security effect AND operational health of a real
-    synthetic execution against the Impact Simulation computed before
-    execution - a mutation merely existing is never, by itself, success
-    (see docs/architecture/VERIFICATION_AND_ROLLBACK.md)."""
+    """Independently recomputes the ACTUAL post-execution synthetic state
+    (via the same what_if_evidence_service the Response Planner uses on
+    `execution.changed_edge_ids_json` - the real, logged mutation, never a
+    prediction) and compares it against the EXPECTED before/after evidence
+    computed the identical way from the pre-execution simulation's declared
+    mutation. A mutation merely existing is never, by itself, success - both
+    a security effect AND operational health must independently hold. See
+    docs/architecture/VERIFICATION_AND_ROLLBACK.md."""
 
     name = "Verification Agent"
 
@@ -209,30 +214,44 @@ class VerificationAgent:
         changed_nodes: list[str],
         changed_edges: list[str],
         expected_edges: int,
-        sensitive_assets_reachable_before: int,
-        sensitive_assets_reachable_after: int,
-        correlated_paths_interrupted: int,
-        operational_disruption_score: float,
+        expected_evidence: SecurityGainEvidence,
+        actual_evidence: SecurityGainEvidence,
+        bystander_isolated_asset_ids: list[str],
     ) -> tuple[str, dict[str, object]]:
         mutation_applied = bool(changed_nodes or changed_edges) or expected_edges == 0
         no_security_claim = expected_edges == 0
         security_effect_confirmed = no_security_claim or (
-            sensitive_assets_reachable_after < sensitive_assets_reachable_before
-            or correlated_paths_interrupted > 0
+            actual_evidence.attack_paths_after < actual_evidence.attack_paths_before
+            or actual_evidence.blast_radius_reachable_after
+            < actual_evidence.blast_radius_reachable_before
+            or actual_evidence.critical_targets_reachable_after
+            < actual_evidence.critical_targets_reachable_before
         )
-        operational_health_ok = operational_disruption_score <= OPERATIONAL_DISRUPTION_THRESHOLD
+        operational_disruption_score = round(
+            len(changed_edges) / max(1, len(topology_service.edges(True))), 6
+        )
+        critical_connectivity_preserved = not bystander_isolated_asset_ids
+        operational_health_ok = (
+            operational_disruption_score <= OPERATIONAL_DISRUPTION_THRESHOLD
+            and critical_connectivity_preserved
+        )
         applied = mutation_applied and security_effect_confirmed and operational_health_ok
         status = "successful_simulation" if applied else "unsuccessful_simulation"
         return status, {
             "intended_mutations_applied": mutation_applied,
             "security_effect_confirmed": security_effect_confirmed,
             "operational_health_ok": operational_health_ok,
+            "critical_connectivity_preserved": critical_connectivity_preserved,
+            "bystander_isolated_asset_ids": bystander_isolated_asset_ids,
+            "expected_attack_paths_after": expected_evidence.attack_paths_after,
+            "actual_attack_paths_after": actual_evidence.attack_paths_after,
+            "expected_blast_radius_after": expected_evidence.blast_radius_reachable_after,
+            "actual_blast_radius_after": actual_evidence.blast_radius_reachable_after,
+            "expected_critical_targets_after": expected_evidence.critical_targets_reachable_after,
+            "actual_critical_targets_after": actual_evidence.critical_targets_reachable_after,
             "correlated_paths_remaining": max(0, expected_edges - len(changed_edges)),
-            "predicted_paths_remaining": 0,
             "expected_relationships_affected": expected_edges,
-            "operational_disruption": round(
-                len(changed_edges) / max(1, len(topology_service.edges(True))), 6
-            ),
+            "operational_disruption": operational_disruption_score,
             "operational_disruption_score": operational_disruption_score,
             "residual_exposure_score": 0.0 if applied else 1.0,
         }

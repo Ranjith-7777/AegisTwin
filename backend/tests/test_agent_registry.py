@@ -56,9 +56,38 @@ def test_trace_reflects_a_real_orchestration_run_in_causal_order(client: TestCli
     assert [entry["sequence"] for entry in trace["entries"]] == list(
         range(1, len(trace["entries"]) + 1)
     )
-    assert trace["entries"][0]["agent_id"] == "response_planner"
-    assert trace["entries"][-1]["status"] == "reached"
     assert all(entry["decision"] for entry in trace["entries"])
+    assert all(entry["status"] == "reached" for entry in trace["entries"])
+
+
+def test_complete_orchestration_trace_shows_the_exact_six_blue_agent_order(
+    client: TestClient,
+) -> None:
+    """A successful, complete run MUST show, in exact causal order, all 6
+    Blue agents by ID - not merely "first is planner" or "last status is
+    reached". Verification must appear last, with next_agent=None."""
+
+    orchestration = approve(client, create(client))
+    client.post(f"/api/v1/orchestration/{orchestration['orchestration_id']}/execute", json={})
+    client.post(f"/api/v1/orchestration/{orchestration['orchestration_id']}/verify")
+    trace = client.get(
+        f"/api/v1/agents/orchestrations/{orchestration['orchestration_id']}/trace"
+    ).json()
+    assert [entry["agent_id"] for entry in trace["entries"]] == [
+        "response_planner",
+        "impact_simulation",
+        "safety_governor",
+        "approval_router",
+        "synthetic_execution",
+        "verification",
+    ]
+    verification_entry = trace["entries"][-1]
+    assert verification_entry["next_agent"] is None
+    assert verification_entry["decision_type"] == "verification"
+    assert verification_entry["decision"] == "successful_simulation"
+    assert verification_entry["rationale"]
+    assert verification_entry["resource_ids"]
+    assert trace["stopped_reason"] is None
 
 
 def test_trace_for_unknown_orchestration_is_a_404_not_a_fabricated_trace(
