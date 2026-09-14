@@ -31,6 +31,24 @@ research-validity corrections made during a later Phase 5 correction pass
    identity" that `correlation_service.analyze()`/`response_service.analyze()`/
    `workflow_coordinator.run()` all read evidence through. See
    `app/services/evaluation/perturbation_service.py`.
+4. **Correlation-visibility micro-correction (2026-09-14, robustness table
+   only).** Even under the corrected "perturbed model identity" mechanism
+   (item 3), `CorrelationService._map()` still mapped ATT&CK techniques from
+   the FULL, unfiltered event list, and `evidence_events` admitted an event
+   on EITHER a technique observation OR an anomalous assessment — so a
+   hidden event whose raw telemetry fields matched a mapping rule could
+   still re-enter the incident/ATT&CK evidence path even though its anomaly
+   assessment was already neutralized. `CorrelationService.analyze()` now
+   takes an optional `excluded_event_ids` parameter (default `None`/empty —
+   a byte-for-byte no-op for every other caller), which
+   `ExperimentService.create_and_run` populates with a perturbed
+   experiment's `hidden_event_ids`. See
+   `app/services/evaluation/perturbation_service.py`'s module docstring and
+   the **"Robustness results, re-verified"** subsection below — re-running
+   the same 16-pair/32-experiment robustness set under the fix produced
+   **numerically identical results** to the table already below, so only
+   that subsection (not the canonical 80-run matrix, which this fix cannot
+   affect — see justification there) required a supersession note.
 
 **The corrected results below supersede everything in the original
 sections.** The original sections are preserved further down, clearly
@@ -225,6 +243,57 @@ materially different, stronger claim than the pre-correction table below
 could ever have supported — that table's "no change" was guaranteed by
 construction; this table's "no change" is an empirical finding that could
 have come out differently.
+
+## Robustness results, re-verified after the correlation-visibility fix (2026-09-14)
+
+A narrowly-scoped follow-on fix closed a residual leak in
+`CorrelationService.analyze()`: `_map()` and `evidence_events` previously
+ran over the FULL, unfiltered event list regardless of the perturbed model
+identity, so a hidden event whose raw telemetry matched an ATT&CK mapping
+rule could still contribute a real `TechniqueObservationRecord`/
+`IncidentEvidenceRecord`, even though its `AnomalyAssessmentRecord` was
+already correctly neutralized. `CorrelationService.analyze()` now accepts an
+`excluded_event_ids` parameter (default `None`/empty, a byte-for-byte no-op
+for the canonical matrix and every other caller); `ExperimentService
+.create_and_run` passes it a perturbed experiment's `hidden_event_ids`. See
+`app/services/evaluation/perturbation_service.py`'s module docstring and
+`backend/tests/test_correlation_perturbation_visibility.py` for the unit-level
+proof (a real event that produces a `TechniqueObservationRecord`/
+`IncidentEvidenceRecord` under the canonical/visible pass produces neither
+once excluded, and visible events keep their true full-run
+`sequence_number`).
+
+The same 16-pair/32-experiment robustness set (same methodology, same
+`scenario_id` × `defence_mode` axes, same `seed=42`, same
+`hidden_fraction=0.3`, same `run_robustness_experiment(...)` entry point, a
+fresh standalone scratch-sqlite rerun) was re-run under the fix for direct
+comparison to the table above. **Result: all 16 pairs are numerically
+identical to the table above** — same baseline/perturbed ARS values (to the
+same precision), same `detection_coverage` (1.0 → 1.0 in all 16 cases), same
+informative-assessment counts, and `decision_changed == False` in all 16
+cases, exactly as before. This means that, for this specific
+`seed=42`/`hidden_fraction=0.3` configuration across these four canonical
+scenarios, no hidden (LOW/MEDIUM-severity) event ever actually matched one
+of `CorrelationService._map()`'s rules in the first place — the leak this
+fix closes existed structurally (proven directly by the new unit tests
+against a scenario/seed chosen specifically to trigger it,
+`staged-compromise-demo` seed 84) but did not happen to fire for any of
+these 16 robustness pairs' specific hidden-event sets. The robustness table
+above therefore required no numeric changes; this subsection exists to make
+that verification explicit rather than silently assumed.
+
+**The canonical 80-run matrix was intentionally NOT re-run for this fix.**
+Every canonical-matrix caller of `correlation_service.analyze()` passes no
+`excluded_event_ids` (the parameter defaults to `None`/empty), which is
+proven byte-for-byte identical to the pre-fix code path by
+`test_excluded_event_ids_empty_or_omitted_is_byte_for_byte_identical` (see
+the same test file) — comparing persisted `TechniqueObservationRecord`/
+`IncidentEvidenceRecord` sets and every `CorrelationAnalysisResult` field for
+the identical run/model with vs. without an explicit empty
+`excluded_event_ids`. No regression was found in the full backend suite (300
+passed, 0 failed) or the Phase 4 regression subset (57 passed) while
+verifying this fix, so re-running the 80-run matrix was correctly judged
+unnecessary.
 
 ## Research Integrity Findings — old vs. new interpretation, reported explicitly
 
