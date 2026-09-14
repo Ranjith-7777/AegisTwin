@@ -62,6 +62,8 @@ class CandidatePlanAssessment(BaseModel):
     policy_pass: bool
     policy_failed_ids: list[str]
     recommended: bool
+    changed_node_ids: list[str] = Field(default_factory=list)
+    changed_edge_ids: list[str] = Field(default_factory=list)
     synthetic: Literal[True] = True
 
 

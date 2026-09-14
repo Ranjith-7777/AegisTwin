@@ -16,7 +16,6 @@ from uuid import NAMESPACE_URL, uuid5
 from sqlalchemy.orm import Session
 
 from app.database.models import ResponsePlanAssessmentRecord, ResponseRecommendationRecord
-from app.schemas.attack_graph import AttackPathType
 from app.schemas.blue_planning import (
     CandidatePlanAssessment,
     DecisionConfidence,
@@ -26,152 +25,20 @@ from app.schemas.blue_planning import (
 )
 from app.schemas.response import ResponseRecommendation
 from app.services import policy_service
-from app.services.attack_graph_service import attack_graph_service
 from app.services.autonomy_service import autonomy_service
-from app.services.blast_radius_service import blast_radius_service
 from app.services.orchestration_agents import synthetic_execution_agent
 from app.services.response_playbook_service import response_playbook_service
 from app.services.response_service import response_service
-from app.services.topology_path_service import topology_path_service
 from app.services.topology_service import topology_service
+from app.services.what_if_evidence_service import ZERO_EVIDENCE
+from app.services.what_if_evidence_service import anchor_asset_ids as _anchor_asset_ids
+from app.services.what_if_evidence_service import (
+    best_security_gain_evidence as _security_gain_evidence,
+)
 
 MAX_CANDIDATES_EVALUATED = 5
-WHAT_IF_MAX_DEPTH = 6
-WHAT_IF_MAX_PATHS = 3
 OPERATIONAL_IMPACT_PENALTY = {"low": 0.0, "medium": 10.0, "high": 25.0}
 REVERSIBILITY_BONUS = 10.0
-
-
-def _anchor_asset_ids(
-    session: Session, run_id: str, model_id: str, through_sequence: int
-) -> tuple[list[str], bool]:
-    """A stable set of assets to root the before/after comparison at, plus
-    whether that set is real evidence (safe to pass to evidence-bound
-    Blast Radius) or a fallback.
-
-    Real anomalous-observed evidence when it exists (a genuine attacker
-    foothold); otherwise the first synthetic topology asset, purely so the
-    comparison has a valid, deterministic starting point - the same
-    fallback is used for every candidate in one comparison run, so the
-    relative ranking between candidates remains meaningful even when no
-    evidence exists yet (e.g. a very early sequence). The fallback asset is
-    NOT real evidence, so it must never be passed to Blast Radius in
-    evidence-bound mode (it would be correctly rejected as unsupported).
-
-    `_security_gain_evidence` roots its OBSERVED-path traversal at
-    `anchors[0]` and only walks OBSERVED edges *forward* from there (see
-    `purple_team_service`'s identical use of a scenario's
-    `initial_access_point` as the Attack Graph source). So the anchor must
-    be an asset with at least one OUTGOING observed edge - an anomalous
-    asset the attacker was only ever observed arriving *at* (e.g. a
-    database with no further observed outbound edges, or an edge-zone
-    asset like an API gateway that is itself only ever a destination in
-    this run) can never produce a forward path and would silently make
-    every candidate look equally (falsely) ineffective. Anomalous assets
-    with an outgoing observed edge are ordered first (deterministically),
-    so `anchors[0]` is always a genuine forward pivot when one exists.
-    """
-
-    state = topology_path_service.run_state(session, run_id, model_id, through_sequence)
-    if state.anomalous_observed_asset_ids:
-        anomalous = sorted(state.anomalous_observed_asset_ids)
-        sources_with_outgoing_edges = {
-            edge_id.split("--", 1)[0] for edge_id in state.observed_edge_ids
-        }
-        pivots = [a for a in anomalous if a in sources_with_outgoing_edges]
-        ordered = pivots + [a for a in anomalous if a not in sources_with_outgoing_edges]
-        return ordered, True
-    nodes = topology_service.nodes(include_sink=False)
-    return ([nodes[0].asset_id] if nodes else []), False
-
-
-def _security_gain_evidence(
-    session: Session,
-    run_id: str,
-    model_id: str,
-    through_sequence: int,
-    anchors: list[str],
-    has_evidence: bool,
-    exclude_node_ids: frozenset[str],
-    exclude_edge_ids: frozenset[str],
-) -> SecurityGainEvidence:
-    # OBSERVED (bounded to this run's real telemetry through `through_sequence`)
-    # rather than POTENTIAL (the full static graph): a candidate plan is being
-    # judged against what THIS incident's evidence actually shows happened, and
-    # a redundant topology can otherwise hide a single removed edge's real
-    # effect on the specific path this incident's evidence followed. Falls
-    # back to POTENTIAL only when there is no real evidence yet to bound to.
-    source = anchors[0]
-    path_type = AttackPathType.OBSERVED if has_evidence else AttackPathType.POTENTIAL
-    graph_run_id = run_id if has_evidence else None
-    graph_model_id = model_id if has_evidence else None
-    graph_sequence = through_sequence if has_evidence else None
-    before = attack_graph_service.analyze(
-        session,
-        source,
-        None,
-        path_type,
-        graph_run_id,
-        graph_model_id,
-        graph_sequence,
-        WHAT_IF_MAX_DEPTH,
-        WHAT_IF_MAX_PATHS,
-        publish_event=False,
-    )
-    after = attack_graph_service.analyze(
-        session,
-        source,
-        None,
-        path_type,
-        graph_run_id,
-        graph_model_id,
-        graph_sequence,
-        WHAT_IF_MAX_DEPTH,
-        WHAT_IF_MAX_PATHS,
-        exclude_edge_ids=exclude_edge_ids,
-        exclude_node_ids=exclude_node_ids,
-        publish_event=False,
-    )
-    critical_before = sum(1 for p in before.paths if p.target_criticality in {"high", "critical"})
-    critical_after = sum(1 for p in after.paths if p.target_criticality in {"high", "critical"})
-    top_before = before.paths[0].score.total if before.paths else 0.0
-    top_after = after.paths[0].score.total if after.paths else 0.0
-
-    blast_before = blast_radius_service.estimate(
-        session, anchors, graph_run_id, graph_sequence, WHAT_IF_MAX_DEPTH, publish_event=False
-    )
-    blast_after = blast_radius_service.estimate(
-        session,
-        anchors,
-        graph_run_id,
-        graph_sequence,
-        WHAT_IF_MAX_DEPTH,
-        exclude_edge_ids=exclude_edge_ids,
-        exclude_node_ids=exclude_node_ids,
-        publish_event=False,
-    )
-
-    security_gain = (
-        max(0, len(before.paths) - len(after.paths)) * 5.0
-        + max(0.0, top_before - top_after) * 0.3
-        + max(0, critical_before - critical_after) * 10.0
-        + max(0, blast_before.reachable_count - blast_after.reachable_count) * 2.0
-        + max(0, blast_before.critical_count - blast_after.critical_count) * 5.0
-    )
-
-    return SecurityGainEvidence(
-        attack_paths_before=len(before.paths),
-        attack_paths_after=len(after.paths),
-        top_attack_path_score_before=top_before,
-        top_attack_path_score_after=top_after,
-        critical_targets_reachable_before=critical_before,
-        critical_targets_reachable_after=critical_after,
-        blast_radius_reachable_before=blast_before.reachable_count,
-        blast_radius_reachable_after=blast_after.reachable_count,
-        blast_radius_critical_before=blast_before.critical_count,
-        blast_radius_critical_after=blast_after.critical_count,
-        security_gain=round(security_gain, 2),
-    )
 
 
 def _utility_score(
@@ -279,7 +146,7 @@ class BluePlanningService:
             playbook = response_playbook_service.get(recommendation.playbook_id)
             record = session.get(ResponseRecommendationRecord, recommendation.recommendation_id)
             assert record is not None
-            _, changed_edges, _ = synthetic_execution_agent.mutation(record)
+            changed_nodes, changed_edges, _ = synthetic_execution_agent.mutation(record)
             # Only genuinely connectivity-removing operations (remove_edge,
             # remove_inbound_edges, remove_incident_edges) populate
             # changed_edges - excluding those edges alone correctly
@@ -292,6 +159,11 @@ class BluePlanningService:
             # for that case is an audit marker ("this node was annotated"),
             # not a claim that it should vanish from the attack graph, so
             # it is deliberately never used for what-if exclusion here.
+            edge_source_asset_id = (
+                recommendation.target_id.split("--", 1)[0]
+                if recommendation.target_type == "relationship" and "--" in recommendation.target_id
+                else None
+            )
             evidence = (
                 _security_gain_evidence(
                     session,
@@ -302,21 +174,10 @@ class BluePlanningService:
                     has_evidence,
                     frozenset(),
                     frozenset(changed_edges),
+                    edge_source_asset_id,
                 )
                 if anchors
-                else SecurityGainEvidence(
-                    attack_paths_before=0,
-                    attack_paths_after=0,
-                    top_attack_path_score_before=0.0,
-                    top_attack_path_score_after=0.0,
-                    critical_targets_reachable_before=0,
-                    critical_targets_reachable_after=0,
-                    blast_radius_reachable_before=0,
-                    blast_radius_reachable_after=0,
-                    blast_radius_critical_before=0,
-                    blast_radius_critical_after=0,
-                    security_gain=0.0,
-                )
+                else ZERO_EVIDENCE
             )
             target_node = next(
                 (
@@ -355,6 +216,8 @@ class BluePlanningService:
                     policy_pass=policy_result.overall_pass,
                     policy_failed_ids=policy_result.failed_policy_ids,
                     recommended=False,
+                    changed_node_ids=changed_nodes,
+                    changed_edge_ids=changed_edges,
                 )
             )
 
