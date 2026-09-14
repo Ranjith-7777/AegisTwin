@@ -118,6 +118,8 @@ const comparison: PlanComparisonResult = {
       policy_pass: true,
       policy_failed_ids: [],
       recommended: true,
+      changed_node_ids: [],
+      changed_edge_ids: ['application-pod-01--cloud-database-01'],
       synthetic: true,
     },
   ],

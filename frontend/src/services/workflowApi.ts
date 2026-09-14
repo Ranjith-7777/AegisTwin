@@ -19,7 +19,7 @@ export async function runWorkflowCoordinator(input: {
       },
     )
   ).data
-  if (!Array.isArray(data.comparison.candidates))
+  if (data.comparison !== null && !Array.isArray(data.comparison.candidates))
     throw new Error('Malformed synthetic workflow result.')
   return data
 }

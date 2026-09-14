@@ -12,6 +12,7 @@ import type { CandidatePlanAssessment, PlanComparisonResult } from '../../types/
 import type { ResponseRecommendation } from '../../types/response'
 import { IncidentContextSelector } from './IncidentContextSelector'
 import { useBlueAgentSelection } from './useBlueAgentSelection'
+import { WhatIfDigitalTwin } from './WhatIfDigitalTwin'
 
 function label(value: string) {
   return value.replaceAll('_', ' ')
@@ -27,6 +28,7 @@ function CandidateCard({
   onSelect: () => void
 }) {
   const evidence = candidate.security_gain_evidence
+  const [showWhatIf, setShowWhatIf] = useState(candidate.recommended)
   return (
     <Card className={candidate.recommended ? 'border-blue-400 ring-1 ring-blue-200' : undefined}>
       <CardHeader>
@@ -81,6 +83,17 @@ function CandidateCard({
           Policy:{' '}
           {candidate.policy_pass ? 'pass' : `fail (${candidate.policy_failed_ids.join(', ')})`}
         </p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2"
+          onClick={() => {
+            setShowWhatIf((value) => !value)
+          }}
+        >
+          {showWhatIf ? 'Hide' : 'Show'} What-If Digital Twin
+        </Button>
+        {showWhatIf ? <WhatIfDigitalTwin candidate={candidate} /> : null}
         {recommendation ? (
           <details className="mt-3">
             <summary className="cursor-pointer text-sm font-semibold">

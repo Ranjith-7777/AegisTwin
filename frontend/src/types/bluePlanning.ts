@@ -37,6 +37,9 @@ export interface CandidatePlanAssessment {
   policy_pass: boolean
   policy_failed_ids: string[]
   recommended: boolean
+  /** The real hypothetical mutation's affected ids - never fabricated client-side. */
+  changed_node_ids: string[]
+  changed_edge_ids: string[]
   synthetic: true
 }
 

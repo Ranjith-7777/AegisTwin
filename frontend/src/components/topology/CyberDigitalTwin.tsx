@@ -95,7 +95,12 @@ export function CyberDigitalTwin({
   onSelectEdge?: (edge: InfrastructureEdge) => void
   liveOverlay?: LiveTopologyOverlay | null
   animationPaused?: boolean
-  responseImpact?: ResponseImpactSimulation | null
+  // Only changed_node_ids/changed_edge_ids are read - a narrower shape than
+  // the full Phase 3 ResponseImpactSimulation lets the Phase 4 what-if
+  // candidate overlay (real mutation ids from CandidatePlanAssessment, never
+  // fabricated) reuse this same highlight without inventing the other,
+  // unused simulation fields.
+  responseImpact?: Pick<ResponseImpactSimulation, 'changed_node_ids' | 'changed_edge_ids'> | null
   syntheticExecution?: SyntheticExecution | null
   attackPathHighlight?: AttackPathHighlight | null
   blastRadiusOverlay?: BlastRadiusOverlay | null
