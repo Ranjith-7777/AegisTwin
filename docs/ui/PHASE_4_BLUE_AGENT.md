@@ -42,21 +42,26 @@ component) inside a `<details>` disclosure per candidate, explicitly
 labeled "Existing Blue Agent Defense Score (distinct signal, feeds
 evidence quality above)."
 
-## What-if visualization is textual, not a graph overlay, in this phase
+## What-if Digital Twin visualization (Phase 4 final correction pass)
 
-The spec asked for a graph-based before/simulated-after view reusing
-Phase 3's focused-path `CyberDigitalTwin` highlight design
-(`AttackPathsPanel.tsx`'s pattern). This phase ships the *evidence*
-(attack-path counts, critical-target reachability, blast-radius
-reachable/critical counts, before → after) as a structured textual
-panel per candidate — the same numbers a graph overlay would need to
-justify, and the same ones `SecurityGainEvidence` returns from the API.
-A literal graph overlay would need the backend to also return the
-actual before/after path edge lists (not just counts), which
-`CandidatePlanAssessment` deliberately does not carry today to keep the
-what-if response small and the recomputation bounded (see "Performance"
-in the Phase 4 completion report). This is recorded as a known
-limitation, not a silent gap — see the completion report.
+`CandidatePlanAssessment` now also carries `changed_node_ids` /
+`changed_edge_ids` — the real ids `SyntheticExecutionAgent.mutation()`
+already computes for what-if exclusion, simply exposed for display
+rather than kept internal. `WhatIfDigitalTwin.tsx` (used from
+`ResponsePlansPage.tsx`, one instance per candidate, toggled via a
+"Show/Hide What-If Digital Twin" button) reuses Phase 3's
+`CyberDigitalTwin` component directly — its existing
+`responseImpact`-driven highlight (narrowed to the two fields it
+actually reads, `Pick<ResponseImpactSimulation, 'changed_node_ids' |
+'changed_edge_ids'>`, so no fabricated simulation fields are needed) —
+with a compact **BEFORE RESPONSE / SIMULATED AFTER RESPONSE** toggle. No
+second graph renderer was built. The panel always shows an explicit
+"Hypothetical - not executed" badge, and the existing textual before/
+after evidence (attack paths, critical targets, blast radius) stays
+visible alongside the graph, not replaced by it. Verified with frontend
+tests (`test/WhatIfDigitalTwin.test.tsx`): the graph renders from real
+API-provided mutation ids, the before/after toggle changes the visual
+state, and the hypothetical/not-executed label is always present.
 
 ## Command Centre
 

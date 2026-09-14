@@ -98,6 +98,20 @@ one orchestration — it never fabricates a trace, and honestly reports
 `stopped_reason` when the real pipeline did not reach a terminal state
 (see `GET /api/v1/agents/orchestrations/{id}/trace`).
 
+**All 6 Blue agents persist a real `AgentDecisionRecord`, including
+Verification.** An earlier draft of `orchestration_service.verify()`
+persisted a `ResponseVerificationRecord` and an audit event but never
+called `_decision()` for the Verification Agent — the same mechanism
+Response Planner, Impact Simulation, Safety Governor, Approval Router
+and Synthetic Execution already used. This meant a complete orchestration's
+trace only ever showed 5 of the 6 Blue agents. Fixed: `verify()` now
+calls `self._decision()` with the Verification Agent's real decision
+(`decision_type="verification"`, `decision` is the verification status,
+`next_agent=None`), so `tests/test_agent_registry.py::
+test_complete_orchestration_trace_shows_the_exact_six_blue_agent_order`
+asserts the exact 6-agent order by ID, not a weaker "first is planner /
+last status is reached" proxy.
+
 ## Versioning
 
 `AGENT_VERSION` moved from `deterministic-simulation-agent-v1` (Phase 3)

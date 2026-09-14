@@ -78,15 +78,22 @@ mutating the real, persisted Digital Twin.
 - Positive: the what-if exclusion mechanism is generically useful and
   already reused for both Attack Graph and Blast Radius, with the same
   two parameters, rather than two bespoke implementations.
-- Negative: `CandidatePlanAssessment` carries counts and scores, not the
-  actual before/after path edge lists, so the frontend's what-if
-  visualization is textual rather than a graph overlay this phase (see
-  `docs/ui/PHASE_4_BLUE_AGENT.md`, "known limitation").
+- Resolved (Phase 4 final correction pass): `CandidatePlanAssessment`
+  now also carries `changed_node_ids`/`changed_edge_ids` (the same real
+  mutation ids already computed for what-if exclusion, simply exposed),
+  which was enough for a real graph overlay
+  (`WhatIfDigitalTwin.tsx`, reusing Phase 3's `CyberDigitalTwin`) without
+  needing the full before/after `AttackPath` object lists — see
+  `docs/ui/PHASE_4_BLUE_AGENT.md`.
+- Negative (found during the same correction pass, also fixed): a single
+  global anchor for the Attack Graph traversal cannot fairly judge every
+  candidate — see `BLUE_RESPONSE_PLANNING.md` "Bug 3" and
+  `what_if_evidence_service.best_security_gain_evidence()`.
 
 ## Future reconsideration trigger
 
-Revisit if a future phase wants a graph-based what-if overlay: that
-would require `SecurityGainEvidence` (or a sibling type) to also carry
-the actual before/after `AttackPath` objects, not just counts/scores —
-a larger response payload that should be justified by real UI demand
-before being added.
+Revisit `best_security_gain_evidence()`'s 2-anchor bound if a future
+playbook's real effect depends on a third distinct pivot point neither
+`anchors[0]` nor the edge's own source captures — at which point a
+small, explicitly bounded anchor set (not "all anchors," to keep
+recomputation cost predictable) may be justified.

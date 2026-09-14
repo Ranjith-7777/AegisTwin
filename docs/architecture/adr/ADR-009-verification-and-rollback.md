@@ -1,7 +1,10 @@
 # ADR-009: Dual-Check Verification Reusing the Pre-Execution Impact Simulation
 
 ## Status
-Accepted — Phase 4.
+Superseded in part — Phase 4 final correction pass. See "Addendum" below;
+the rest of this ADR (two independent checks, automatic rollback
+triggering, rollback attribution now further corrected in
+`VERIFICATION_AND_ROLLBACK.md`) remains accurate.
 
 ## Context
 
@@ -92,3 +95,37 @@ Digital Twin views would show) — at which point verification could
 additionally compare live twin state against the pre-execution
 simulation's prediction, not just check the prediction's own before/
 after fields.
+
+## Addendum (Phase 4 final correction pass): Alternative 1 was wrong
+
+Alternative 1 above reasoned that "there is no real post-execution graph
+to query independently" because synthetic execution never mutates the
+persisted base topology. That reasoning conflated *mutating the base
+topology* with *recomputing evidence against a hypothetical exclusion*
+— the second is exactly the what-if technique `blue_planning_service.py`
+already used for pre-execution candidate comparison
+(`what_if_evidence_service.security_gain_evidence()`), and it applies
+equally well at verification time by passing the **real, logged**
+`execution.changed_edge_ids_json` as the exclusion set instead of a
+candidate's predicted one. This was a genuine correctness gap the
+project manager identified: verification was re-reading a prediction and
+calling it "verified," never independently confirming what the executed
+mutation actually did.
+
+**Corrected decision**: `orchestration_service.verify()` now calls
+`what_if_evidence_service.best_security_gain_evidence()` twice — once
+with the pre-execution simulation's predicted `changed_edge_ids`
+(`expected_evidence`) and once with the real execution's actual
+`changed_edge_ids` (`actual_evidence`) — and `VerificationAgent.verify()`
+bases `security_effect_confirmed` on `actual_evidence` alone. Both calls
+reuse the identical shared module Response Planning uses; no graph
+algorithm is duplicated, and the "Negative" consequence listed above (no
+independent post-execution measurement) no longer applies. See
+`VERIFICATION_AND_ROLLBACK.md` for the corrected formulas and
+`tests/test_verification_and_rollback.py` for the regression proof.
+
+This also resolved a second, related gap: the previous design's
+operational-health check never modeled "did this action unintentionally
+isolate an asset it wasn't meant to touch." A real, generic check
+(`_bystander_isolated_assets()` — pure edge-set arithmetic over the
+existing topology, no new graph algorithm) now covers this.

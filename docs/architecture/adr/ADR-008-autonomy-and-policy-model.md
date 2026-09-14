@@ -9,7 +9,7 @@ Phase 4 required 4 autonomy levels (OBSERVE, RECOMMEND, APPROVAL_REQUIRED,
 AUTONOMOUS) where AUTONOMOUS "may auto-execute ONLY policy-eligible
 actions," explicitly warning that autonomy must never mean "execute
 everything." The existing Phase 3 catalogue
-(`response_playbook_service.py`) already assigns each of its 9 playbooks
+(`response_playbook_service.py`) already assigns each playbook
 a fixed `approval_tier` (`automatic_candidate`, `analyst_approval`,
 `administrator_approval`, or `prohibited`) reflecting a human catalogue
 author's judgment of that specific action's risk. A lightweight
@@ -68,13 +68,15 @@ Python functions (`policy_service.py`) returning typed
 - Positive: policy evaluation is pure, synchronous, and in-process — no
   new deployment topology, no new latency source, and trivially
   unit-testable (`tests/test_policy_engine.py`).
-- Negative: today's catalogue has exactly one `automatic_candidate`
-  playbook (`increase-synthetic-monitoring`, itself a zero-connectivity-
-  change observation action), so the demonstrable "genuine autonomous
-  self-healing" scenario is necessarily an evidence-gathering action,
-  not a containment action. This is accepted and documented (see
-  `AUTONOMY_MODEL.md`) as the honest, safe consequence of the design,
-  not worked around by loosening the gate.
+- Positive (Phase 4 final correction pass): the dual-gate design meant
+  adding a genuine, low-risk containment playbook
+  (`quarantine-synthetic-ingress-edge` - see `AUTONOMY_MODEL.md`) that
+  actually changes synthetic connectivity required zero changes to this
+  gate itself - only a new catalogue entry with honestly-declared
+  `reversible`/`low`/`single_relationship` properties. The original
+  design (one observe-only `automatic_candidate` playbook) is no longer
+  the only demonstrable autonomous scenario, exactly because the gate
+  never needed loosening to add one.
 
 ## Future reconsideration trigger
 

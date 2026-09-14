@@ -5,61 +5,119 @@
 Before Phase 4, `VerificationAgent.verify()` computed
 `applied = bool(changed_nodes or changed_edges) or expected_edges == 0`
 and treated `applied` as the entire verification outcome — the mere
-fact that *something* changed was "success." Phase 4 replaces this with
-two **independent**, explicitly reported checks that must both hold:
+fact that *something* changed was "success." The first Phase 4 pass
+replaced this with two independent checks, but initially read them from
+the **pre-execution** `ResponseImpactSimulationRecord`'s predicted
+before/after fields — which does not independently verify what actually
+happened. The final correction pass fixes this: verification now
+independently recomputes the **ACTUAL post-execution synthetic state**
+via the real Attack Graph/Blast Radius engines and compares it against
+an **EXPECTED** result computed the identical way, both reusing
+`what_if_evidence_service` — no graph algorithm is duplicated.
+
+```python
+# app/services/orchestration_service.py::verify()
+anchors, has_evidence = what_if_evidence_service.anchor_asset_ids(...)
+expected_evidence = what_if_evidence_service.best_security_gain_evidence(
+    ..., exclude_edge_ids=frozenset(simulation.changed_edge_ids_json), ...
+)
+actual_evidence = what_if_evidence_service.best_security_gain_evidence(
+    ..., exclude_edge_ids=frozenset(execution.changed_edge_ids_json), ...
+)
+bystander_isolated = self._bystander_isolated_assets(
+    execution.target_id, execution.changed_edge_ids_json
+)
+status, metrics = verification_agent.verify(
+    execution.changed_node_ids_json, execution.changed_edge_ids_json,
+    simulation.expected_relationships_affected,
+    expected_evidence, actual_evidence, bystander_isolated,
+)
+```
+
+`simulation.changed_edge_ids_json` (what the plan *predicted* it would
+change) and `execution.changed_edge_ids_json` (what the
+`SyntheticExecutionAgent` *actually* logged as changed) are usually
+identical for a normal run, but verification computes both independently
+so a genuine divergence between plan and execution would be caught, not
+assumed away.
 
 ```python
 mutation_applied = bool(changed_nodes or changed_edges) or expected_edges == 0
 no_security_claim = expected_edges == 0
 security_effect_confirmed = no_security_claim or (
-    sensitive_assets_reachable_after < sensitive_assets_reachable_before
-    or correlated_paths_interrupted > 0
+    actual_evidence.attack_paths_after < actual_evidence.attack_paths_before
+    or actual_evidence.blast_radius_reachable_after < actual_evidence.blast_radius_reachable_before
+    or actual_evidence.critical_targets_reachable_after < actual_evidence.critical_targets_reachable_before
 )
-operational_health_ok = operational_disruption_score <= OPERATIONAL_DISRUPTION_THRESHOLD  # 0.5
-
+operational_disruption_score = len(changed_edges) / len(topology_service.edges(True))
+critical_connectivity_preserved = not bystander_isolated_asset_ids
+operational_health_ok = (
+    operational_disruption_score <= OPERATIONAL_DISRUPTION_THRESHOLD  # 0.5
+    and critical_connectivity_preserved
+)
 status = "successful_simulation" if (
     mutation_applied and security_effect_confirmed and operational_health_ok
 ) else "unsuccessful_simulation"
 ```
 
-- **Security effect**: did reachability to sensitive assets actually
-  decrease, or was a correlated attack path actually interrupted? An
-  observe-only playbook that made no security claim in the first place
-  (`expected_edges == 0`, e.g. `increase-synthetic-monitoring`) is never
-  penalized for lacking an effect it never promised.
-- **Operational health**: is the resulting operational disruption within
-  a bounded threshold? A containment action that technically "worked"
-  but broke too much is not a successful response.
+- **Security effect** now compares the **actual** post-execution
+  recomputation's path/critical-target/blast-radius counts against the
+  actual *before* state — not a stored prediction. An observe-only
+  playbook that made no security claim in the first place
+  (`expected_edges == 0`) is never penalized for lacking an effect it
+  never promised.
+- **Operational health** has two independent components:
+  1. **Disruption ratio** — the real executed edge-removal count over
+     total topology edges, within a bounded threshold.
+  2. **Critical connectivity preserved** — a real check
+     (`_bystander_isolated_assets()`) over the existing synthetic
+     topology's edge set: did removing these edges fully cut off any
+     asset *other than* the plan's own intended target (both endpoints
+     of an edge-restriction target are the intended effect, not
+     bystanders)? Pure edge-set arithmetic, no Attack Graph/Blast Radius
+     traversal duplicated.
 
-Both metrics are already-computed fields on the `ResponseImpactSimulationRecord`
-for the selected plan — **no new graph recomputation happens at
-verification time**; the check reuses the exact evidence the Response
-Planner/Impact Simulation Agent already produced before execution.
-`metrics_json` on the persisted `ResponseVerificationRecord` now
-includes `security_effect_confirmed` and `operational_health_ok`
-explicitly, and the frontend (`VerificationPage.tsx`) renders both.
+`metrics_json` on the persisted `ResponseVerificationRecord` includes
+`expected_attack_paths_after`, `actual_attack_paths_after`,
+`expected_blast_radius_after`, `actual_blast_radius_after`,
+`expected_critical_targets_after`, `actual_critical_targets_after`,
+`security_effect_confirmed`, `operational_health_ok`,
+`critical_connectivity_preserved`, and `bystander_isolated_asset_ids` —
+all explicit, all real, and rendered in the frontend
+(`VerificationPage.tsx`).
 
-This is a regression-tested behavior
-(`tests/test_verification_and_rollback.py`):
-a real mutation with neither check passing is `unsuccessful_simulation`;
-a real mutation with a security effect but excessive operational
-disruption is still `unsuccessful_simulation`; only both together is
-`successful_simulation`.
+This is a regression-tested behavior (`tests/test_verification_and_rollback.py`):
+a real mutation whose actual post-execution state shows no security
+improvement is `unsuccessful_simulation` even though the plan predicted
+one; a real mutation that unintentionally isolates a bystander asset
+fails regardless of its security effect; excessive disruption ratio
+fails; only all three together is `successful_simulation`.
+
+## Verification persists a real AgentDecisionRecord
+
+`orchestration_service.verify()` now calls `self._decision()` for the
+Verification Agent — the same mechanism the other 5 Blue agents already
+used — with `decision_type="verification"`, `decision` set to the
+verification status, warnings naming which check failed, and
+`next_agent=None` (it is always the terminal agent). A complete
+orchestration's trace now shows all 6 Blue agents in exact causal order:
+Response Planner → Impact Simulation → Safety Governor → Approval Router
+→ Synthetic Execution → Verification (`tests/test_agent_registry.py::
+test_complete_orchestration_trace_shows_the_exact_six_blue_agent_order`).
 
 ## Automatic rollback
 
-`orchestration_service.verify()` now calls
+`orchestration_service.verify()` calls
 `policy_service.evaluate_rollback_policy(verification_failed, reversible)`
 immediately after persisting a failed verification. When that policy's
 result is `"fail"` (meaning: verification failed **and** the action is
 reversible — POL-007, see `POLICY_ENGINE.md`), `verify()` automatically
-calls `rollback()` itself, passing the policy's own reason string
-(`f"Automatic rollback: {rollback_policy.reason}"`) as the rollback
-reason and `"Verification Agent (automatic policy-triggered rollback)"`
-as the requester. **A human no longer has to notice a failed
-verification and manually trigger rollback** — this closes the
-self-healing loop's failure path the same way its success path already
-closed automatically.
+calls `rollback(..., automatic=True)`, passing the policy's own reason
+string as the rollback reason and `"Verification Agent (automatic
+policy-triggered rollback)"` as the requester. **A human no longer has
+to notice a failed verification and manually trigger rollback** — this
+closes the self-healing loop's failure path the same way its success
+path already closed automatically.
 
 If the action is *not* reversible, POL-007 returns `"pass"` ("rollback
 is not possible; this must be surfaced to a human operator") and no
@@ -68,13 +126,32 @@ itself independently refuses a non-reversible execution
 (`ROLLBACK_NOT_REVERSIBLE`, unchanged from Phase 3), so this is a
 double-enforced invariant, not a single point of failure.
 
+### Rollback audit attribution is truthful (Phase 4 final correction pass)
+
+`rollback()` previously always recorded the audit actor as `"human"` /
+`"demo-operator"`, even when the rollback was triggered automatically by
+the Verification Agent's policy check — an untruthful audit trail.
+`rollback()` now takes an `automatic: bool = False` parameter; when
+`True` (only ever passed from `verify()`'s auto-trigger path), the audit
+event's `actor_type`/`actor_id` are `"simulation_agent"` /
+`"verification-agent"`, and the canonical payload includes
+`"automatic": true`. A manual `POST .../rollback` call still records
+`"human"` / `"demo-operator"` with `"automatic": false`. The existing
+tamper-evident hash chain (`AuditEventRecord.event_hash`, chained via
+`previous_event_hash`) is unaffected — attribution is just another field
+in the same canonical payload the hash already covers.
+
 Verified end-to-end
 (`tests/test_verification_and_rollback.py::test_failed_verification_automatically_triggers_rollback_for_a_reversible_action`):
-degrading a persisted simulation's `operational_disruption_score` past
-the threshold after a real execution, then calling `verify()` once,
-results in `current_state == "synthetic_rollback_completed"` and a
-`RollbackView.reason` beginning with `"Automatic rollback:"` — with no
-separate call to `rollback()` in the test.
+inflating the *actual* executed mutation's `changed_edge_ids` (not the
+prediction) past the operational-disruption threshold, then calling
+`verify()` once, results in `current_state == "synthetic_rollback_completed"`,
+a `RollbackView.reason` beginning with `"Automatic rollback:"`, and an
+audit event with `actor_type == "simulation_agent"` and
+`actor_id == "verification-agent"` — with no separate call to
+`rollback()` in the test. A companion test
+(`test_manual_rollback_still_attributes_to_the_human_actor`) confirms a
+normal, human-initiated rollback is unaffected.
 
 ## What rollback still does (unchanged from Phase 3)
 

@@ -2,7 +2,7 @@
 
 `app/services/blue_planning_service.py` is a strictly **read-only**
 layer that ranks the candidate plans `response_service.analyze()`
-already generates (Phase 3's 9-playbook catalogue, unchanged) using real,
+already generates (the response playbook catalogue) using real,
 recomputed Attack Graph / Blast Radius what-if evidence. It never
 invents a new candidate, never duplicates the existing scoring logic in
 `response_service.py`, and never mutates the persisted Digital Twin
@@ -86,6 +86,26 @@ is ranked the recommended plan.
 
 Both fixes are covered by regression tests in `tests/test_blue_planning.py`.
 
+**Bug 3 (Phase 4 final correction pass) — a single global anchor cannot
+fairly judge every candidate.** Even after Bug 2's fix, `anchors[0]` is
+one fixed asset for the whole comparison. A candidate that removes an
+edge *upstream* of `anchors[0]` (e.g. the attacker's own ingress edge,
+behind an already-anomalous internal pivot such as `application-pod-01`)
+showed a false `security_gain: 0.0`, because forward traversal from
+`anchors[0]` never passes through that edge at all. This surfaced
+directly while adding `quarantine-synthetic-ingress-edge` (see
+`AUTONOMY_MODEL.md`): removing the evidenced `external-user-01
+--api-gateway-01` ingress edge showed zero effect purely because of
+anchor choice, not because the containment was ineffective. Fixed with
+`what_if_evidence_service.best_security_gain_evidence()`: for an
+edge-restriction candidate, evidence is computed from `anchors[0]` *and*
+from the edge's own source asset (when it is a different known anomalous
+pivot), keeping whichever genuinely shows the larger real gain - bounded
+to at most 2 traversals per candidate, never all anchors, to keep
+recomputation cost small. Verified: `quarantine-synthetic-ingress-edge`
+now correctly shows `attack_paths: 1 -> 0`, `security_gain: 34.5`, and
+becomes the top-ranked, policy-eligible candidate.
+
 ## Response Utility Score — exact formula
 
 ```
@@ -163,3 +183,24 @@ a later call with the same identity overwrites rather than duplicates.
 `PlanComparisonResult` from this persisted row alone, never
 recomputing — this is what makes a comparison "reconstructable after
 reload" per the Phase 4 persistence requirement.
+
+**`compare()` is never called in OBSERVE mode.** OBSERVE means
+detection/evidence only - `WorkflowCoordinator.run()` checks the current
+autonomy mode *before* calling `blue_planning_service.compare()` (an
+earlier draft called `compare()` unconditionally and only checked the
+mode on the returned result, which silently generated, ranked, and
+persisted a `ResponsePlanAssessmentRecord` even in OBSERVE mode - fixed,
+see `AUTONOMY_MODEL.md` and `tests/test_workflow_coordinator.py::
+test_observe_mode_never_generates_or_executes_a_plan`).
+
+## What-if Digital Twin visualization
+
+`CandidatePlanAssessment` now also carries `changed_node_ids` /
+`changed_edge_ids` - the same real ids `SyntheticExecutionAgent.mutation()`
+already computed for what-if exclusion, exposed for display. The
+frontend's `WhatIfDigitalTwin.tsx` reuses Phase 3's `CyberDigitalTwin`
+component (its existing `responseImpact` highlight, narrowed to the two
+fields it actually reads) with a BEFORE/SIMULATED-AFTER toggle and an
+explicit "Hypothetical - not executed" badge - no second graph renderer,
+no fabricated data, and the real what-if evidence (paths/critical
+targets/blast radius) stays visible alongside the graph.
