@@ -21,7 +21,7 @@ def test_playbook_catalogue_is_safe_versioned_and_deterministic(client: TestClie
     assert first.status_code == 200
     assert first.json() == second.json()
     playbooks = first.json()
-    assert len(playbooks) == 9
+    assert len(playbooks) == 10
     assert all(item["synthetic"] is True for item in playbooks)
     assert all(
         item["catalogue_version"] == "aegisarena-blue-agent-playbooks-v1" for item in playbooks

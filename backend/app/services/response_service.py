@@ -284,10 +284,22 @@ class ResponseService:
                 event.privilege_level or event.event_type == "privilege_change" for event in events
             ):
                 targets.append((PLAYBOOKS[2], "user", user_id))
-        base_edge_ids = {item.edge_id for item in topology_service.edges(include_sink)}
+        base_edges_by_id = {item.edge_id: item for item in topology_service.edges(include_sink)}
+        anomalous_ingress_edges = set(topology_state.anomalous_observed_edge_ids)
         for edge_id in edge_ids:
-            if edge_id in base_edge_ids:
-                targets.append((PLAYBOOKS[4], "relationship", edge_id))
+            edge = base_edges_by_id.get(edge_id)
+            if edge is None:
+                continue
+            targets.append((PLAYBOOKS[4], "relationship", edge_id))
+            source_node = known_nodes.get(edge.source_asset_id)
+            if (
+                edge_id in anomalous_ingress_edges
+                and source_node is not None
+                and source_node.asset_type == "external_client"
+            ):
+                # The one narrowly-scoped, evidence-backed ingress relationship
+                # eligible for full automation - see PLAYBOOKS[9]'s docstring.
+                targets.append((PLAYBOOKS[9], "relationship", edge_id))
 
         unique = {(p.playbook_id, kind, target): (p, kind, target) for p, kind, target in targets}
         ranked: list[_RankedAction] = []

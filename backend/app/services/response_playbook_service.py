@@ -188,6 +188,34 @@ PLAYBOOKS = (
         0.10,
         0.06,
     ),
+    # Phase 4: the one real-containment playbook eligible for full automation.
+    # Deliberately narrow: it only ever targets a *single, already-anomalous,
+    # externally-sourced ingress relationship* (see response_service.analyze()'s
+    # target-generation rule) - never an interior lateral-movement edge, never a
+    # user/identity, never a database/object store. Removing one attacker's
+    # ingress edge has low genuine operational cost (no legitimate traffic is
+    # known to depend on a source the system has already flagged anomalous) and
+    # is fully reversible, so autonomy_mode == AUTONOMOUS may execute it without
+    # a human once policy_service confirms every applicable check passes - see
+    # docs/architecture/AUTONOMY_MODEL.md "The one autonomous containment action".
+    _playbook(
+        "quarantine-synthetic-ingress-edge",
+        "Quarantine the attacker's ingress route",
+        "Removes one evidenced, anomalous external-to-internal ingress relationship inside a "
+        "cloned synthetic cloud topology - the specific route the attacker was observed "
+        "entering through, not a general interior relationship.",
+        "edge_restriction",
+        ["relationship"],
+        ["observed anomalous external ingress relationship"],
+        {"operation": "remove_edge"},
+        "reversible",
+        "low",
+        "single_relationship",
+        "automatic_candidate",
+        True,
+        0.05,
+        0.02,
+    ),
 )
 
 
