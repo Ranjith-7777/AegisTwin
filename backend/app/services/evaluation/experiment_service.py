@@ -215,9 +215,22 @@ class ExperimentService:
             # `no_active_defence`, so that mode still SEES the incident it
             # chooses not to act on. For a perturbed experiment, this reads
             # `evidence_model_id` (the perturbed identity) so the incident
-            # candidate itself is formed from the degraded evidence set.
+            # candidate itself is formed from the degraded evidence set, and
+            # also passes `hidden_event_ids` as `excluded_event_ids` so that
+            # hidden events cannot re-enter the incident/ATT&CK evidence path
+            # via raw-telemetry technique mapping (see
+            # `perturbation_service` module docstring and
+            # `CorrelationService.analyze()`'s `excluded_event_ids`
+            # parameter). Unperturbed experiments pass `None`, which is a
+            # byte-for-byte no-op.
             correlation_result = correlation_service.analyze(
-                session, run.simulation_run_id, evidence_model_id, force=False
+                session,
+                run.simulation_run_id,
+                evidence_model_id,
+                force=False,
+                excluded_event_ids=hidden_event_ids
+                if request.perturbation_id is not None
+                else None,
             )
             record.incident_candidate_id = correlation_result.incident_candidate_id
             session.commit()

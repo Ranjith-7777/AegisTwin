@@ -42,8 +42,14 @@ WEIGHTS = {
 
 class CorrelationService:
     def analyze(
-        self, session: Session, run_id: str, model_id: str, force: bool
+        self,
+        session: Session,
+        run_id: str,
+        model_id: str,
+        force: bool,
+        excluded_event_ids: frozenset[str] | None = None,
     ) -> CorrelationAnalysisResult:
+        excluded = excluded_event_ids or frozenset()
         if session.get(SimulationRunRecord, run_id) is None:
             raise ApplicationError(
                 "SIMULATION_RUN_NOT_FOUND", "The simulation run was not found.", 404
@@ -82,7 +88,8 @@ class CorrelationService:
         if force:
             self._delete_existing(session, run_id, model_id)
         mitre_catalogue_service.ensure(session)
-        observations = self._map(events, model_id)
+        visible_events = [event for event in events if event.event_id not in excluded]
+        observations = self._map(visible_events, model_id)
         for item in observations:
             session.add(item)
         assessment_by_event = {item.event_id: item for item in assessments}
@@ -90,8 +97,11 @@ class CorrelationService:
         evidence_events = [
             event
             for event in events
-            if event.event_id in observation_by_event
-            or assessment_by_event[event.event_id].classification == "anomalous"
+            if event.event_id not in excluded
+            and (
+                event.event_id in observation_by_event
+                or assessment_by_event[event.event_id].classification == "anomalous"
+            )
         ]
         if not evidence_events:
             return CorrelationAnalysisResult(
@@ -185,7 +195,9 @@ class CorrelationService:
             available_observations = [
                 item for item in observations if item.sequence_number <= sequence
             ]
-            available_events = events[:sequence]
+            available_events = [
+                event for event in events[:sequence] if event.event_id not in excluded
+            ]
             causal_components = self._components(
                 available_events, assessments[:sequence], available_observations
             )

@@ -89,21 +89,24 @@ NON-neutralized ("informative") assessments, which IS strictly smaller for a
 perturbed experiment, since that is what is actually available as evidence
 to `response_service.analyze()`/`workflow_coordinator.run()`.
 
-One known, honestly-documented residual gap: `CorrelationService._map()`
-maps ATT&CK techniques directly from raw `TelemetryEvent` content
-(`event.failed_attempts`, `event.metadata`, ...), independent of
-`AnomalyAssessmentRecord`/`model_id` entirely - it runs unconditionally over
-every one of this run's events, including hidden ones. A hidden event that
-happens to match one of `CorrelationService._map()`'s rules therefore still
-produces a `TechniqueObservationRecord` and can still enter
-`CorrelationService.analyze()`'s `evidence_events`
-(`event.event_id in observation_by_event`) even though its anomaly
-assessment is neutralized. This is a real, structural limitation of
-respecting the "zero changes to `correlation_service.py`" constraint, not an
-oversight - see the module docstring of `test_robustness_perturbation.py`
-for the concrete investigation of how often this actually matters in
-practice for the "non-critical" (LOW/MEDIUM) severities eligible to be
-hidden.
+Closed gap: `CorrelationService._map()` maps ATT&CK techniques directly from
+raw `TelemetryEvent` content (`event.failed_attempts`, `event.metadata`,
+...), independent of `AnomalyAssessmentRecord`/`model_id` entirely. Left
+unconstrained, this would let a hidden event that happens to match one of
+`_map()`'s rules still produce a `TechniqueObservationRecord` and enter
+`evidence_events`, even though its anomaly assessment was neutralized.
+`CorrelationService.analyze()` now accepts an optional `excluded_event_ids`
+parameter (default `None`/empty - a byte-for-byte no-op for every Phase 0-4
+caller and every unperturbed Phase 5 caller); `ExperimentService
+.create_and_run` passes this run's `hidden_event_ids` for a perturbed
+experiment, so `_map()` only ever sees visible events and `evidence_events`
+excludes hidden events regardless of what their raw fields would otherwise
+have produced. `events.index(event) + 1` sequence numbering is computed
+against the full, unfiltered event list throughout, so visible events keep
+their true full-run sequence number - no re-indexing was needed. For a
+perturbed experiment, hidden telemetry remains in immutable ground truth but
+is excluded from the defender-visible anomaly AND correlation / ATT&CK
+evidence path before response selection.
 
 ## Why the CANONICAL model identity is untouched, and canonical/unperturbed
    experiments are byte-for-byte unchanged
