@@ -8,6 +8,7 @@ from app.api.routes import (
     blue_planning,
     correlation,
     detection,
+    evaluation,
     health,
     mitre,
     orchestration,
@@ -44,3 +45,4 @@ api_router.include_router(policy.router)
 api_router.include_router(autonomy.router)
 api_router.include_router(blue_planning.router)
 api_router.include_router(workflow.router)
+api_router.include_router(evaluation.router)
