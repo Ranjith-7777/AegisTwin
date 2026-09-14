@@ -41,6 +41,25 @@ OPERATIONAL_IMPACT_PENALTY = {"low": 0.0, "medium": 10.0, "high": 25.0}
 REVERSIBILITY_BONUS = 10.0
 
 
+def select_recommended(
+    candidates: list[CandidatePlanAssessment],
+) -> tuple[list[CandidatePlanAssessment], int | None]:
+    """Selects the highest-scoring POLICY-COMPLIANT candidate from an
+    already Response-Utility-Score-sorted list - "highest-scoring
+    policy-compliant candidate," never "highest-scoring candidate, or
+    nothing." Returns the candidates with exactly one `recommended=True`
+    (or none changed if no candidate passes policy) and that candidate's
+    index, so callers can compute Decision Confidence from the actual
+    selected candidate rather than always `candidates[0]`."""
+
+    updated = list(candidates)
+    for index, candidate in enumerate(updated):
+        if candidate.policy_pass:
+            updated[index] = candidate.model_copy(update={"recommended": True})
+            return updated, index
+    return updated, None
+
+
 def _utility_score(
     evidence: SecurityGainEvidence,
     recommendation: ResponseRecommendation,
@@ -222,22 +241,21 @@ class BluePlanningService:
             )
 
         candidates.sort(key=lambda item: (-item.utility_score.total, item.recommendation_id))
-        recommended_id = None
-        for index, candidate in enumerate(candidates):
-            if index == 0 and candidate.policy_pass:
-                candidates[index] = candidate.model_copy(update={"recommended": True})
-                recommended_id = candidate.recommendation_id
-                break
+        candidates, selected_index = select_recommended(candidates)
+        recommended_id = (
+            candidates[selected_index].recommendation_id if selected_index is not None else None
+        )
 
         decision_confidence = None
-        if candidates:
+        if selected_index is not None:
+            selected_candidate = candidates[selected_index]
             top_recommendation = next(
                 item
                 for item in analysis.recommendations
-                if item.recommendation_id == candidates[0].recommendation_id
+                if item.recommendation_id == selected_candidate.recommendation_id
             )
             decision_confidence = _decision_confidence(
-                top_recommendation, candidates[0].security_gain_evidence
+                top_recommendation, selected_candidate.security_gain_evidence
             )
 
         result = PlanComparisonResult(
