@@ -128,6 +128,163 @@ def test_a_playbook_making_no_security_claim_is_not_penalized_for_having_none() 
     assert metrics["security_effect_confirmed"] is True
 
 
+# --- Objective semantics: IMPROVED vs VERIFIED AGAINST EXPECTED OBJECTIVE ---
+# (PM micro-correction #2 - a mutation that merely improved over the
+# before-state is not enough; the plan's own EXPECTED containment objective
+# must actually be met for every metric the plan claimed it would improve.)
+
+
+def test_A_partial_containment_below_expected_objective_fails() -> None:
+    """before=2, expected=0, actual=1: a real improvement over before (2->1)
+    but the planned containment objective (eliminate all paths) was NOT met
+    - this must FAIL, not pass merely because it "improved"."""
+
+    expected = _evidence(attack_paths_before=2, attack_paths_after=0)
+    actual = _evidence(attack_paths_before=2, attack_paths_after=1)
+    status, metrics = verification_agent.verify(
+        changed_nodes=[],
+        changed_edges=["some-edge"],
+        expected_edges=1,
+        expected_evidence=expected,
+        actual_evidence=actual,
+        bystander_isolated_asset_ids=[],
+    )
+    assert status == "unsuccessful_simulation"
+    assert metrics["security_improved"] is True  # 1 < 2, a real improvement...
+    assert metrics["attack_path_objective_met"] is False  # ...but 1 > 0, objective missed.
+    assert metrics["expected_containment_met"] is False
+    assert metrics["security_effect_confirmed"] is False
+
+
+def test_B_actual_meets_expected_objective_exactly_succeeds() -> None:
+    """before=2, expected=1, actual=1: actual meets (does not exceed) the
+    expected objective exactly - succeeds if operational health passes."""
+
+    expected = _evidence(attack_paths_before=2, attack_paths_after=1)
+    actual = _evidence(attack_paths_before=2, attack_paths_after=1)
+    status, metrics = verification_agent.verify(
+        changed_nodes=[],
+        changed_edges=["some-edge"],
+        expected_edges=1,
+        expected_evidence=expected,
+        actual_evidence=actual,
+        bystander_isolated_asset_ids=[],
+    )
+    assert metrics["attack_path_objective_met"] is True
+    assert metrics["expected_containment_met"] is True
+    assert metrics["security_effect_confirmed"] is True
+    assert status == "successful_simulation"
+
+
+def test_C_actual_outperforms_expected_objective_succeeds() -> None:
+    """The actual executed result is BETTER than what was expected/simulated
+    - this must succeed, not be penalized for "not matching the prediction
+    exactly"."""
+
+    expected = _evidence(attack_paths_before=2, attack_paths_after=1)
+    actual = _evidence(attack_paths_before=2, attack_paths_after=0)
+    status, metrics = verification_agent.verify(
+        changed_nodes=[],
+        changed_edges=["some-edge"],
+        expected_edges=1,
+        expected_evidence=expected,
+        actual_evidence=actual,
+        bystander_isolated_asset_ids=[],
+    )
+    assert metrics["attack_path_objective_met"] is True
+    assert metrics["security_effect_confirmed"] is True
+    assert status == "successful_simulation"
+
+
+def test_D_blast_radius_objective_underperforming_expected_fails() -> None:
+    """The plan claimed a blast-radius reduction (8 -> 6) but the actual
+    executed result only reached 7 - the blast-radius objective was part of
+    the planned improvement and was not met, so verification must fail even
+    though attack paths met their own objective."""
+
+    expected = _evidence(
+        attack_paths_before=2,
+        attack_paths_after=1,
+        blast_radius_reachable_before=8,
+        blast_radius_reachable_after=6,
+    )
+    actual = _evidence(
+        attack_paths_before=2,
+        attack_paths_after=1,
+        blast_radius_reachable_before=8,
+        blast_radius_reachable_after=7,
+    )
+    status, metrics = verification_agent.verify(
+        changed_nodes=[],
+        changed_edges=["some-edge"],
+        expected_edges=1,
+        expected_evidence=expected,
+        actual_evidence=actual,
+        bystander_isolated_asset_ids=[],
+    )
+    assert metrics["attack_path_objective_met"] is True
+    assert metrics["blast_radius_objective_applicable"] is True
+    assert metrics["blast_radius_objective_met"] is False
+    assert metrics["expected_containment_met"] is False
+    assert metrics["security_effect_confirmed"] is False
+    assert status == "unsuccessful_simulation"
+
+
+def test_E_critical_target_objective_underperforming_expected_fails() -> None:
+    """The plan claimed a critical target would become unreachable (1 -> 0)
+    but the actual result still leaves it reachable (1 -> 1) - must fail."""
+
+    expected = _evidence(
+        attack_paths_before=2,
+        attack_paths_after=1,
+        critical_targets_reachable_before=1,
+        critical_targets_reachable_after=0,
+    )
+    actual = _evidence(
+        attack_paths_before=2,
+        attack_paths_after=1,
+        critical_targets_reachable_before=1,
+        critical_targets_reachable_after=1,
+    )
+    status, metrics = verification_agent.verify(
+        changed_nodes=[],
+        changed_edges=["some-edge"],
+        expected_edges=1,
+        expected_evidence=expected,
+        actual_evidence=actual,
+        bystander_isolated_asset_ids=[],
+    )
+    assert metrics["critical_target_objective_applicable"] is True
+    assert metrics["critical_target_objective_met"] is False
+    assert metrics["expected_containment_met"] is False
+    assert metrics["security_effect_confirmed"] is False
+    assert status == "unsuccessful_simulation"
+
+
+def test_F_no_security_claim_is_unaffected_by_objective_semantics() -> None:
+    """An observe-only action (expected_edges == 0) retains its documented
+    vacuous-pass semantics regardless of the new objective checks - it is
+    never falsely failed for lacking containment it never claimed."""
+
+    expected = _evidence()
+    actual = _evidence()
+    status, metrics = verification_agent.verify(
+        changed_nodes=["some-node"],
+        changed_edges=[],
+        expected_edges=0,
+        expected_evidence=expected,
+        actual_evidence=actual,
+        bystander_isolated_asset_ids=[],
+    )
+    assert status == "successful_simulation"
+    assert metrics["security_effect_confirmed"] is True
+    # None of the three metrics claimed an improvement (before == after).
+    assert metrics["attack_path_objective_applicable"] is False
+    assert metrics["critical_target_objective_applicable"] is False
+    assert metrics["blast_radius_objective_applicable"] is False
+    assert metrics["expected_containment_met"] is True
+
+
 def test_verification_persists_a_real_agent_decision_record(client: TestClient) -> None:
     """Gap-1 regression: Verification must persist a genuine AgentDecisionRecord
     via the same _decision() mechanism as the other 5 Blue agents, not just a

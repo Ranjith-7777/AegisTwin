@@ -41,14 +41,58 @@ identical for a normal run, but verification computes both independently
 so a genuine divergence between plan and execution would be caught, not
 assumed away.
 
+## IMPROVED is not the same as VERIFIED AGAINST EXPECTED OBJECTIVE
+
+A second correction (found by independent PM audit) applies here: the
+first pass's `security_effect_confirmed` only checked that the actual
+result *improved* over the actual before-state — `actual_after <
+actual_before` on any metric. That is a strictly weaker claim than "the
+plan's promised containment objective was met." Example: `before=2`,
+the plan *expected* `after=0` (eliminate the path entirely), but the
+*actual* executed result was `after=1`. That is a real improvement
+(2→1) — and the old check would have called it verified — but the
+attacker still has a path the plan promised to close. This must fail.
+
 ```python
+def _objective_met(expected_before, expected_after, actual_after) -> tuple[bool, bool]:
+    # A metric is only "applicable" if the plan itself claimed an
+    # improvement for it - a metric the plan never promised to move can
+    # never create an artificial failure.
+    applicable = expected_after < expected_before
+    met = (not applicable) or (actual_after <= expected_after)
+    return applicable, met
+
 mutation_applied = bool(changed_nodes or changed_edges) or expected_edges == 0
 no_security_claim = expected_edges == 0
-security_effect_confirmed = no_security_claim or (
+
+# IMPROVED: some genuine improvement over the actual before-state, on any
+# of the three metrics. Necessary but NOT sufficient.
+security_improved = (
     actual_evidence.attack_paths_after < actual_evidence.attack_paths_before
     or actual_evidence.blast_radius_reachable_after < actual_evidence.blast_radius_reachable_before
     or actual_evidence.critical_targets_reachable_after < actual_evidence.critical_targets_reachable_before
 )
+
+# VERIFIED AGAINST EXPECTED OBJECTIVE: for every metric the plan itself
+# claimed it would improve, did the actual result meet or outperform the
+# expected (simulated) result?
+attack_path_applicable, attack_path_objective_met = _objective_met(
+    expected_evidence.attack_paths_before, expected_evidence.attack_paths_after,
+    actual_evidence.attack_paths_after)
+critical_target_applicable, critical_target_objective_met = _objective_met(
+    expected_evidence.critical_targets_reachable_before, expected_evidence.critical_targets_reachable_after,
+    actual_evidence.critical_targets_reachable_after)
+blast_radius_applicable, blast_radius_objective_met = _objective_met(
+    expected_evidence.blast_radius_reachable_before, expected_evidence.blast_radius_reachable_after,
+    actual_evidence.blast_radius_reachable_after)
+expected_containment_met = (
+    attack_path_objective_met and critical_target_objective_met and blast_radius_objective_met
+)
+
+# BOTH required: some genuine improvement happened, AND every metric the
+# plan claimed to improve actually met its expected objective.
+security_effect_confirmed = no_security_claim or (security_improved and expected_containment_met)
+
 operational_disruption_score = len(changed_edges) / len(topology_service.edges(True))
 critical_connectivity_preserved = not bystander_isolated_asset_ids
 operational_health_ok = (
@@ -60,12 +104,29 @@ status = "successful_simulation" if (
 ) else "unsuccessful_simulation"
 ```
 
-- **Security effect** now compares the **actual** post-execution
-  recomputation's path/critical-target/blast-radius counts against the
-  actual *before* state — not a stored prediction. An observe-only
-  playbook that made no security claim in the first place
-  (`expected_edges == 0`) is never penalized for lacking an effect it
-  never promised.
+Worked examples (all regression-tested,
+`tests/test_verification_and_rollback.py`):
+
+| before | expected after | actual after | improved? | objective met? | result |
+|---|---|---|---|---|---|
+| 2 | 0 | 1 | yes (2→1) | no (1 > 0) | **FAILS** (partial containment, objective missed) |
+| 2 | 1 | 1 | yes (2→1) | yes (1 ≤ 1) | succeeds (if operational health passes) |
+| 2 | 1 | 0 | yes (2→0) | yes (0 ≤ 1, outperformed) | succeeds |
+
+A metric the plan never claimed to improve (`expected_after ==
+expected_before`) is never `applicable`, so it can never create an
+artificial failure — this is why an observe-only action
+(`expected_edges == 0`) retains its vacuous-pass semantics regardless of
+these objective checks (`no_security_claim` short-circuits first), and
+why a plan that only claimed to improve attack paths (not blast radius
+or critical targets) is judged solely on the attack-path objective.
+
+`metrics_json` exposes `security_improved`, `expected_containment_met`,
+`attack_path_objective_met`, `critical_target_objective_met`,
+`blast_radius_objective_met`, and their `*_objective_applicable`
+counterparts — a professor asking "why did this fail" can see exactly
+which claimed objective was missed, not a single merged boolean.
+
 - **Operational health** has two independent components:
   1. **Disruption ratio** — the real executed edge-removal count over
      total topology edges, within a bounded threshold.
@@ -89,9 +150,13 @@ all explicit, all real, and rendered in the frontend
 This is a regression-tested behavior (`tests/test_verification_and_rollback.py`):
 a real mutation whose actual post-execution state shows no security
 improvement is `unsuccessful_simulation` even though the plan predicted
-one; a real mutation that unintentionally isolates a bystander asset
-fails regardless of its security effect; excessive disruption ratio
-fails; only all three together is `successful_simulation`.
+one; a real mutation that improved but fell short of the plan's own
+expected objective fails (tests `A`, `D`, `E`); a result that meets or
+outperforms the expected objective succeeds (tests `B`, `C`); an
+observe-only action retains its vacuous-pass semantics (test `F`); a
+real mutation that unintentionally isolates a bystander asset fails
+regardless of its security effect; excessive disruption ratio fails;
+only every applicable check together is `successful_simulation`.
 
 ## Verification persists a real AgentDecisionRecord
 

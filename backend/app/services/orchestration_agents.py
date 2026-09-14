@@ -197,14 +197,33 @@ class SyntheticExecutionAgent:
 OPERATIONAL_DISRUPTION_THRESHOLD = 0.5
 
 
+def _objective_met(
+    expected_before: float, expected_after: float, actual_after: float
+) -> tuple[bool, bool]:
+    """A metric is `applicable` only if the plan itself claimed an
+    improvement for it (`expected_after < expected_before`) - a metric the
+    plan never promised to move can never create an artificial failure.
+    When applicable, the objective is `met` only if the ACTUAL result
+    meets or outperforms the EXPECTED (simulated) result - not merely
+    improves over the before-state, which is a strictly weaker claim (see
+    docs/architecture/VERIFICATION_AND_ROLLBACK.md "IMPROVED vs VERIFIED
+    AGAINST EXPECTED OBJECTIVE")."""
+
+    applicable = expected_after < expected_before
+    met = (not applicable) or (actual_after <= expected_after)
+    return applicable, met
+
+
 class VerificationAgent:
     """Independently recomputes the ACTUAL post-execution synthetic state
     (via the same what_if_evidence_service the Response Planner uses on
     `execution.changed_edge_ids_json` - the real, logged mutation, never a
     prediction) and compares it against the EXPECTED before/after evidence
     computed the identical way from the pre-execution simulation's declared
-    mutation. A mutation merely existing is never, by itself, success - both
-    a security effect AND operational health must independently hold. See
+    mutation. A mutation merely existing is never, by itself, success, and
+    neither is a result that merely IMPROVED over the before-state without
+    meeting the plan's own EXPECTED containment objective - both a security
+    effect AND operational health must independently hold. See
     docs/architecture/VERIFICATION_AND_ROLLBACK.md."""
 
     name = "Verification Agent"
@@ -220,13 +239,56 @@ class VerificationAgent:
     ) -> tuple[str, dict[str, object]]:
         mutation_applied = bool(changed_nodes or changed_edges) or expected_edges == 0
         no_security_claim = expected_edges == 0
-        security_effect_confirmed = no_security_claim or (
+
+        # IMPROVED: did the actual result improve at all over the actual
+        # before-state, on any of the three metrics? Necessary but not
+        # sufficient - see the objective checks below.
+        security_improved = (
             actual_evidence.attack_paths_after < actual_evidence.attack_paths_before
             or actual_evidence.blast_radius_reachable_after
             < actual_evidence.blast_radius_reachable_before
             or actual_evidence.critical_targets_reachable_after
             < actual_evidence.critical_targets_reachable_before
         )
+
+        # VERIFIED AGAINST EXPECTED OBJECTIVE: for every metric the plan
+        # itself claimed it would improve, did the actual result meet or
+        # outperform the expected (simulated) result? A metric the plan
+        # never claimed to move is not applicable and can never fail this.
+        attack_path_applicable, attack_path_objective_met = _objective_met(
+            expected_evidence.attack_paths_before,
+            expected_evidence.attack_paths_after,
+            actual_evidence.attack_paths_after,
+        )
+        critical_target_applicable, critical_target_objective_met = _objective_met(
+            expected_evidence.critical_targets_reachable_before,
+            expected_evidence.critical_targets_reachable_after,
+            actual_evidence.critical_targets_reachable_after,
+        )
+        blast_radius_applicable, blast_radius_objective_met = _objective_met(
+            expected_evidence.blast_radius_reachable_before,
+            expected_evidence.blast_radius_reachable_after,
+            actual_evidence.blast_radius_reachable_after,
+        )
+        applicability = {
+            "attack_path_objective_applicable": attack_path_applicable,
+            "critical_target_objective_applicable": critical_target_applicable,
+            "blast_radius_objective_applicable": blast_radius_applicable,
+        }
+        expected_containment_met = (
+            attack_path_objective_met
+            and critical_target_objective_met
+            and blast_radius_objective_met
+        )
+
+        # A real security-containment claim requires BOTH: some genuine
+        # improvement happened, AND every metric the plan claimed to
+        # improve actually met its expected objective. "Improved but fell
+        # short of the promised containment" is not success.
+        security_effect_confirmed = no_security_claim or (
+            security_improved and expected_containment_met
+        )
+
         operational_disruption_score = round(
             len(changed_edges) / max(1, len(topology_service.edges(True))), 6
         )
@@ -240,6 +302,12 @@ class VerificationAgent:
         return status, {
             "intended_mutations_applied": mutation_applied,
             "security_effect_confirmed": security_effect_confirmed,
+            "security_improved": security_improved,
+            "expected_containment_met": expected_containment_met,
+            "attack_path_objective_met": attack_path_objective_met,
+            "critical_target_objective_met": critical_target_objective_met,
+            "blast_radius_objective_met": blast_radius_objective_met,
+            **applicability,
             "operational_health_ok": operational_health_ok,
             "critical_connectivity_preserved": critical_connectivity_preserved,
             "bystander_isolated_asset_ids": bystander_isolated_asset_ids,
