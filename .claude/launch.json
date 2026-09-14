@@ -17,7 +17,7 @@
         "--port",
         "8000",
         "--env-file",
-        "backend/.env.launch"
+        "backend/launch.env"
       ],
       "port": 8000
     }
