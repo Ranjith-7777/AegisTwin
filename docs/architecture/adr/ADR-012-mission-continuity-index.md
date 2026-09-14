@@ -1,7 +1,10 @@
 # ADR-012: Mission Continuity Index — Trapezoidal AUC Over Event-Driven Timepoints
 
 ## Status
-Accepted.
+Accepted. See "Addendum" below for a correction found and fixed during a
+later Phase 5 research-validity pass — the trapezoidal-AUC formula and the
+event-driven point selection described below remain unchanged; what changed
+is where the curve stops.
 
 ## Context
 
@@ -94,3 +97,53 @@ telemetry (rather than discrete before/after what-if evidence at stage
 transitions) — at which point a denser, telemetry-driven curve could
 supersede the current 8-stage event-driven set without changing the
 underlying trapezoidal-AUC formula.
+
+## Addendum (Phase 5 research-validity correction pass): missing the horizon
+terminal point made `no_active_defence` incomparable to every active mode
+
+**What was wrong.** `_build_points` originally stopped after the last stage
+an experiment actually reached, with no final point extending the curve to
+the experiment's real duration. For `no_active_defence` — which only ever
+reaches `baseline` and `attack_observed`, both at or near t=0 — this meant
+the curve spanned zero or near-zero duration, so `compute_mci`'s
+duration-based AUC (`None` when duration ≤ 0) returned `None`/N/A for
+essentially every `no_active_defence` experiment, regardless of how long the
+attack's damage actually persisted afterward.
+
+**Why it mattered.** MCI's entire purpose (per this ADR's "Context") is to
+answer "does defence improve continuity, and how does the trajectory differ
+from doing nothing." A metric that is systematically undefined for the "do
+nothing" control cannot answer that question — every paired comparison
+against `no_active_defence` on `mci` was reporting "N/A" instead of the true,
+answerable fact that an undefended system stays degraded for the whole
+remaining experiment duration. This silently discarded exactly the
+comparison the metric exists to make, for exactly the baseline mode where it
+matters most.
+
+**What changed.** `_build_points` now always appends one final
+`"experiment_horizon"` point at `logical_timeline_json["experiment_horizon_sim"]`
+(the real run duration, computed identically for every defence mode) holding
+the last reached stage's mission-health value constant out to that horizon —
+mission health does not spontaneously change once the experiment stops
+generating events. This lets `compute_mci` honestly integrate a sustained
+degraded state that never recovers (exactly the `no_active_defence` case, or
+an active mode whose response never lands) instead of seeing a degenerate
+near-zero-duration curve. It is skipped only when the horizon is unknown, or
+already equals the last real stage's own time (the genuine zero-duration
+case, where `None`/N/A remains correct).
+
+**Verification and an honest, non-obvious observed result.** Re-running the
+real canonical matrix under this fix, `no_active_defence`'s `mci` is now
+`applicable` (non-`None`) in 5/5 canonical seeds for all 4 scenario classes
+— previously 0/5 in every class. In 3 of the 4 scenario classes, the defined
+value is `0.0` (mission health stayed degraded for the observed run), and in
+the fourth it is `0.179487`, identical across `no_active_defence` and every
+active mode tested for that class. That last point is itself a real,
+unexpected finding worth recording here rather than treated as a bug: for
+these scenario/topology combinations, the resource-health definition's
+requirement of BOTH "not exposed" AND "still operationally connected"
+means a response action that isolates the attacker's ingress edge can
+simultaneously cut off legitimate downstream connectivity, so the affected
+resource remains scored "unhealthy" for a different reason after
+containment than before it. See `docs/evaluation/RESULTS.md`'s corrected-
+results section for the full numbers.

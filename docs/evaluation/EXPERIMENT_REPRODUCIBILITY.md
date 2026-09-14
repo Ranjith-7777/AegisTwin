@@ -28,7 +28,22 @@ Every `ExperimentRecord` carries, alongside its result:
   deterministic: it derives `model_id` from the dataset fingerprint and
   training parameters and returns the existing model unchanged if it
   already exists, so re-running the same canonical training request is
-  cheap and safe).
+  cheap and safe). Real-outcome measurement (`metrics_service
+  ._security_metrics`'s Attack Graph/Blast Radius evidence) always reads
+  from this canonical identity, for every experiment, perturbed or not.
+- **`perturbed_model_id`** — `None` for every unperturbed experiment
+  (`perturbation_id is None`, the overwhelming majority). For a perturbed
+  experiment, this is a SECOND, derived `DetectionModelRecord` identity
+  (`perturbation_service.materialize_perturbed_model`) that shares the
+  canonical model's exact trained pipeline/artifact but whose persisted
+  `AnomalyAssessmentRecord`s genuinely omit the hidden events' real
+  detection signal. `correlation_service.analyze()` and whichever defence
+  strategy is dispatched are called with THIS identity, not the canonical
+  one, so a perturbed experiment's actual defence DECISION - not just its
+  reported score - is computed from the degraded evidence. See
+  `app/services/evaluation/perturbation_service.py`'s module docstring for
+  the full mechanism and why every event (hidden or visible) still gets a
+  persisted assessment row under this identity.
 
 ## Why these constants must never vary between compared modes
 

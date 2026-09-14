@@ -1,7 +1,10 @@
 # ADR-010: Evaluation Baseline Isolation as a Thin Dispatcher Over Existing Services
 
 ## Status
-Accepted.
+Accepted. See "Addendum" below for a correction found and fixed during a
+later Phase 5 research-validity pass — the rest of this ADR (the thin-
+dispatcher shape, the shared post-hoc security-gain measurement) remains
+accurate.
 
 ## Context
 
@@ -110,3 +113,52 @@ execute/verify path (e.g. a strategy with genuinely different rollback
 semantics) — at which point the shared `_advance_to_terminal` helper and
 the uniform post-hoc `SecurityGainEvidence` recomputation should be
 re-examined for whether they still apply cleanly.
+
+## Addendum (Phase 5 research-validity correction pass): the isolation this
+ADR describes was not actually in place
+
+**What was wrong.** Despite this ADR's own "Isolation guarantees" section
+stating `rule_based`/`ml_assisted` "never call `blue_planning_service.compare()`
+or `workflow_coordinator.run()`," the implementation at the time still routed
+both strategies through `orchestration_service.create()`/`.execute()`/
+`.verify()` — which internally runs ALL SIX of Phase 4's Blue agents
+(Response Planner, Impact Simulation, Safety Governor, Approval Router,
+Synthetic Execution, Verification) and persists an `AgentDecisionRecord` for
+each, plus an evaluation-harness shim that auto-approved any pending human
+approval gate. The ADR's design intent was correct; the code had drifted
+from it.
+
+**Why it mattered.** This is precisely the failure mode ADR-010's own
+"Context" section warns about — "a difference in the final score could be an
+artifact of pipeline drift rather than a real difference in defence-mode
+effectiveness" — except the drift was into the WORST possible case: the two
+baselines meant to represent "no sophisticated multi-agent reasoning" were
+silently borrowing that exact reasoning. Every comparison against `agentic`
+was confounded for as long as this went uncorrected.
+
+**What changed.** `RuleBasedDefenceStrategy`/`MLAssistedDefenceStrategy` now
+call `synthetic_mutation_service.compute_mutation()` directly — the same
+pure topology/playbook-spec arithmetic `SyntheticExecutionAgent.mutation()`
+uses, extracted into a shared, evaluation-neutral primitive — and persist
+their own lightweight `EvaluationSyntheticActionRecord`
+(`app.database.models.EvaluationSyntheticActionRecord`), never an
+`AgentDecisionRecord` and never a `ResponseOrchestrationRecord`. Approval
+semantics are no longer faked: both strategies only execute a playbook that
+is genuinely auto-eligible (`DefensivePlaybook.automatic_eligibility`),
+falling back to a documented safe default or honestly recording
+`executed=False` when nothing auto-eligible exists. Outcome measurement
+remains unchanged in spirit — `security_improved()` (via
+`what_if_evidence_service`) is still computed identically and post-hoc for
+all four modes, per this ADR's original "Decision" section.
+
+**Verification.** The corrected isolation was directly confirmed against the
+real 80-experiment canonical matrix re-run: a full-matrix database query for
+`AgentDecisionRecord`s tied to the 40 `rule_based`+`ml_assisted` canonical
+experiments' `orchestration_id`s returned **zero** across the board (0/40),
+while the 20 `agentic` canonical experiments show the expected six-agent
+trace where the workflow actually reached execution (15/20; the remaining
+5/20 — all `suspicious-kubernetes-pod`/`workload_service_compromise` — stop
+honestly at 4 agents, Approval Router never granting automatic execution).
+See `docs/evaluation/RESULTS.md`'s corrected-results section for the full
+numbers, and `app/services/evaluation/strategies.py`'s module docstring for
+the complete mechanism.

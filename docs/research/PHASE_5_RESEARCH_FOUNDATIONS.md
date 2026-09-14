@@ -62,6 +62,18 @@ metric definitions — this is described as a general research trend
 AegisArena's structure is consistent with, not a reproduction of a named
 study's methodology.
 
+**A real methodological note, not a citation:** MOP/MOE separation is only
+meaningful if the baselines being compared are genuinely independent of the
+system under evaluation. Mid-Phase-5, this project's own implementation was
+reviewed and found to violate that: the "simple baseline" defence strategies
+were indirectly invoking the six-agent system being evaluated against them.
+This was corrected (see `docs/evaluation/PHASE_5_EVALUATION_FRAMEWORK.md`,
+"Why strict baseline-agent isolation matters scientifically", and
+`docs/evaluation/RESULTS.md`) before any comparative conclusion was finalized
+— worth recording honestly as a real instance of the general validity
+concern this section describes, not merely a borrowed idea from the
+literature.
+
 ## Quantitative resilience / area-under-curve thinking
 
 **Borrowed idea:** representing a system's health as a curve over time and

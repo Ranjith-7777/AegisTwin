@@ -101,6 +101,53 @@ comparison_service.py`):
   versions is refused as "paired" and surfaced with a warning instead
   (`FairnessCheckResult.reasons`), never silently presented as fair.
 
+## Why strict baseline-agent isolation matters scientifically
+
+A Phase 5 correction pass (feature/phase-5-observability-evaluation-reports)
+found that `RuleBasedDefenceStrategy`/`MLAssistedDefenceStrategy` had been
+calling `orchestration_service.create()`/`.execute()`/`.verify()` internally
+— which runs ALL SIX of Phase 4's Blue agents (Response Planner, Impact
+Simulation, Safety Governor, Approval Router, Synthetic Execution,
+Verification) and persists an `AgentDecisionRecord` for each. This is not a
+cosmetic bug: it means the two "simple, non-agentic" baselines were secretly
+benefiting from the exact sophisticated system (`agentic`) they exist to be
+compared against.
+
+The reason this invalidates the whole exercise, not just one row of a table:
+Phase 5's entire research question is "does the six-agent Agentic system add
+real value over simpler defence strategies?" If Rule-Based/ML-Assisted can
+silently reach into the same six-agent orchestration pipeline, every
+downstream comparison is confounded — a high Rule-Based/ML-Assisted score no
+longer distinguishes "a simple heuristic did well" from "Phase 4's own
+machinery did the real work, credited to a baseline." No amount of
+statistical rigor in the aggregation/comparison layer can rescue a result
+built on an unfair input; the corruption happens upstream of every metric
+this framework computes. This is why `strategies.py` now calls
+`synthetic_mutation_service.compute_mutation()` directly and persists an
+`EvaluationSyntheticActionRecord` instead — see
+`app/services/evaluation/strategies.py`'s module docstring and
+`docs/architecture/adr/ADR-010-evaluation-baseline-isolation.md`'s addendum
+for the full correction and its verification (zero `AgentDecisionRecord`s
+across all 40 canonical Rule-Based/ML-Assisted experiments, re-confirmed
+against the real re-run — see `RESULTS.md`).
+
+The same principle applies to the Section 38 partial-observability
+robustness test. An earlier revision of `perturbation_service.py` hid
+evidence only from the FINAL REPORTED SCORE — detection/correlation/response
+still made every decision from the full, unperturbed evidence set, and only
+the metrics layer recomputed a different number afterward. That answers a
+different, much weaker question ("does the SCORE change if we discount some
+evidence after the fact") than the one Section 38 actually asks ("does the
+DEFENCE ITSELF degrade when the defender genuinely observes less"). A
+robustness test that only ever perturbs the score, never the decision input,
+cannot distinguish a genuinely robust defender from a defender whose
+decisions were never actually tested under degraded observability at all.
+The corrected mechanism (a real, isolated "perturbed model identity" fed
+into `correlation_service.analyze()`/`response_service.analyze()`/
+`workflow_coordinator.run()`) fixes this by making the hidden evidence
+genuinely invisible to the decision itself, not just to the scoring pass —
+see `perturbation_service.py`'s module docstring for the full mechanism.
+
 ## Logical time vs. wall-clock latency
 
 Copied verbatim from the convention `metrics_service.py`'s module docstring
