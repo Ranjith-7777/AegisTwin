@@ -792,6 +792,72 @@ class ExperimentRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
     )
+    # Corrected non-agentic-baseline-isolation addition: references
+    # `EvaluationSyntheticActionRecord.action_id` for `rule_based`/
+    # `ml_assisted` experiments that actually executed a synthetic mutation
+    # (`None` for `no_active_defence`, `agentic` - which uses
+    # `orchestration_id` instead - or a `rule_based`/`ml_assisted` run that
+    # found no auto-eligible safe response to execute). See
+    # `app.services.evaluation.strategies` module docstring.
+    evaluation_action_id: Mapped[str | None] = mapped_column(String(36))
+    # Perturbation robustness-test correction: the derived, perturbation-
+    # scoped `DetectionModelRecord.model_id` this experiment's
+    # correlation/response/agentic-planning evidence was actually read
+    # under - `None` for every unperturbed experiment (the overwhelming
+    # majority), and for one created before this correction. Always
+    # distinct from `detection_model_id`, which stays the canonical
+    # identity real-outcome measurement (`metrics_service._security_metrics`)
+    # reads from. See `app.services.evaluation.perturbation_service`.
+    perturbed_model_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class EvaluationSyntheticActionRecord(Base):
+    """Phase 5 evaluation-only provenance for a `rule_based`/`ml_assisted`
+    experiment's single executed synthetic mutation.
+
+    Deliberately NOT an `AgentDecisionRecord` and NOT tied to a Phase 4
+    `ResponseOrchestrationRecord`/`orchestration_id`: `rule_based` and
+    `ml_assisted` are supposed to be simple non-agentic baselines, so they
+    must never run Phase 4's six-agent orchestration pipeline (Response
+    Planner, Impact Simulation, Safety Governor, Approval Router, Synthetic
+    Execution, Verification) or persist an `AgentDecisionRecord` for any of
+    it - see `app.services.evaluation.strategies` module docstring for the
+    full rationale. This record is this module's own minimal, honest
+    provenance: which playbook/target was selected, by which mechanism
+    (`rule_id` for `rule_based`, `recommendation_rank`/`defense_score` for
+    `ml_assisted`), what the resulting synthetic mutation was (via
+    `app.services.synthetic_mutation_service.compute_mutation`, the same
+    pure primitive Phase 4's Synthetic Execution Agent uses), and whether a
+    safe response was executed at all (`executed=False` when no auto-eligible
+    playbook was found - see the approval-eligibility policy in
+    `strategies.py`)."""
+
+    __tablename__ = "evaluation_synthetic_actions"
+
+    action_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    experiment_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    defence_mode: Mapped[str] = mapped_column(String(30), nullable=False)
+    playbook_id: Mapped[str | None] = mapped_column(String(80))
+    target_type: Mapped[str | None] = mapped_column(String(30))
+    target_id: Mapped[str | None] = mapped_column(String(220))
+    rule_id: Mapped[str | None] = mapped_column(String(40))
+    recommendation_rank: Mapped[int | None] = mapped_column(Integer)
+    defense_score: Mapped[float | None] = mapped_column(Float)
+    # The evidence-sequence boundary this decision was made at - the same
+    # `through_sequence_number` convention `ResponseOrchestrationRecord`
+    # uses, needed so `metrics_service`/`mission_continuity_service` can
+    # honestly place this mode's response on the simulated timeline/Mission
+    # Health curve without a Phase 4 orchestration to read it from.
+    through_sequence_number: Mapped[int | None] = mapped_column(Integer)
+    changed_node_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    changed_edge_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    reversibility: Mapped[str | None] = mapped_column(String(30))
+    operational_impact: Mapped[str | None] = mapped_column(String(30))
+    blast_radius: Mapped[str | None] = mapped_column(String(30))
+    executed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    note: Mapped[str | None] = mapped_column(String(500))
+    synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ExperimentMetricRecord(Base):
@@ -841,7 +907,12 @@ class MissionHealthPointRecord(Base):
     observed, detection, incident confirmed, response start, containment,
     verification, recovery - only the stages an experiment actually
     reached, deduplicated when a stage lands at the same logical time with
-    the same health value as the previous one).
+    the same health value as the previous one), PLUS one final always-added
+    `"experiment_horizon"` point holding the last reached stage's mission
+    health constant out to the experiment's real horizon
+    (`ExperimentMetricRecord.logical_timeline_json["experiment_horizon_sim"]`),
+    so a sustained degraded or recovered state is honestly integrated by MCI
+    even when no later stage was ever reached.
 
     `id` is deterministically `f"{experiment_id}:{sequence}"` - readable and
     trivially reconstructable, unlike a random uuid, and stable across a

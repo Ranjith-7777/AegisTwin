@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from app.database.models import ResponseImpactSimulationRecord, ResponseRecommendationRecord
 from app.schemas.blue_planning import SecurityGainEvidence
 from app.schemas.response import DefensivePlaybook
-from app.services import policy_service
-from app.services.response_playbook_service import response_playbook_service
+from app.services import policy_service, synthetic_mutation_service
 from app.services.topology_service import topology_service
+from app.services.what_if_evidence_service import security_improved
 
 # v2 (Phase 4): Safety Governor now calls `policy_service.evaluate_response_policies`
 # (POL-001..POL-006) instead of re-implementing autonomous-eligibility checks inline,
@@ -166,31 +166,13 @@ class SyntheticExecutionAgent:
     def mutation(
         self, recommendation: ResponseRecommendationRecord
     ) -> tuple[list[str], list[str], dict[str, object]]:
-        playbook = response_playbook_service.get(recommendation.playbook_id)
-        operation = str(playbook.topology_mutation_specification["operation"])
-        edges = topology_service.edges(True)
-        changed_nodes: list[str] = []
-        changed_edges: list[str] = []
-        if operation == "remove_edge":
-            changed_edges = [recommendation.target_id]
-        elif operation == "remove_inbound_edges":
-            changed_nodes = [recommendation.target_id]
-            changed_edges = [
-                e.edge_id for e in edges if e.destination_asset_id == recommendation.target_id
-            ]
-        elif operation == "remove_incident_edges":
-            changed_nodes = [recommendation.target_id]
-            changed_edges = [
-                e.edge_id
-                for e in edges
-                if recommendation.target_id in {e.source_asset_id, e.destination_asset_id}
-            ]
-        elif recommendation.target_type != "user":
-            changed_nodes = [recommendation.target_id]
-        return (
-            sorted(changed_nodes),
-            sorted(changed_edges),
-            {"operation": operation, "scope": "persisted synthetic operational state only"},
+        """Thin wrapper: the actual "given this synthetic playbook + target,
+        what mutation results" arithmetic is `synthetic_mutation_service
+        .compute_mutation`, a shared Phase-4-and-Phase-5 primitive - see that
+        module's docstring for why it was extracted out of this agent."""
+
+        return synthetic_mutation_service.compute_mutation(
+            recommendation.playbook_id, recommendation.target_id, recommendation.target_type
         )
 
 
@@ -242,14 +224,10 @@ class VerificationAgent:
 
         # IMPROVED: did the actual result improve at all over the actual
         # before-state, on any of the three metrics? Necessary but not
-        # sufficient - see the objective checks below.
-        security_improved = (
-            actual_evidence.attack_paths_after < actual_evidence.attack_paths_before
-            or actual_evidence.blast_radius_reachable_after
-            < actual_evidence.blast_radius_reachable_before
-            or actual_evidence.critical_targets_reachable_after
-            < actual_evidence.critical_targets_reachable_before
-        )
+        # sufficient - see the objective checks below. Shared with Phase 5's
+        # mode-agnostic `containment_success` measurement - see
+        # `what_if_evidence_service.security_improved`.
+        security_improved_result = security_improved(actual_evidence)
 
         # VERIFIED AGAINST EXPECTED OBJECTIVE: for every metric the plan
         # itself claimed it would improve, did the actual result meet or
@@ -286,7 +264,7 @@ class VerificationAgent:
         # improve actually met its expected objective. "Improved but fell
         # short of the promised containment" is not success.
         security_effect_confirmed = no_security_claim or (
-            security_improved and expected_containment_met
+            security_improved_result and expected_containment_met
         )
 
         operational_disruption_score = round(
@@ -302,7 +280,7 @@ class VerificationAgent:
         return status, {
             "intended_mutations_applied": mutation_applied,
             "security_effect_confirmed": security_effect_confirmed,
-            "security_improved": security_improved,
+            "security_improved": security_improved_result,
             "expected_containment_met": expected_containment_met,
             "attack_path_objective_met": attack_path_objective_met,
             "critical_target_objective_met": critical_target_objective_met,

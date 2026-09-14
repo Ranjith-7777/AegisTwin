@@ -75,6 +75,21 @@ transition the experiment actually reached (never thousands of samples) -
 see the stage list in `_build_points`. It is idempotent: re-running it for
 the same `experiment_id` replaces the prior points outright.
 
+After all reached-stage points, `_build_points` ALWAYS appends one final
+`"experiment_horizon"` point at `logical_timeline_json["experiment_horizon_sim"]`
+(the real run duration - last telemetry event minus the first, computed the
+same way for every defence mode, including `no_active_defence`) holding the
+LAST real stage's mission-health value constant out to that horizon - mission
+health does not spontaneously change once the experiment stops generating
+events. This is what lets `compute_mci` honestly integrate a sustained
+degraded state that never recovers (`no_active_defence`, or an active mode
+whose response never lands) instead of seeing a degenerate near-zero-duration
+curve and returning N/A, and what lets a recovered mode get credit for the
+healthy remainder between recovery and the horizon. Skipped only when the
+horizon is unknown, or when it already equals the last real stage's own time
+(the true zero-duration case - a single telemetry event - where `compute_mci`
+correctly stays N/A; see `test_mission_continuity.py`).
+
 ## MCI
 
 `MCI = trapezoidal_AUC(H over logical_time) / experiment_duration` (ideal
@@ -96,6 +111,7 @@ from sqlalchemy.orm import Session
 
 from app.database.models import (
     AnomalyAssessmentRecord,
+    EvaluationSyntheticActionRecord,
     ExperimentMetricRecord,
     ExperimentRecord,
     IncidentCandidateRecord,
@@ -471,6 +487,35 @@ class MissionContinuityService:
                 if last_time == point_time and last_health == health:
                     continue
             deduplicated.append((stage, point_time, health, reason))
+
+        # Terminal point: mission health does not spontaneously change after
+        # the last real stage - it is held constant (whatever it degraded or
+        # recovered to) all the way out to the experiment's real horizon
+        # (`experiment_horizon_sim`, last telemetry event minus the first -
+        # computed the same way regardless of defence mode, see
+        # `metrics_service._logical_timeline`). Without this point, a
+        # `no_active_defence` run (which only ever reaches `baseline`/
+        # `attack_observed`, both at/near t=0) gets a degenerate near-zero-
+        # duration curve and `compute_mci` incorrectly returns N/A instead of
+        # honestly integrating the sustained degraded state; likewise any
+        # mode that recovers before the horizon would otherwise never get
+        # credit for the healthy remainder. Skipped only when the horizon is
+        # unknown (no `run_id`) or already equals the last real stage's own
+        # time (nothing to add - see the zero-duration single-event case,
+        # where `compute_mci` correctly stays N/A).
+        horizon = timeline.get("experiment_horizon_sim")
+        if horizon is not None and deduplicated:
+            _, last_time, last_health, _ = deduplicated[-1]
+            if last_time != horizon:
+                deduplicated.append(
+                    (
+                        "experiment_horizon",
+                        horizon,
+                        last_health,
+                        "Experiment horizon reached; mission health at this point "
+                        "reflects the final persisted state.",
+                    )
+                )
         return deduplicated
 
     def _final_exclude_sets(
@@ -555,10 +600,19 @@ class MissionContinuityService:
 
     @staticmethod
     def _orchestration_sequence(session: Session, experiment: ExperimentRecord) -> int | None:
-        if experiment.orchestration_id is None:
-            return None
-        orchestration = session.get(ResponseOrchestrationRecord, experiment.orchestration_id)
-        return orchestration.through_sequence_number if orchestration is not None else None
+        """The evidence-sequence boundary the response decision was made
+        at - `ResponseOrchestrationRecord.through_sequence_number` for
+        `agentic`, or `EvaluationSyntheticActionRecord.through_sequence_number`
+        for `rule_based`/`ml_assisted` (which never produce an
+        orchestration - see `strategies.py` module docstring)."""
+
+        if experiment.orchestration_id is not None:
+            orchestration = session.get(ResponseOrchestrationRecord, experiment.orchestration_id)
+            return orchestration.through_sequence_number if orchestration is not None else None
+        if experiment.evaluation_action_id is not None:
+            action = session.get(EvaluationSyntheticActionRecord, experiment.evaluation_action_id)
+            return action.through_sequence_number if action is not None else None
+        return None
 
 
 mission_continuity_service = MissionContinuityService()

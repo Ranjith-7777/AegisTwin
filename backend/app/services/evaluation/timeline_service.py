@@ -77,6 +77,7 @@ from sqlalchemy.orm import Session
 from app.database.models import (
     AnomalyAssessmentRecord,
     ApprovalRequestRecord,
+    EvaluationSyntheticActionRecord,
     ExperimentRecord,
     IncidentCandidateRecord,
     ResponseOrchestrationRecord,
@@ -399,6 +400,12 @@ class ExperimentTimelineService:
     def _stage_response_selected(self, ctx: _Ctx, sequence: int) -> TimelineEvent:
         experiment = ctx.experiment
         if ctx.orchestration is None:
+            # Rule-Based/ML-Assisted never create a Phase 4
+            # `ResponseOrchestrationRecord` (see `strategies.py` module
+            # docstring) - their own response selection/execution is
+            # recorded on an `EvaluationSyntheticActionRecord` instead.
+            if experiment.evaluation_action_id is not None:
+                return self._stage_response_selected_evaluation_action(ctx, sequence)
             if experiment.defence_mode == DefenceMode.NO_ACTIVE_DEFENCE.value:
                 reason = (
                     "no_active_defence bypasses response selection by design "
@@ -435,6 +442,40 @@ class ExperimentTimelineService:
                 ctx.orchestration.orchestration_id,
                 ctx.orchestration.selected_recommendation_id,
             ],
+            correlation_id=experiment.experiment_id,
+        )
+
+    def _stage_response_selected_evaluation_action(self, ctx: _Ctx, sequence: int) -> TimelineEvent:
+        """Rule-Based/ML-Assisted's own response-selection evidence - an
+        `EvaluationSyntheticActionRecord`, never a Phase 4
+        `ResponseOrchestrationRecord`/`ResponseRecommendationRecord`. See
+        `app.services.evaluation.strategies` module docstring."""
+
+        experiment = ctx.experiment
+        action = ctx.session.get(EvaluationSyntheticActionRecord, experiment.evaluation_action_id)
+        if action is None or not action.executed:
+            note = action.note if action is not None else None
+            return self._event(
+                sequence,
+                "response_selected",
+                "failed",
+                note
+                or f"'{experiment.defence_mode}' found no auto-eligible safe response to execute.",
+                correlation_id=experiment.experiment_id,
+                resource_ids=[action.action_id] if action is not None else [],
+            )
+        summary = (
+            f"'{experiment.defence_mode}' selected and executed playbook "
+            f"'{action.playbook_id}' against target {action.target_type}:{action.target_id} "
+            "(no Phase 4 orchestration - see strategies.py)."
+        )
+        return self._event(
+            sequence,
+            "response_selected",
+            "occurred",
+            summary,
+            wall_clock_time=action.created_at,
+            resource_ids=[action.action_id],
             correlation_id=experiment.experiment_id,
         )
 

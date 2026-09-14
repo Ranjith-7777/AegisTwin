@@ -38,6 +38,28 @@ ZERO_EVIDENCE = SecurityGainEvidence(
 )
 
 
+def security_improved(evidence: SecurityGainEvidence) -> bool:
+    """Pure, stateless "did a genuine measured security improvement occur"
+    check over one before/after `SecurityGainEvidence` pair: true if ANY of
+    Attack Graph reachable paths, Blast Radius reachable assets, or critical
+    targets reachable dropped from before to after. This is exactly the
+    "IMPROVED" half of `orchestration_agents.VerificationAgent.verify()`'s
+    containment check (see docs/architecture/VERIFICATION_AND_ROLLBACK.md,
+    "IMPROVED vs VERIFIED AGAINST EXPECTED OBJECTIVE"), extracted here so it
+    is exactly one implementation, reused both by that agent (Phase 4's
+    post-execution verification step) and by
+    `app.services.evaluation.metrics_service` (Phase 5's mode-agnostic
+    `containment_success` measurement, which has no expected/actual pair to
+    compare against - only a single real before/after evidence
+    recomputation - so it uses this half alone)."""
+
+    return (
+        evidence.attack_paths_after < evidence.attack_paths_before
+        or evidence.blast_radius_reachable_after < evidence.blast_radius_reachable_before
+        or evidence.critical_targets_reachable_after < evidence.critical_targets_reachable_before
+    )
+
+
 def anchor_asset_ids(
     session: Session, run_id: str, model_id: str, through_sequence: int
 ) -> tuple[list[str], bool]:

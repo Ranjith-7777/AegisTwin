@@ -5,6 +5,18 @@ every defence mode - this is what makes `no_active_defence` a fair
 baseline rather than a strawman: it still sees the same incident the other
 three modes see, it just never acts on it (see
 `app.services.evaluation.strategies`).
+
+Status-transition semantics (corrected alongside the Rule-Based/ML-Assisted
+Phase 4 isolation fix): `no_active_defence` and `rule_based`/`ml_assisted`
+share the lifecycle `CREATED -> RUNNING_ATTACK -> DETECTING -> RESPONDING ->
+COMPLETED` - there is no VERIFYING stage for them, because none of the three
+ever produces a Phase 4 `ResponseOrchestrationRecord`/runs the Verification
+Agent (`rule_based`/`ml_assisted` execute a real synthetic mutation via
+`synthetic_mutation_service` and persist their own `EvaluationSyntheticAction
+Record`, but that is not a Phase-4-style verification step). Only `agentic`
+(the real `workflow_coordinator.run()` path) passes through VERIFYING, since
+it alone produces a real orchestration for `orchestration_service.verify()`
+to have run against.
 """
 
 from __future__ import annotations
@@ -39,6 +51,8 @@ from app.services.evaluation.perturbation_service import (
     HIDDEN_EVENT_COUNT_KEY,
     HIDDEN_EVENT_IDS_KEY,
     apply_perturbation,
+    materialize_perturbed_model,
+    score_visible_events,
 )
 from app.services.evaluation.strategies import StrategyOutcome, get_strategy
 from app.services.scenario_service import scenario_service
@@ -141,13 +155,13 @@ class ExperimentService:
             # Phase 5 Section 38 (partial-observability robustness test):
             # compute this experiment's hidden-event-id set (empty unless
             # `request.perturbation_id` is recognised) and persist it onto
-            # `configuration_json` for auditability and for
-            # `metrics_service`/`mission_continuity_service` to read back
-            # when computing THIS experiment's detection metrics. See
-            # `perturbation_service` module docstring for why this is
-            # applied at metrics-read time rather than by mutating
-            # detection-scoring persistence (which is shared/cached across
-            # experiments that reuse the same deterministic run_id).
+            # `configuration_json` for auditability, for
+            # `metrics_service`/`mission_continuity_service`'s belt-and-
+            # suspenders detection-metrics filtering, and - below - to drive
+            # what actually gets (and does not get) real evidence under this
+            # experiment's perturbed model identity. See
+            # `perturbation_service` module docstring for the full
+            # mechanism.
             hidden_event_ids = apply_perturbation(
                 session, run.simulation_run_id, request.perturbation_id, request.perturbation_params
             )
@@ -169,12 +183,41 @@ class ExperimentService:
                 session, run.simulation_run_id, training_result.model_id, force_rescore=False
             )
 
+            # Perturbation robustness-test correction (Section 38): for a
+            # perturbed experiment, everything downstream of this point -
+            # correlation, and whichever defence strategy is dispatched -
+            # must read evidence through a SEPARATE, perturbation-scoped
+            # model identity whose persisted assessments genuinely omit the
+            # hidden events' real signal, not the canonical
+            # `training_result.model_id`. The canonical identity above is
+            # still trained/scored in full and stays on
+            # `record.detection_model_id` untouched, because real-outcome
+            # measurement (`metrics_service._security_metrics`) must keep
+            # reading real, unperturbed ground truth. See
+            # `perturbation_service` module docstring.
+            evidence_model_id = training_result.model_id
+            if request.perturbation_id is not None:
+                derived_model_id = materialize_perturbed_model(
+                    session,
+                    training_result.model_id,
+                    request.perturbation_id,
+                    request.perturbation_params or {},
+                )
+                score_visible_events(
+                    session, run.simulation_run_id, derived_model_id, hidden_event_ids
+                )
+                record.perturbed_model_id = derived_model_id
+                evidence_model_id = derived_model_id
+                session.commit()
+
             # Correlation is common groundwork, not a defence decision - it
             # runs identically for all four modes, including
             # `no_active_defence`, so that mode still SEES the incident it
-            # chooses not to act on.
+            # chooses not to act on. For a perturbed experiment, this reads
+            # `evidence_model_id` (the perturbed identity) so the incident
+            # candidate itself is formed from the degraded evidence set.
             correlation_result = correlation_service.analyze(
-                session, run.simulation_run_id, training_result.model_id, force=False
+                session, run.simulation_run_id, evidence_model_id, force=False
             )
             record.incident_candidate_id = correlation_result.incident_candidate_id
             session.commit()
@@ -192,7 +235,7 @@ class ExperimentService:
                 session,
                 record,
                 run.simulation_run_id,
-                training_result.model_id,
+                evidence_model_id,
                 correlation_result.incident_candidate_id,
                 request.through_sequence,
             )
@@ -273,6 +316,7 @@ class ExperimentService:
         outcome: StrategyOutcome,
     ) -> None:
         record.orchestration_id = outcome.orchestration_id
+        record.evaluation_action_id = outcome.evaluation_action_id
         record.verification_status = outcome.verification_status
         record.changed_node_ids_json = list(outcome.changed_node_ids)
         record.changed_edge_ids_json = list(outcome.changed_edge_ids)
@@ -280,8 +324,15 @@ class ExperimentService:
         record.manual_action_count = outcome.manual_action_count
         if defence_mode == DefenceMode.AGENTIC:
             record.autonomy_mode = "autonomous"
-        # Honest status transitions: only pass through VERIFYING when the
-        # strategy actually produced an orchestration to verify.
+        # Honest status transitions: only Agentic ever produces a Phase 4
+        # `ResponseOrchestrationRecord` to verify, so only Agentic passes
+        # through VERIFYING. Rule-Based/ML-Assisted execute a real synthetic
+        # mutation (or honestly do nothing) but never run Phase 4's
+        # Verification Agent - there is no Phase-4-style verification stage
+        # for these two modes by design (see `strategies.py` module
+        # docstring and `metrics_service.py`'s `verification_success`
+        # handling), so their lifecycle goes straight from RESPONDING to
+        # COMPLETED, same as `no_active_defence`.
         if outcome.orchestration_id is not None:
             record.status = ExperimentStatus.VERIFYING.value
         session.commit()

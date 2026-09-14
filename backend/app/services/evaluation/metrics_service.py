@@ -82,6 +82,7 @@ from sqlalchemy.orm import Session
 from app.database.models import (
     AnomalyAssessmentRecord,
     ApprovalRequestRecord,
+    EvaluationSyntheticActionRecord,
     ExperimentMetricRecord,
     ExperimentRecord,
     IncidentCandidateRecord,
@@ -94,6 +95,7 @@ from app.database.models import (
 from app.schemas.detection import Classification
 from app.schemas.telemetry import Severity
 from app.services import what_if_evidence_service
+from app.services.orchestration_service import orchestration_service
 from app.services.scenario_service import scenario_service
 from app.services.telemetry_service import telemetry_service
 from app.services.topology_service import topology_service
@@ -286,11 +288,27 @@ class EvaluationMetricsService:
 
         response_instant = None
         orchestration = None
+        evaluation_action = None
         if experiment.orchestration_id is not None:
             orchestration = session.get(ResponseOrchestrationRecord, experiment.orchestration_id)
             if orchestration is not None:
                 response_instant = self._event_time_at_sequence(
                     session, run_id, orchestration.through_sequence_number
+                )
+        elif experiment.evaluation_action_id is not None:
+            # `rule_based`/`ml_assisted` never produce a
+            # `ResponseOrchestrationRecord` - their own decision instant is
+            # `EvaluationSyntheticActionRecord.through_sequence_number`,
+            # the same `through_sequence_number` convention.
+            evaluation_action = session.get(
+                EvaluationSyntheticActionRecord, experiment.evaluation_action_id
+            )
+            if (
+                evaluation_action is not None
+                and evaluation_action.through_sequence_number is not None
+            ):
+                response_instant = self._event_time_at_sequence(
+                    session, run_id, evaluation_action.through_sequence_number
                 )
 
         containment_time = None
@@ -303,6 +321,12 @@ class EvaluationMetricsService:
             )
             if execution is not None and execution.execution_state == "completed_simulated":
                 containment_time = response_instant
+        elif evaluation_action is not None and evaluation_action.executed:
+            # `rule_based`/`ml_assisted` share Phase 4's own "every Blue-side
+            # event happens at the same simulated instant" convention (see
+            # module docstring): a successfully executed synthetic mutation
+            # is contained at the same instant the response was decided.
+            containment_time = response_instant
 
         verification = None
         verification_time = None
@@ -532,6 +556,7 @@ class EvaluationMetricsService:
                 "critical_assets_exposed_before": None,
                 "critical_assets_exposed_after": None,
                 "critical_exposure_reduction": None,
+                "security_improved": None,
                 "_evaluation_what_if_latency_ms": None,
             }
         total_sequence = len(telemetry_service.list_run_events(session, experiment.run_id))
@@ -586,8 +611,28 @@ class EvaluationMetricsService:
             "critical_assets_exposed_before": evidence.critical_targets_reachable_before,
             "critical_assets_exposed_after": evidence.critical_targets_reachable_after,
             "critical_exposure_reduction": critical_exposure_reduction,
+            # Mode-agnostic "did a genuine measured security improvement
+            # occur" check, shared with `orchestration_agents.
+            # VerificationAgent` via `what_if_evidence_service
+            # .security_improved` - see `_response_metrics`'s
+            # `containment_success` derivation below, which is the ONLY
+            # consumer of this key across every defence mode (including
+            # `rule_based`/`ml_assisted`, which never run Phase 4's
+            # Verification Agent at all).
+            "security_improved": what_if_evidence_service.security_improved(evidence),
             "_evaluation_what_if_latency_ms": latency_ms,
         }
+
+    @staticmethod
+    def _action_executed(session: Session, evaluation_action_id: str) -> bool:
+        """Whether a `rule_based`/`ml_assisted` experiment's evaluation
+        action actually executed a safe response, as opposed to honestly
+        recording that nothing auto-eligible was found (see
+        `EvaluationSyntheticActionRecord.executed` /
+        `app.services.evaluation.strategies`)."""
+
+        action = session.get(EvaluationSyntheticActionRecord, evaluation_action_id)
+        return action is not None and action.executed
 
     def _response_metrics(
         self,
@@ -618,7 +663,11 @@ class EvaluationMetricsService:
         # `orchestration_agents.VerificationAgent`/rule-based strategy both
         # already use (`len(changed_edges) / max(1, len(topology_edges))`),
         # never a second, different formula. Genuinely 0.0 (not N/A) for
-        # `no_active_defence`, since no mutation ever happened.
+        # `no_active_defence`, since no mutation ever happened. This
+        # fallback formula never needed a `ResponseVerificationRecord` in
+        # the first place - only the shortcut of reading a cached value -
+        # so it applies unchanged to `rule_based`/`ml_assisted`, which now
+        # never produce one.
         if metrics_json is not None and "operational_disruption_score" in metrics_json:
             operational_disruption = _as_float(metrics_json["operational_disruption_score"])
         elif affected_relationship_count > 0:
@@ -627,9 +676,27 @@ class EvaluationMetricsService:
         else:
             operational_disruption = 0.0
 
+        # bystander_impact_count: Phase 4's bystander-isolation check
+        # (`orchestration_service._bystander_isolated_assets`) is pure
+        # topology/edge-set arithmetic, not an agent decision - it is safe
+        # to call directly for `rule_based`/`ml_assisted`, which have no
+        # `ResponseVerificationRecord` (and hence no cached
+        # `bystander_isolated_asset_ids`) to read back, unlike `agentic`.
         if metrics_json is not None:
             bystander_ids = metrics_json.get("bystander_isolated_asset_ids", [])
             bystander_impact_count = len(bystander_ids) if isinstance(bystander_ids, list) else 0
+        elif experiment.evaluation_action_id is not None and affected_relationship_count > 0:
+            action = session.get(EvaluationSyntheticActionRecord, experiment.evaluation_action_id)
+            intended_target_id = action.target_id if action is not None else None
+            bystander_impact_count = (
+                len(
+                    orchestration_service.bystander_isolated_assets(
+                        intended_target_id, experiment.changed_edge_ids_json
+                    )
+                )
+                if intended_target_id is not None
+                else 0
+            )
         else:
             bystander_impact_count = 0
 
@@ -649,16 +716,43 @@ class EvaluationMetricsService:
             "residual_exposure_score": residual_exposure_score,
         }
 
-        # containment_success: was a response attempted at all (an
-        # orchestration exists) and did it end in the recorded successful
-        # verification status? N/A only when nothing was attempted
-        # (`no_active_defence`, or no recommendation was ever produced).
-        if orchestration_id is None:
+        # containment_success: was a response attempted at all (either a
+        # Phase 4 orchestration - `agentic` - or an
+        # `EvaluationSyntheticActionRecord` - `rule_based`/`ml_assisted`),
+        # and did a genuine, independently-measured security improvement
+        # occur? N/A only when nothing was attempted at all
+        # (`no_active_defence`, or no recommendation/eligible playbook was
+        # ever produced). This is deliberately NOT
+        # `experiment.verification_status == "successful_simulation"` any
+        # more - that read Phase 4's Verification Agent output, which
+        # `rule_based`/`ml_assisted` never produce - and NOT merely "an
+        # action record exists", since a `rule_based`/`ml_assisted` run
+        # that found nothing auto-eligible still persists an
+        # `EvaluationSyntheticActionRecord` with `executed=False`. Instead
+        # it reuses `_security_metrics()`'s uniformly-computed
+        # `security_improved` (see `what_if_evidence_service
+        # .security_improved`), the same real before/after Attack
+        # Graph/Blast Radius evidence every mode's metrics are built from -
+        # making `containment_success` genuinely comparable across all four
+        # modes on identical evidence, rather than four different
+        # methodologies.
+        action_attempted = orchestration_id is not None or (
+            experiment.evaluation_action_id is not None
+            and self._action_executed(session, experiment.evaluation_action_id)
+        )
+        security_improved = security.get("security_improved")
+        if not action_attempted or security_improved is None:
             containment_success = None
         else:
-            containment_success = experiment.verification_status == "successful_simulation"
+            containment_success = bool(security_improved)
 
-        # verification_success: N/A unless verification actually ran.
+        # verification_success: N/A unless verification actually ran. This
+        # remains a Phase-4-specific measurement, distinct from
+        # `containment_success` above: `rule_based`/`ml_assisted` never run
+        # Phase 4's dedicated post-execution Verification Agent step at
+        # all - by design, not merely because evidence is missing - so this
+        # stays honestly N/A for those two modes, never False and never
+        # equal to `containment_success`.
         if verification_record is None:
             verification_success = None
         else:

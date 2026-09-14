@@ -196,6 +196,17 @@ class OrchestrationService:
             if node_id not in intended_asset_ids and node_id not in remaining_connected
         )
 
+    def bystander_isolated_assets(
+        self, intended_target_id: str, changed_edge_ids: list[str]
+    ) -> list[str]:
+        """Public alias for `_bystander_isolated_assets` - pure edge-set
+        arithmetic over the synthetic topology, not an agent decision, so it
+        is safe for `app.services.evaluation.metrics_service` to call
+        directly for `rule_based`/`ml_assisted` experiments (which have no
+        `ResponseVerificationRecord` to read a cached value from)."""
+
+        return self._bystander_isolated_assets(intended_target_id, changed_edge_ids)
+
     def create(
         self,
         session: Session,

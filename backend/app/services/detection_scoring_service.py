@@ -111,6 +111,29 @@ class DetectionScoringService:
             )
         events = telemetry_service.list_run_events(session, run_id)
         scored = self.score_events(artifact, events)
+        return self._persist_scores(
+            session, model_id, run_id, artifact.calibrated_threshold, scored, force_rescore
+        )
+
+    def _persist_scores(
+        self,
+        session: Session,
+        model_id: str,
+        run_id: str,
+        threshold: float,
+        scored: list[ScoreTuple],
+        force_rescore: bool,
+        publish_event: bool = True,
+    ) -> RunScoringResult:
+        """Shared persistence step: turns a list of `ScoreTuple`s (from
+        `score_events`, for an arbitrary event list - possibly a filtered
+        subset) into persisted `AnomalyAssessmentRecord` rows under
+        `model_id`, one per tuple, numbered by list position. Used by both
+        `score_run` (the full-run path) and
+        `perturbation_service.score_visible_events` (the perturbation-scoped
+        path, which passes `publish_event=False` since a perturbed identity
+        is not a real detector run other systems should react to)."""
+
         scored_at = datetime.now(UTC)
         for sequence, (event, raw, anomaly, classification, signals, components) in enumerate(
             scored, 1
@@ -124,7 +147,7 @@ class DetectionScoringService:
                     sequence_number=sequence,
                     raw_score=raw,
                     anomaly_score=anomaly,
-                    threshold=artifact.calibrated_threshold,
+                    threshold=threshold,
                     classification=classification.value,
                     contributing_signals_json=signals,
                     component_scores_json=components,
@@ -134,20 +157,21 @@ class DetectionScoringService:
             )
         session.flush()
         anomalous_count = sum(item[3] is Classification.ANOMALOUS for item in scored)
-        get_event_bus().publish(
-            DomainEvent(
-                event_type=EventType.ANOMALY_DETECTED,
-                source="detection",
-                run_id=run_id,
-                correlation_id=run_id,
-                payload=AnomalyDetectedPayload(
+        if publish_event:
+            get_event_bus().publish(
+                DomainEvent(
+                    event_type=EventType.ANOMALY_DETECTED,
+                    source="detection",
                     run_id=run_id,
-                    model_id=model_id,
-                    assessment_count=len(scored),
-                    anomalous_count=anomalous_count,
-                ),
+                    correlation_id=run_id,
+                    payload=AnomalyDetectedPayload(
+                        run_id=run_id,
+                        model_id=model_id,
+                        assessment_count=len(scored),
+                        anomalous_count=anomalous_count,
+                    ),
+                )
             )
-        )
         return RunScoringResult(
             model_id=model_id,
             simulation_run_id=run_id,
