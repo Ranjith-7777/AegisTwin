@@ -27,6 +27,20 @@ production always wins.
   the Dockerfile/nginx changes in this phase; not duplicated here to avoid
   the two drifting apart).
 
+## Easy Auth headers not trusted until explicitly enabled
+
+`TRUST_EASYAUTH_HEADERS` (`backend/app/core/config.py`) defaults to `false`
+everywhere, including production, independently of `ENVIRONMENT`. While it
+is `false`, `X-MS-CLIENT-PRINCIPAL-ID`/`X-MS-CLIENT-PRINCIPAL` headers are
+ignored outright and cannot grant ANALYST/ADMIN — a caller falls through to
+anonymous VIEWER (or `401` if `ALLOW_ANONYMOUS_VIEWER=false`), never higher.
+This matters specifically because `infra/azure/main.bicep` does not
+configure Azure Container Apps Easy Auth — that is a manual post-deployment
+step — so production must fail safe in the window before an operator has
+configured and verified it. See `docs/security/AUTHENTICATION.md` for the
+full trust model and the manual hosting sequence that governs when it is
+safe to flip this to `true`.
+
 ## CORS
 
 CORS is environment-driven via `CORS_ORIGINS`

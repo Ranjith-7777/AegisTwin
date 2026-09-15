@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     allow_anonymous_viewer: bool = Field(default=True, validation_alias="ALLOW_ANONYMOUS_VIEWER")
     auth_dev_bypass_role: str | None = Field(default=None, validation_alias="AUTH_DEV_BYPASS_ROLE")
     docs_enabled: bool = Field(default=True, validation_alias="DOCS_ENABLED")
+    # Must default to false: Easy Auth is only configured manually, after the
+    # Container App exists (see docs/deployment/AZURE_DEPLOYMENT.md). Until an
+    # operator has verified Easy Auth is genuinely stripping/overwriting
+    # externally-supplied X-MS-CLIENT-PRINCIPAL* headers and enabled this
+    # explicitly, those headers must never be trusted — see
+    # docs/security/AUTHENTICATION.md.
+    trust_easyauth_headers: bool = Field(default=False, validation_alias="TRUST_EASYAUTH_HEADERS")
 
     @field_validator("api_prefix")
     @classmethod

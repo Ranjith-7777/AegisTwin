@@ -1,10 +1,15 @@
 """Role-based access control for AegisArena.
 
-Trust boundary: identity headers (``X-MS-CLIENT-PRINCIPAL*``) are only
-meaningful when the backend is reachable exclusively through Azure Container
-Apps built-in authentication (Easy Auth) — see
-docs/security/AUTHENTICATION.md for the deployment assumption this relies on.
-The backend must never be exposed independently of that proxy in production.
+Trust boundary: identity headers (``X-MS-CLIENT-PRINCIPAL*``) are only ever
+consulted when ``Settings.trust_easyauth_headers`` is explicitly ``True`` —
+which defaults to ``False`` everywhere, including production. That flag must
+only be flipped on, manually, after an operator has configured Azure
+Container Apps Easy Auth on the deployed Container App and verified it
+genuinely strips/overwrites any externally-supplied X-MS-CLIENT-PRINCIPAL*
+value before it reaches this backend. See docs/security/AUTHENTICATION.md
+for the full manual hosting sequence this relies on. Until then, every
+caller resolves to, at most, anonymous VIEWER — headers are never trusted as
+a substitute for a verified proxy.
 """
 
 from __future__ import annotations
@@ -63,17 +68,26 @@ def resolve_principal(request: Request, settings: Settings) -> Principal:
         )
         return Principal(role=role, subject="dev-bypass", authenticated=True)
 
-    principal_id = request.headers.get("X-MS-CLIENT-PRINCIPAL-ID")
-    principal_header = request.headers.get("X-MS-CLIENT-PRINCIPAL")
+    # Identity headers are only meaningful once Easy Auth is genuinely
+    # configured and verified to strip/overwrite any externally-supplied
+    # X-MS-CLIENT-PRINCIPAL* value (see docs/security/AUTHENTICATION.md).
+    # Until an operator has done that and explicitly flipped this setting,
+    # these headers MUST be ignored entirely — a caller supplying them
+    # directly (there is no Easy Auth in front yet) must not be able to
+    # spoof ANALYST/ADMIN.
+    if settings.trust_easyauth_headers:
+        principal_id = request.headers.get("X-MS-CLIENT-PRINCIPAL-ID")
+        principal_header = request.headers.get("X-MS-CLIENT-PRINCIPAL")
 
-    if principal_id:
-        # Header content is decoded for future claim-based use (e.g. name/roles
-        # claims) but role is currently derived solely from the verified
-        # principal id against the configured admin allow-list.
-        if principal_header:
-            _decode_client_principal(principal_header)
-        role = Role.ADMIN if principal_id in settings.admin_principal_ids else Role.ANALYST
-        return Principal(role=role, subject=principal_id, authenticated=True)
+        if principal_id:
+            # Header content is decoded for future claim-based use (e.g.
+            # name/roles claims) but role is currently derived solely from
+            # the verified principal id against the configured admin
+            # allow-list.
+            if principal_header:
+                _decode_client_principal(principal_header)
+            role = Role.ADMIN if principal_id in settings.admin_principal_ids else Role.ANALYST
+            return Principal(role=role, subject=principal_id, authenticated=True)
 
     if settings.allow_anonymous_viewer:
         return Principal(role=Role.VIEWER, subject=None, authenticated=False)
