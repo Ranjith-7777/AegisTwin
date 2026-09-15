@@ -39,6 +39,7 @@ def isolated_client(tmp_path: Path) -> Iterator[tuple[TestClient, InProcessEvent
         DATABASE_URL=f"sqlite:///{(tmp_path / 'test.db').as_posix()}",
         DEBUG=False,
         MODEL_ARTIFACT_DIR=tmp_path / "artifacts",
+        AUTH_DEV_BYPASS_ROLE="ADMIN",
     )
     bus = InProcessEventBus()
     with use_event_bus(bus), TestClient(create_app(settings)) as test_client:

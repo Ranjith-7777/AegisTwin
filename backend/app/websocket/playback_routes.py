@@ -43,6 +43,13 @@ async def _send_connection_error(
     await websocket.send_json(envelope.model_dump(mode="json"))
 
 
+# Intentionally public, VIEWER-tier, read-only stream: it replays a
+# synthetic simulation run's already-recorded telemetry/detection/
+# correlation/prediction events and accepts only playback control
+# messages (pause/resume/seek) - no state-changing actions against the
+# system are exposed here. Left ungated for the same reasons as
+# /ws/events (browser WebSocket handshakes cannot reliably carry the
+# X-MS-CLIENT-PRINCIPAL* auth headers); see docs/security/AUTHENTICATION.md.
 @router.websocket("/api/v1/ws/simulation/runs/{run_id}")
 async def simulation_playback_socket(websocket: WebSocket, run_id: str) -> None:
     await websocket.accept()

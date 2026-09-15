@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireViewer
 from app.database.session import get_database_session
 from app.schemas.attack_graph import AttackPathAnalysisResult, AttackPathType
 from app.services.attack_graph_service import attack_graph_service
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/v1/attack-graph", tags=["attack-graph"])
 Db = Annotated[Session, Depends(get_database_session)]
 
 
-@router.get("/paths", response_model=AttackPathAnalysisResult)
+@router.get("/paths", response_model=AttackPathAnalysisResult, dependencies=[RequireViewer])
 def analyze_paths(
     session: Db,
     source_asset_id: str,

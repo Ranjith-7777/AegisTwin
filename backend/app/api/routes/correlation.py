@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireAnalyst, RequireViewer
 from app.core.exceptions import ApplicationError
 from app.database.models import (
     IncidentCandidateRecord,
@@ -26,14 +27,18 @@ router = APIRouter(prefix="/v1/correlation", tags=["correlation"])
 Db = Annotated[Session, Depends(get_database_session)]
 
 
-@router.post("/runs/{run_id}/analyze", response_model=CorrelationAnalysisResult)
+@router.post(
+    "/runs/{run_id}/analyze",
+    response_model=CorrelationAnalysisResult,
+    dependencies=[RequireAnalyst],
+)
 def analyze(
     run_id: str, request: CorrelationAnalyzeRequest, session: Db
 ) -> CorrelationAnalysisResult:
     return correlation_service.analyze(session, run_id, request.model_id, request.force_reanalyze)
 
 
-@router.get("/runs/{run_id}/incidents", response_model=IncidentPage)
+@router.get("/runs/{run_id}/incidents", response_model=IncidentPage, dependencies=[RequireViewer])
 def incidents(
     run_id: str,
     session: Db,
@@ -69,7 +74,9 @@ def incidents(
     )
 
 
-@router.get("/incidents/{candidate_id}", response_model=IncidentCandidate)
+@router.get(
+    "/incidents/{candidate_id}", response_model=IncidentCandidate, dependencies=[RequireViewer]
+)
 def incident(candidate_id: str, session: Db) -> IncidentCandidate:
     record = session.get(IncidentCandidateRecord, candidate_id)
     if record is None:
@@ -79,7 +86,11 @@ def incident(candidate_id: str, session: Db) -> IncidentCandidate:
     return correlation_service.candidate_schema(record)
 
 
-@router.get("/incidents/{candidate_id}/evidence", response_model=list[IncidentEvidence])
+@router.get(
+    "/incidents/{candidate_id}/evidence",
+    response_model=list[IncidentEvidence],
+    dependencies=[RequireViewer],
+)
 def evidence(candidate_id: str, session: Db) -> list[IncidentEvidence]:
     rows = session.scalars(
         select(IncidentEvidenceRecord)
@@ -103,7 +114,11 @@ def evidence(candidate_id: str, session: Db) -> list[IncidentEvidence]:
     ]
 
 
-@router.get("/runs/{run_id}/techniques", response_model=TechniqueObservationPage)
+@router.get(
+    "/runs/{run_id}/techniques",
+    response_model=TechniqueObservationPage,
+    dependencies=[RequireViewer],
+)
 def techniques(
     run_id: str,
     session: Db,

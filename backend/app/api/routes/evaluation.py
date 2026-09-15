@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireAnalyst, RequireViewer
 from app.core.exceptions import ApplicationError
 from app.database.models import (
     ExperimentMetricRecord,
@@ -186,7 +187,7 @@ def _batch_view(batch: object) -> BatchView:
 # ---------------------------------------------------------------------
 
 
-@router.post("/experiments", response_model=ExperimentDetail)
+@router.post("/experiments", response_model=ExperimentDetail, dependencies=[RequireAnalyst])
 def create_experiment(request: ExperimentCreate, session: Db) -> ExperimentDetail:
     """Creates and runs a single ad-hoc experiment, then IMMEDIATELY
     evaluates it (metrics/MCI/ARS) - matching the batch runner's per-
@@ -199,7 +200,7 @@ def create_experiment(request: ExperimentCreate, session: Db) -> ExperimentDetai
     return _experiment_detail(session, experiment)
 
 
-@router.get("/experiments", response_model=list[ExperimentView])
+@router.get("/experiments", response_model=list[ExperimentView], dependencies=[RequireViewer])
 def list_experiments(
     session: Db,
     scenario_id: str | None = None,
@@ -218,7 +219,7 @@ def list_experiments(
     )
 
 
-@router.get("/experiments/export.csv")
+@router.get("/experiments/export.csv", dependencies=[RequireViewer])
 def export_experiments_csv(
     session: Db,
     scenario_id: str | None = None,
@@ -308,7 +309,11 @@ def _csv_row(session: Session, experiment: ExperimentRecord) -> list[object]:
     ]
 
 
-@router.get("/experiments/export.json", response_model=list[ExperimentDetail])
+@router.get(
+    "/experiments/export.json",
+    response_model=list[ExperimentDetail],
+    dependencies=[RequireViewer],
+)
 def export_experiments_json(
     session: Db,
     scenario_id: str | None = None,
@@ -346,13 +351,19 @@ def export_experiments_json(
     return details
 
 
-@router.get("/experiments/{experiment_id}", response_model=ExperimentDetail)
+@router.get(
+    "/experiments/{experiment_id}", response_model=ExperimentDetail, dependencies=[RequireViewer]
+)
 def get_experiment(experiment_id: str, session: Db) -> ExperimentDetail:
     experiment = experiment_service.get(session, experiment_id)
     return _experiment_detail(session, experiment)
 
 
-@router.post("/experiments/{experiment_id}/rerun", response_model=ExperimentDetail)
+@router.post(
+    "/experiments/{experiment_id}/rerun",
+    response_model=ExperimentDetail,
+    dependencies=[RequireAnalyst],
+)
 def rerun_experiment(experiment_id: str, session: Db) -> ExperimentDetail:
     """Creates a NEW experiment with the same configuration (scenario_id,
     seed, defence_mode, top_k, through_sequence) as `experiment_id`, sets
@@ -382,7 +393,11 @@ def rerun_experiment(experiment_id: str, session: Db) -> ExperimentDetail:
     return _experiment_detail(session, rerun)
 
 
-@router.get("/experiments/{experiment_id}/metrics", response_model=ExperimentMetrics)
+@router.get(
+    "/experiments/{experiment_id}/metrics",
+    response_model=ExperimentMetrics,
+    dependencies=[RequireViewer],
+)
 def get_experiment_metrics(experiment_id: str, session: Db) -> ExperimentMetrics:
     experiment = experiment_service.get(session, experiment_id)
     metric_record = _ensure_evaluated(session, experiment)
@@ -397,13 +412,21 @@ def get_experiment_metrics(experiment_id: str, session: Db) -> ExperimentMetrics
     return metrics
 
 
-@router.get("/experiments/{experiment_id}/timeline", response_model=ExperimentTimeline)
+@router.get(
+    "/experiments/{experiment_id}/timeline",
+    response_model=ExperimentTimeline,
+    dependencies=[RequireViewer],
+)
 def get_experiment_timeline(experiment_id: str, session: Db) -> ExperimentTimeline:
     experiment_service.get(session, experiment_id)  # 404s if unknown
     return experiment_timeline_service.build_timeline(session, experiment_id)
 
 
-@router.get("/experiments/{experiment_id}/report", response_model=ExperimentReport)
+@router.get(
+    "/experiments/{experiment_id}/report",
+    response_model=ExperimentReport,
+    dependencies=[RequireViewer],
+)
 def get_experiment_report(experiment_id: str, session: Db) -> ExperimentReport:
     experiment = experiment_service.get(session, experiment_id)
     metric_record = _ensure_evaluated(session, experiment)
@@ -530,7 +553,7 @@ def get_experiment_report(experiment_id: str, session: Db) -> ExperimentReport:
 # ---------------------------------------------------------------------
 
 
-@router.post("/batches", response_model=BatchView)
+@router.post("/batches", response_model=BatchView, dependencies=[RequireAnalyst])
 def create_batch(request: BatchCreateRequest, session: Db) -> BatchView:
     """Runs the requested scenario x seed x defence_mode matrix
     SYNCHRONOUSLY - this call blocks until the whole batch has completed
@@ -546,12 +569,12 @@ def create_batch(request: BatchCreateRequest, session: Db) -> BatchView:
     return _batch_view(batch)
 
 
-@router.get("/batches", response_model=list[BatchView])
+@router.get("/batches", response_model=list[BatchView], dependencies=[RequireViewer])
 def list_batches(session: Db) -> list[BatchView]:
     return [_batch_view(batch) for batch in batch_service.list(session)]
 
 
-@router.get("/batches/{batch_id}", response_model=BatchView)
+@router.get("/batches/{batch_id}", response_model=BatchView, dependencies=[RequireViewer])
 def get_batch(batch_id: str, session: Db) -> BatchView:
     return _batch_view(batch_service.get(session, batch_id))
 
@@ -561,7 +584,7 @@ def get_batch(batch_id: str, session: Db) -> BatchView:
 # ---------------------------------------------------------------------
 
 
-@router.post("/robustness", response_model=RobustnessResult)
+@router.post("/robustness", response_model=RobustnessResult, dependencies=[RequireAnalyst])
 def create_robustness_experiment(request: RobustnessRequest, session: Db) -> RobustnessResult:
     """Runs ONE baseline/perturbed experiment pair for a single scenario/
     seed/defence_mode combination and evaluates both - a deliberately
@@ -588,7 +611,7 @@ def create_robustness_experiment(request: RobustnessRequest, session: Db) -> Rob
 # ---------------------------------------------------------------------
 
 
-@router.get("/compare", response_model=ModeComparisonResult)
+@router.get("/compare", response_model=ModeComparisonResult, dependencies=[RequireViewer])
 def compare_modes(
     session: Db,
     scenario_id: str,
@@ -598,7 +621,7 @@ def compare_modes(
     return comparison_service.compare_modes(session, scenario_id, seed, defence_modes)
 
 
-@router.get("/aggregate", response_model=AggregateResultView)
+@router.get("/aggregate", response_model=AggregateResultView, dependencies=[RequireViewer])
 def aggregate(
     session: Db,
     scenario_id: str | None = None,

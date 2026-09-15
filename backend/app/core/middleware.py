@@ -43,3 +43,26 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
             return response
         finally:
             reset_correlation_id(token)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Baseline hardening headers for API responses.
+
+    The full page Content-Security-Policy (script/style/connect sources) is
+    applied by the production NGINX layer in front of the React SPA — see
+    frontend/nginx.conf and docs/security/PRODUCTION_HARDENING.md. This
+    middleware covers API responses served directly by FastAPI, which are
+    never rendered as HTML, so a minimal CSP that blocks framing/plugins is
+    sufficient here.
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=()"
+        )
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        return response

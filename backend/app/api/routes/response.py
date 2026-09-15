@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireAnalyst, RequireViewer
 from app.core.exceptions import ApplicationError
 from app.database.models import ResponseImpactSimulationRecord, ResponseRecommendationRecord
 from app.database.session import get_database_session
@@ -23,17 +24,23 @@ router = APIRouter(prefix="/v1/response", tags=["response"])
 Db = Annotated[Session, Depends(get_database_session)]
 
 
-@router.get("/playbooks", response_model=list[DefensivePlaybook])
+@router.get("/playbooks", response_model=list[DefensivePlaybook], dependencies=[RequireViewer])
 def playbooks() -> list[DefensivePlaybook]:
     return response_playbook_service.list()
 
 
-@router.get("/playbooks/{playbook_id}", response_model=DefensivePlaybook)
+@router.get(
+    "/playbooks/{playbook_id}", response_model=DefensivePlaybook, dependencies=[RequireViewer]
+)
 def playbook(playbook_id: str) -> DefensivePlaybook:
     return response_playbook_service.get(playbook_id)
 
 
-@router.post("/runs/{run_id}/analyze", response_model=ResponseAnalysisResult)
+@router.post(
+    "/runs/{run_id}/analyze",
+    response_model=ResponseAnalysisResult,
+    dependencies=[RequireAnalyst],
+)
 def analyze(run_id: str, request: ResponseAnalyzeRequest, session: Db) -> ResponseAnalysisResult:
     return response_service.analyze(
         session,
@@ -46,7 +53,11 @@ def analyze(run_id: str, request: ResponseAnalyzeRequest, session: Db) -> Respon
     )
 
 
-@router.get("/runs/{run_id}/recommendations", response_model=ResponseRecommendationPage)
+@router.get(
+    "/runs/{run_id}/recommendations",
+    response_model=ResponseRecommendationPage,
+    dependencies=[RequireViewer],
+)
 def recommendations(
     run_id: str,
     model_id: str,
@@ -86,7 +97,11 @@ def recommendations(
     )
 
 
-@router.get("/recommendations/{recommendation_id}", response_model=ResponseRecommendation)
+@router.get(
+    "/recommendations/{recommendation_id}",
+    response_model=ResponseRecommendation,
+    dependencies=[RequireViewer],
+)
 def recommendation(recommendation_id: str, session: Db) -> ResponseRecommendation:
     record = session.get(ResponseRecommendationRecord, recommendation_id)
     if record is None:
@@ -97,7 +112,9 @@ def recommendation(recommendation_id: str, session: Db) -> ResponseRecommendatio
 
 
 @router.get(
-    "/recommendations/{recommendation_id}/simulation", response_model=ResponseImpactSimulation
+    "/recommendations/{recommendation_id}/simulation",
+    response_model=ResponseImpactSimulation,
+    dependencies=[RequireViewer],
 )
 def simulation(recommendation_id: str, session: Db) -> ResponseImpactSimulation:
     recommendation = session.get(ResponseRecommendationRecord, recommendation_id)
@@ -113,6 +130,8 @@ def simulation(recommendation_id: str, session: Db) -> ResponseImpactSimulation:
     return response_service.simulation_schema(recommendation, record)
 
 
-@router.get("/runs/{run_id}/summary", response_model=ResponseRunSummary)
+@router.get(
+    "/runs/{run_id}/summary", response_model=ResponseRunSummary, dependencies=[RequireViewer]
+)
 def summary(run_id: str, model_id: str, session: Db) -> ResponseRunSummary:
     return response_service.summary(session, run_id, model_id)

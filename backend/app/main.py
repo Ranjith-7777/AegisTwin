@@ -12,7 +12,7 @@ from app.core.config import Settings, get_settings
 from app.core.constants import APP_DESCRIPTION
 from app.core.exceptions import ConfigurationError, register_exception_handlers
 from app.core.logging import configure_logging
-from app.core.middleware import CorrelationIdMiddleware
+from app.core.middleware import CorrelationIdMiddleware, SecurityHeadersMiddleware
 from app.database.session import Database
 from app.events.logging_subscriber import register_logging_subscriber
 from app.events.registry import get_event_bus
@@ -30,6 +30,13 @@ def ensure_simulation_only(settings: Settings) -> None:
         )
 
 
+def ensure_production_auth_safe(settings: Settings) -> None:
+    if settings.environment == "production" and settings.auth_dev_bypass_role:
+        raise ConfigurationError(
+            "AUTH_DEV_BYPASS_ROLE must not be set when ENVIRONMENT=production."
+        )
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     active_settings = settings or get_settings()
     configure_logging(active_settings.log_level)
@@ -37,6 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         ensure_simulation_only(active_settings)
+        ensure_production_auth_safe(active_settings)
         logger.info("Simulation-only enforcement active")
         database = Database(active_settings.database_url)
         application.state.database = database
@@ -66,16 +74,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             logger.info("Application shutdown started")
             database.dispose()
 
+    docs_enabled = active_settings.docs_enabled and active_settings.environment != "production"
     application = FastAPI(
         title=active_settings.app_name,
         description=APP_DESCRIPTION,
         version="0.1.0",
         debug=active_settings.debug,
         lifespan=lifespan,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
     )
     application.state.settings = active_settings
     application.state.connection_manager = ConnectionManager()
     application.add_middleware(CorrelationIdMiddleware)
+    application.add_middleware(SecurityHeadersMiddleware)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=active_settings.cors_origins,

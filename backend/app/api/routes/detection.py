@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireAnalyst, RequireViewer
 from app.database.session import get_database_session
 from app.schemas.detection import (
     AnomalyAssessmentPage,
@@ -24,7 +25,10 @@ DatabaseSession = Annotated[Session, Depends(get_database_session)]
 
 
 @router.post(
-    "/models/train", response_model=DetectionTrainingResult, status_code=status.HTTP_201_CREATED
+    "/models/train",
+    response_model=DetectionTrainingResult,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[RequireAnalyst],
 )
 def train_model(
     training: DetectionTrainingRequest, request: Request, session: DatabaseSession
@@ -34,17 +38,17 @@ def train_model(
     )
 
 
-@router.get("/models", response_model=list[DetectionModel])
+@router.get("/models", response_model=list[DetectionModel], dependencies=[RequireViewer])
 def list_models(session: DatabaseSession) -> list[DetectionModel]:
     return detection_training_service.list_models(session)
 
 
-@router.get("/models/{model_id}", response_model=DetectionModel)
+@router.get("/models/{model_id}", response_model=DetectionModel, dependencies=[RequireViewer])
 def get_model(model_id: str, session: DatabaseSession) -> DetectionModel:
     return detection_training_service.get_model(session, model_id)
 
 
-@router.post("/runs/{run_id}/score", response_model=RunScoringResult)
+@router.post("/runs/{run_id}/score", response_model=RunScoringResult, dependencies=[RequireAnalyst])
 def score_run(
     run_id: str, scoring: RunScoringRequest, session: DatabaseSession
 ) -> RunScoringResult:
@@ -53,7 +57,11 @@ def score_run(
     )
 
 
-@router.get("/runs/{run_id}/assessments", response_model=AnomalyAssessmentPage)
+@router.get(
+    "/runs/{run_id}/assessments",
+    response_model=AnomalyAssessmentPage,
+    dependencies=[RequireViewer],
+)
 def list_assessments(
     run_id: str,
     session: DatabaseSession,
@@ -80,11 +88,15 @@ def list_assessments(
     )
 
 
-@router.post("/models/{model_id}/evaluate", response_model=ModelEvaluation)
+@router.post(
+    "/models/{model_id}/evaluate", response_model=ModelEvaluation, dependencies=[RequireAnalyst]
+)
 def evaluate_model(model_id: str, session: DatabaseSession) -> ModelEvaluation:
     return detection_evaluation_service.evaluate(session, model_id)
 
 
-@router.get("/evaluations/{evaluation_id}", response_model=ModelEvaluation)
+@router.get(
+    "/evaluations/{evaluation_id}", response_model=ModelEvaluation, dependencies=[RequireViewer]
+)
 def get_evaluation(evaluation_id: str, session: DatabaseSession) -> ModelEvaluation:
     return detection_evaluation_service.get(session, evaluation_id)

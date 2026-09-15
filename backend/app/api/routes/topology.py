@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireViewer
 from app.database.session import get_database_session
 from app.schemas.topology import (
     InfrastructureNode,
@@ -20,12 +21,12 @@ router = APIRouter(prefix="/v1/topology", tags=["topology"])
 Db = Annotated[Session, Depends(get_database_session)]
 
 
-@router.get("", response_model=TopologySnapshot)
+@router.get("", response_model=TopologySnapshot, dependencies=[RequireViewer])
 def topology(include_synthetic_sink: bool = False) -> TopologySnapshot:
     return topology_service.snapshot(include_synthetic_sink)
 
 
-@router.get("/nodes", response_model=TopologyNodePage)
+@router.get("/nodes", response_model=TopologyNodePage, dependencies=[RequireViewer])
 def nodes(
     page: Annotated[int, Query(ge=1)] = 1, page_size: Annotated[int, Query(ge=1, le=100)] = 50
 ) -> TopologyNodePage:
@@ -40,12 +41,12 @@ def nodes(
     )
 
 
-@router.get("/nodes/{asset_id}", response_model=InfrastructureNode)
+@router.get("/nodes/{asset_id}", response_model=InfrastructureNode, dependencies=[RequireViewer])
 def node(asset_id: str) -> InfrastructureNode:
     return topology_service.node(asset_id)
 
 
-@router.get("/edges", response_model=TopologyEdgePage)
+@router.get("/edges", response_model=TopologyEdgePage, dependencies=[RequireViewer])
 def edges(
     page: Annotated[int, Query(ge=1)] = 1, page_size: Annotated[int, Query(ge=1, le=100)] = 50
 ) -> TopologyEdgePage:
@@ -60,12 +61,14 @@ def edges(
     )
 
 
-@router.get("/nodes/{asset_id}/neighbours", response_model=Neighbourhood)
+@router.get(
+    "/nodes/{asset_id}/neighbours", response_model=Neighbourhood, dependencies=[RequireViewer]
+)
 def neighbours(asset_id: str) -> Neighbourhood:
     return topology_service.neighbourhood(asset_id)
 
 
-@router.get("/paths", response_model=TopologyPathPage)
+@router.get("/paths", response_model=TopologyPathPage, dependencies=[RequireViewer])
 def paths(
     source_asset_id: str,
     destination_asset_id: str,
@@ -91,7 +94,7 @@ def paths(
     )
 
 
-@router.get("/runs/{run_id}/state", response_model=RunTopologyState)
+@router.get("/runs/{run_id}/state", response_model=RunTopologyState, dependencies=[RequireViewer])
 def run_state(
     run_id: str,
     session: Db,

@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireViewer
 from app.database.session import get_database_session
 from app.schemas.telemetry import EventType, Severity, TelemetryEvent, TelemetryEventPage
 from app.services.telemetry_service import telemetry_service
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/v1/telemetry", tags=["telemetry"])
 DatabaseSession = Annotated[Session, Depends(get_database_session)]
 
 
-@router.get("/events", response_model=TelemetryEventPage)
+@router.get("/events", response_model=TelemetryEventPage, dependencies=[RequireViewer])
 def list_events(
     session: DatabaseSession,
     page: Annotated[int, Query(ge=1)] = 1,
@@ -34,6 +35,6 @@ def list_events(
     )
 
 
-@router.get("/events/{event_id}", response_model=TelemetryEvent)
+@router.get("/events/{event_id}", response_model=TelemetryEvent, dependencies=[RequireViewer])
 def get_event(event_id: str, session: DatabaseSession) -> TelemetryEvent:
     return telemetry_service.get_event(session, event_id)

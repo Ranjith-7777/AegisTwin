@@ -23,11 +23,17 @@ def isolate_model_cache() -> Generator[None, None, None]:
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
+    # AUTH_DEV_BYPASS_ROLE=ADMIN: this suite predates RBAC (Phase 6) and
+    # exercises business logic, not authorization — authorization itself is
+    # covered by tests/test_authorization.py, which builds its own Settings
+    # without this bypass. ENVIRONMENT stays "development" so the bypass is
+    # permitted (backend/app/core/config.py hard-rejects it in production).
     return Settings(
         _env_file=None,
         DATABASE_URL=f"sqlite:///{(tmp_path / 'test.db').as_posix()}",
         DEBUG=False,
         MODEL_ARTIFACT_DIR=tmp_path / "artifacts",
+        AUTH_DEV_BYPASS_ROLE="ADMIN",
     )
 
 

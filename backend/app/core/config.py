@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     model_artifact_dir: Path = Field(
         default=Path("artifacts/models"), validation_alias="MODEL_ARTIFACT_DIR"
     )
+    admin_principal_ids: Annotated[list[str], NoDecode] = Field(
+        default_factory=list, validation_alias="ADMIN_PRINCIPAL_IDS"
+    )
+    allow_anonymous_viewer: bool = Field(default=True, validation_alias="ALLOW_ANONYMOUS_VIEWER")
+    auth_dev_bypass_role: str | None = Field(default=None, validation_alias="AUTH_DEV_BYPASS_ROLE")
+    docs_enabled: bool = Field(default=True, validation_alias="DOCS_ENABLED")
 
     @field_validator("api_prefix")
     @classmethod
@@ -71,6 +77,19 @@ class Settings(BaseSettings):
             raise ValueError("Each CORS origin must use http:// or https://")
         return value
 
+    @field_validator("admin_principal_ids", mode="before")
+    @classmethod
+    def parse_admin_principal_ids(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        candidate = value.strip()
+        if candidate.startswith("["):
+            parsed = json.loads(candidate)
+            if not isinstance(parsed, list):
+                raise ValueError("ADMIN_PRINCIPAL_IDS JSON must be an array")
+            return parsed
+        return [entry.strip() for entry in candidate.split(",") if entry.strip()]
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, value: str) -> str:
@@ -90,6 +109,20 @@ class Settings(BaseSettings):
         ):
             raise ValueError("AEGISTWIN_GIT_COMMIT must be a 7-40 character hexadecimal revision")
         return value.lower()
+
+    @field_validator("auth_dev_bypass_role")
+    @classmethod
+    def validate_auth_dev_bypass_role(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        normalised = value.upper()
+        if normalised not in {"VIEWER", "ANALYST", "ADMIN"}:
+            raise ValueError("AUTH_DEV_BYPASS_ROLE must be VIEWER, ANALYST, or ADMIN")
+        return normalised
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.environment == "production" and self.auth_dev_bypass_role:
+            raise ValueError("AUTH_DEV_BYPASS_ROLE must not be set when ENVIRONMENT=production")
 
 
 @lru_cache

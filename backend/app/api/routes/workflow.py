@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireAnalyst
 from app.database.session import get_database_session
 from app.schemas.blue_planning import BluePlanningCompareRequest
 from app.schemas.workflow import WorkflowRunResult
@@ -12,7 +13,9 @@ router = APIRouter(prefix="/v1/workflow", tags=["workflow"])
 Db = Annotated[Session, Depends(get_database_session)]
 
 
-@router.post("/runs/{run_id}/execute", response_model=WorkflowRunResult)
+@router.post(
+    "/runs/{run_id}/execute", response_model=WorkflowRunResult, dependencies=[RequireAnalyst]
+)
 def run_workflow(
     run_id: str, request: BluePlanningCompareRequest, session: Db
 ) -> WorkflowRunResult:

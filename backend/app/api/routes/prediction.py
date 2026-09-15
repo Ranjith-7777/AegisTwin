@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireAnalyst, RequireViewer
 from app.core.exceptions import ApplicationError
 from app.database.models import (
     PredictionEvaluationRecord,
@@ -26,7 +27,11 @@ router = APIRouter(prefix="/v1/prediction", tags=["prediction"])
 Db = Annotated[Session, Depends(get_database_session)]
 
 
-@router.post("/runs/{run_id}/analyze", response_model=PredictionAnalysisResult)
+@router.post(
+    "/runs/{run_id}/analyze",
+    response_model=PredictionAnalysisResult,
+    dependencies=[RequireAnalyst],
+)
 def analyze(
     run_id: str, request: PredictionAnalyzeRequest, session: Db
 ) -> PredictionAnalysisResult:
@@ -35,7 +40,11 @@ def analyze(
     )
 
 
-@router.get("/runs/{run_id}/snapshots", response_model=PredictionSnapshotPage)
+@router.get(
+    "/runs/{run_id}/snapshots",
+    response_model=PredictionSnapshotPage,
+    dependencies=[RequireViewer],
+)
 def snapshots(
     run_id: str,
     model_id: str,
@@ -69,7 +78,9 @@ def snapshots(
     )
 
 
-@router.get("/runs/{run_id}/latest", response_model=PredictionSnapshot)
+@router.get(
+    "/runs/{run_id}/latest", response_model=PredictionSnapshot, dependencies=[RequireViewer]
+)
 def latest(run_id: str, model_id: str, session: Db) -> PredictionSnapshot:
     record = session.scalar(
         select(PredictionSnapshotRecord)
@@ -82,12 +93,18 @@ def latest(run_id: str, model_id: str, session: Db) -> PredictionSnapshot:
     return _snapshot_or_404(session, record)
 
 
-@router.get("/snapshots/{snapshot_id}", response_model=PredictionSnapshot)
+@router.get(
+    "/snapshots/{snapshot_id}", response_model=PredictionSnapshot, dependencies=[RequireViewer]
+)
 def snapshot(snapshot_id: str, session: Db) -> PredictionSnapshot:
     return _snapshot_or_404(session, session.get(PredictionSnapshotRecord, snapshot_id))
 
 
-@router.get("/snapshots/{snapshot_id}/hypotheses", response_model=list[PredictionHypothesis])
+@router.get(
+    "/snapshots/{snapshot_id}/hypotheses",
+    response_model=list[PredictionHypothesis],
+    dependencies=[RequireViewer],
+)
 def hypotheses(snapshot_id: str, session: Db) -> list[PredictionHypothesis]:
     if session.get(PredictionSnapshotRecord, snapshot_id) is None:
         raise ApplicationError(
@@ -101,12 +118,18 @@ def hypotheses(snapshot_id: str, session: Db) -> list[PredictionHypothesis]:
     return [prediction_service.hypothesis_schema(item) for item in rows]
 
 
-@router.post("/runs/{run_id}/evaluate", response_model=PredictionEvaluation)
+@router.post(
+    "/runs/{run_id}/evaluate", response_model=PredictionEvaluation, dependencies=[RequireAnalyst]
+)
 def evaluate(run_id: str, request: PredictionAnalyzeRequest, session: Db) -> PredictionEvaluation:
     return prediction_evaluation_service.evaluate(session, run_id, request.model_id)
 
 
-@router.get("/evaluations/{evaluation_id}", response_model=PredictionEvaluation)
+@router.get(
+    "/evaluations/{evaluation_id}",
+    response_model=PredictionEvaluation,
+    dependencies=[RequireViewer],
+)
 def evaluation(evaluation_id: str, session: Db) -> PredictionEvaluation:
     record = session.get(PredictionEvaluationRecord, evaluation_id)
     if record is None:

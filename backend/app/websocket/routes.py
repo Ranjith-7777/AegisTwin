@@ -10,6 +10,13 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+# Intentionally public, VIEWER-tier, read-only event stream: no
+# state-changing actions are exposed over this WebSocket (it only
+# broadcasts events and answers ping/pong), so it is not gated behind
+# X-MS-CLIENT-PRINCIPAL* auth like the HTTP routes. Browsers cannot
+# reliably attach custom auth headers to WebSocket handshakes, and Easy
+# Auth's own session cookie already protects the connection at the
+# Container Apps edge in production. See docs/security/AUTHENTICATION.md.
 @router.websocket("/ws/events")
 async def events_socket(websocket: WebSocket) -> None:
     manager = websocket.app.state.connection_manager
