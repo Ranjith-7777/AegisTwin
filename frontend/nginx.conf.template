@@ -1,0 +1,92 @@
+# AegisArena frontend — nginx runtime configuration (envsubst template).
+#
+# This file lives at /etc/nginx/templates/default.conf.template inside the image.
+# The official nginx:alpine entrypoint runs `envsubst` over every *.template file
+# in /etc/nginx/templates/ at container start and writes the result to
+# /etc/nginx/conf.d/<name-without-.template>, substituting only the variables
+# named on NGINX_ENVSUBST_FILTER (set in the Dockerfile) so unrelated `$` tokens
+# (e.g. nginx's own $uri, $host, $remote_addr) are left untouched.
+#
+# BACKEND_UPSTREAM contract (must match the Bicep/infra Container App definition):
+#   - docker-compose (multi-container, separate service DNS names): BACKEND_UPSTREAM=backend:8000
+#   - Azure Container Apps (frontend + backend as sidecars in ONE Container App):
+#     all containers in a Container App revision share a single network namespace,
+#     so the backend is reachable at localhost, NOT via a service name.
+#     Set BACKEND_UPSTREAM=localhost:8000 in that environment.
+# The Dockerfile default (for local `docker run`/compose convenience) is backend:8000.
+# Azure deployment must override the env var to localhost:8000 explicitly.
+
+server {
+    listen 8080;
+    server_name _;
+
+    server_tokens off;
+
+    # nginx running as non-root needs writable paths for temp buffers; these are
+    # created (and chowned to the nginx user) in the Dockerfile.
+    client_body_temp_path /tmp/client_temp;
+    proxy_temp_path       /tmp/proxy_temp;
+    fastcgi_temp_path     /tmp/fastcgi_temp;
+    uwsgi_temp_path       /tmp/uwsgi_temp;
+    scgi_temp_path        /tmp/scgi_temp;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Cheap liveness probe for the frontend container itself — does not touch the backend.
+    location = /healthz {
+        default_type text/plain;
+        add_header Cache-Control "no-store" always;
+        return 200 "ok\n";
+    }
+
+    # Security headers (apply to every response from this server).
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    # Vite/React SPA, same-origin API + WS via this proxy. style-src keeps 'unsafe-inline'
+    # because React sets inline style="" attributes at runtime (used by react-flow /
+    # recharts for transforms and layout) — CSP style-src governs those, not just <style>
+    # tags, and there are no inline <script> tags in index.html so script-src stays strict.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    # Proxy REST API calls to the backend.
+    location /api/ {
+        proxy_pass http://${BACKEND_UPSTREAM}/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        add_header Cache-Control "no-store" always;
+    }
+
+    # Proxy WebSocket event stream to the backend with correct upgrade headers.
+    location /ws/ {
+        proxy_pass http://${BACKEND_UPSTREAM}/ws/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Long-lived event stream connections — keep the read timeout generous.
+        proxy_read_timeout 3600s;
+        add_header Cache-Control "no-store" always;
+    }
+
+    # Hashed static assets emitted by Vite (JS/CSS/fonts under /assets/) — safe to
+    # cache forever since the filename changes whenever the content does.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # SPA fallback for everything else (client-side routed paths). index.html itself
+    # must never be cached so deploys are picked up immediately.
+    location / {
+        add_header Cache-Control "no-store" always;
+        try_files $uri /index.html;
+    }
+}
