@@ -44,6 +44,16 @@ param maxReplicas int = 1
 @description('Entra/Easy-Auth principal IDs (object IDs) granted ADMIN role. Empty by default — set explicitly per docs/security/AUTHENTICATION.md before relying on ADMIN-tier actions.')
 param adminPrincipalIds array = []
 
+@description('''
+Sets the backend container's TRUST_EASYAUTH_HEADERS env var. MUST default
+to false — Azure Container Apps Easy Auth is configured manually, after
+this Container App already exists (see docs/security/AUTHENTICATION.md and
+docs/deployment/AZURE_DEPLOYMENT.md). Only pass true on a deployment run
+AFTER an operator has configured Easy Auth on this Container App and
+verified it is genuinely fronting the backend — never as a default.
+''')
+param trustEasyAuthHeaders bool = false
+
 var frontendImage = '${acrLoginServer}/aegisarena/frontend:${imageTag}'
 var backendImage = '${acrLoginServer}/aegisarena/backend:${imageTag}'
 // Container Apps' native Key Vault secret reference wants the secret's full
@@ -145,6 +155,14 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
             {
               name: 'ADMIN_PRINCIPAL_IDS'
               value: join(adminPrincipalIds, ',')
+            }
+            {
+              // Explicitly declared (not merely relying on the app's own
+              // false default) so a later declarative deployment of this
+              // module can never silently drop an operator's prior true
+              // setting by omission — see param description above.
+              name: 'TRUST_EASYAUTH_HEADERS'
+              value: trustEasyAuthHeaders ? 'true' : 'false'
             }
             {
               // The backend is never reached directly by the browser (only

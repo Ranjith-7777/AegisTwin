@@ -130,34 +130,35 @@ jobs:
           cache-from: type=gha,scope=frontend-deploy
           cache-to: type=gha,mode=max,scope=frontend-deploy
 
-      # Subscription-scoped deployment: main.bicep provisions/updates the
-      # resource group and everything inside it (Container App, ACR
-      # role-assignments, Key Vault, Postgres, Log Analytics, identities).
-      # PGADMIN_PASSWORD is the one genuinely sensitive value in this
-      # workflow, so it is (correctly) read from `secrets`, not `vars`. It is
-      # only ever used by Bicep at Postgres *server creation* time and to
-      # seed the corresponding Key Vault secret — Bicep is idempotent on
-      # re-deploys (the server already exists, so the password argument is
-      # not "rotated" on every run), so the operator should only ever need to
-      # set this GitHub secret once, at first deploy, not on every release.
-      # PGADMIN_PASSWORD must be a real environment variable (not a
-      # `--parameters key=value` override) because infra/azure/parameters/
-      # dev.bicepparam resolves the password via
-      # `readEnvironmentVariable('PGADMIN_PASSWORD')` at template-compile
-      # time — the actual Bicep parameter name is
-      # `postgresAdministratorPassword`, so passing
-      # `--parameters pgAdminPassword=...` (a name that does not exist in
-      # main.bicep) would either fail or silently no-op.
-      - name: Deploy infrastructure (Bicep)
+      # Resource-group-scoped release deployment: infra/azure/app.bicep
+      # updates ONLY the Container App, referencing the already-bootstrapped
+      # supporting resources (Container Apps Environment, ACR, the runtime
+      # identity, Key Vault) as `existing`. This is deliberately NOT
+      # infra/azure/main.bicep (the subscription-scope bootstrap template) —
+      # id-aegisarena-github (the identity this job authenticates as) holds
+      # only RG-scoped Contributor on rg-aegisarena-dev, which cannot run a
+      # subscription-scope `az deployment sub create`. See
+      # infra/azure/README.md and docs/deployment/AZURE_DEPLOYMENT.md for the
+      # full bootstrap-vs-release distinction.
+      #
+      # No PostgreSQL admin password is needed here — app.bicep never touches
+      # PostgreSQL or writes Key Vault secrets; that only happens once, during
+      # the manual bootstrap that runs main.bicep. There is deliberately no
+      # PGADMIN_PASSWORD (or any secret) required by this step.
+      #
+      # trustEasyAuthHeaders is left at its default `false` here. Only pass
+      # `--parameters trustEasyAuthHeaders=true` on a manual invocation of
+      # this same command AFTER Easy Auth has been configured and verified
+      # per docs/deployment/AZURE_DEPLOYMENT.md — never make it the default
+      # in this workflow.
+      - name: Deploy application release (Bicep)
         id: deploy
-        env:
-          PGADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
         run: |
-          az deployment sub create \
-            --name "aegisarena-${{ env.IMAGE_TAG }}" \
-            --location centralindia \
-            --template-file infra/azure/main.bicep \
-            --parameters infra/azure/parameters/dev.bicepparam \
+          az deployment group create \
+            --name "aegisarena-release-${{ env.IMAGE_TAG }}" \
+            --resource-group rg-aegisarena-dev \
+            --template-file infra/azure/app.bicep \
+            --parameters acrName="${{ vars.ACR_NAME }}" \
             --parameters imageTag="${{ env.IMAGE_TAG }}" \
             --query "properties.outputs" -o json > deployment-outputs.json
           cat deployment-outputs.json

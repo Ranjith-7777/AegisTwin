@@ -42,10 +42,16 @@ against, is itself created by this template). Deploy in two passes:
 
   PASS 2 (deployContainerApp=true, default): re-run with the real
   imageTag — creates/updates the Container App referencing the
-  now-existing images. Safe to re-run with this default on every
-  subsequent deploy (including via deploy-azure.yml once OIDC
-  federation has been configured against the now-existing
-  id-aegisarena-github identity).
+  now-existing images.
+
+  This subscription-scope template (main.bicep) is ONLY used for the
+  initial bootstrap (PASS 1 + PASS 2 above), run manually by an
+  authenticated human operator. Every subsequent, ordinary release uses
+  the resource-group-scoped infra/azure/app.bicep instead (via
+  `az deployment group create`), so that the RG-scoped
+  id-aegisarena-github identity — which cannot run a subscription-scope
+  deployment — can perform normal releases without ever needing
+  broader-than-RG privileges. See docs/deployment/AZURE_DEPLOYMENT.md.
 ''')
 param deployContainerApp bool = true
 
@@ -57,6 +63,9 @@ param maxReplicas int = 1
 
 @description('Entra/Easy-Auth principal IDs (object IDs) granted ADMIN role. Empty by default — configure explicitly per docs/security/AUTHENTICATION.md before relying on ADMIN-tier actions in a real deployment.')
 param adminPrincipalIds array = []
+
+@description('Sets TRUST_EASYAUTH_HEADERS on the Container App. MUST stay false for the initial bootstrap (PASS 1/PASS 2) — Easy Auth is not configured yet at that point. Only relevant when deployContainerApp=true; see docs/security/AUTHENTICATION.md.')
+param trustEasyAuthHeaders bool = false
 
 @description('PostgreSQL Flexible Server administrator login name.')
 param postgresAdministratorLogin string = 'aegisadmin'
@@ -138,6 +147,7 @@ module containerApp 'modules/containerapp.bicep' = if (deployContainerApp) {
     minReplicas: minReplicas
     maxReplicas: maxReplicas
     adminPrincipalIds: adminPrincipalIds
+    trustEasyAuthHeaders: trustEasyAuthHeaders
   }
   dependsOn: [
     // The Container App's Key Vault secret reference (database-url) must

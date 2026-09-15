@@ -42,10 +42,23 @@ It authenticates to Azure via **OIDC workload identity federation**
 GitHub repository **variables**, not secrets — see
 `docs/deployment/AZURE_DEPLOYMENT.md` and ADR-017) — there is no long-lived
 Azure credential stored in GitHub at all. After the preflight check passes,
-it builds and pushes both container images, runs the Bicep deployment
-(`deployContainerApp` stays at its default `true`), and gates success on
-`/api/health/live` and `/api/health/ready` responding, with retries to
-absorb Container Apps scale-from-zero cold starts.
+it builds and pushes both container images, then runs
+`az deployment group create --resource-group rg-aegisarena-dev` against
+**`infra/azure/app.bicep`** — deliberately **not** the subscription-scope
+`infra/azure/main.bicep` used for bootstrap. This matters for least
+privilege: `id-aegisarena-github` holds only RG-scoped `Contributor` on
+`rg-aegisarena-dev` (see `infra/azure/README.md`'s role table), which is
+incapable of running a subscription-scope deployment at all — `app.bicep`
+only ever updates the existing Container App, referencing the
+already-bootstrapped ACR/Key Vault/Container Apps Environment/identity as
+`existing` resources, so that RG-scoped privilege is exactly sufficient.
+No `PGADMIN_PASSWORD` or any secret is required for this step — `app.bicep`
+never touches PostgreSQL. `trustEasyAuthHeaders` stays at its Bicep default
+`false` in this workflow (see `docs/deployment/AZURE_DEPLOYMENT.md`'s
+"Enabling `trustEasyAuthHeaders=true`" section for how an operator supplies
+`true` explicitly on a manual run, once Easy Auth has been verified). The
+job gates success on `/api/health/live` and `/api/health/ready` responding,
+with retries to absorb Container Apps scale-from-zero cold starts.
 
 Full deployment procedure: `docs/deployment/AZURE_DEPLOYMENT.md`.
 Architecture it deploys: `docs/deployment/AZURE_ARCHITECTURE.md`.
@@ -67,10 +80,12 @@ one-time manual action in the GitHub web UI:**
 3. Under **Deployment protection rules**, add a required reviewer (and/or
    a wait timer, restricted branches, etc., as desired).
 4. Optionally, move `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` /
-   `AZURE_SUBSCRIPTION_ID` / `ACR_NAME` (variables) and `PGADMIN_PASSWORD`
-   (secret) to be Environment-scoped instead of repository-scoped, if you
-   want them to only be readable within this specific protected
-   Environment.
+   `AZURE_SUBSCRIPTION_ID` / `ACR_NAME` (variables) to be Environment-scoped
+   instead of repository-scoped, if you want them to only be readable within
+   this specific protected Environment. There is no `PGADMIN_PASSWORD` (or
+   any other secret) for this workflow to move — normal releases via
+   `app.bicep` never need the Postgres admin password at all; see
+   `docs/deployment/AZURE_DEPLOYMENT.md`.
 
 **This was not verified against this repository's live GitHub settings** —
 doing so would require `gh` calls against the live repo, which this task

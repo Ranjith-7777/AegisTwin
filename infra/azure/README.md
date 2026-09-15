@@ -8,16 +8,32 @@ subscription.
 ## Layout
 
 ```
-infra/azure/main.bicep                    subscription-scope orchestrator
+infra/azure/main.bicep                    subscription-scope BOOTSTRAP orchestrator (manual, once)
+infra/azure/app.bicep                     resource-group-scope RELEASE template (every deploy after)
 infra/azure/modules/identity.bicep        id-aegisarena-app, id-aegisarena-github
 infra/azure/modules/acr.bicep             acraegisarenadev<suffix> (Basic, admin disabled)
 infra/azure/modules/keyvault.bicep        kv-aegisarena-dev (RBAC-authorized)
 infra/azure/modules/loganalytics.bicep    log-aegisarena-dev (PerGB2018, 30d retention)
 infra/azure/modules/containerapps-env.bicep  cae-aegisarena-dev (Consumption only)
-infra/azure/modules/containerapp.bicep    ca-aegisarena-dev (frontend + backend sidecars)
+infra/azure/modules/containerapp.bicep    ca-aegisarena-dev (frontend + backend sidecars) — shared by both main.bicep and app.bicep
 infra/azure/modules/postgres.bicep        psql-aegisarena-dev<suffix> (Burstable B1ms)
-infra/azure/parameters/dev.bicepparam     non-secret dev parameters
+infra/azure/parameters/dev.bicepparam     non-secret dev parameters (main.bicep only)
 ```
+
+**Bootstrap vs. release, at a glance:**
+
+| | `main.bicep` | `app.bicep` |
+|---|---|---|
+| Scope | `subscription` | `resourceGroup` |
+| Run by | A human operator, manually, with subscription-level permissions | `deploy-azure.yml`, as `id-aegisarena-github` (RG-scoped `Contributor` only) |
+| Frequency | Once (PASS 1 + PASS 2), or rarely again if supporting infra changes | Every ordinary release |
+| Creates | Resource group, both identities, ACR, Key Vault, Log Analytics, Container Apps Environment, PostgreSQL, and (PASS 2) the Container App | Nothing new — updates only the existing Container App, referencing everything else as `existing` |
+
+`id-aegisarena-github` cannot run `main.bicep` at all — a resource-group-scoped
+role assignment cannot execute a subscription-scope ARM deployment. Rather
+than widen that identity to subscription-wide Contributor/Owner just to let
+CI run the bootstrap template, normal releases use `app.bicep` instead, which
+that identity's existing RG-scoped privilege is exactly sufficient for.
 
 ## Scope choice: subscription-scope `main.bicep`
 
@@ -62,13 +78,16 @@ parameter (default `true`) exists to break that cycle:
 - Build and push `aegisarena/frontend`/`aegisarena/backend` (tagged by git
   SHA) to the now-existing ACR.
 - **PASS 2** — `deployContainerApp=true` (default), `imageTag=<git-sha>`:
-  creates the Container App referencing the now-existing images. Every
-  subsequent deploy (manual or via `deploy-azure.yml` once OIDC is
-  configured) simply re-runs PASS 2 with the default `deployContainerApp=true`.
+  creates the Container App referencing the now-existing images.
 
 `containerAppFqdn` is the empty string when `deployContainerApp=false` —
 there is no Container App yet to have one. See
 `docs/deployment/AZURE_DEPLOYMENT.md` for the full ordered command sequence.
+
+**`main.bicep` is only used for this bootstrap (PASS 1 + PASS 2).** Every
+subsequent, ordinary release uses `infra/azure/app.bicep` instead (see
+"Bootstrap vs. release" above and `docs/deployment/AZURE_DEPLOYMENT.md`) —
+`deploy-azure.yml` never re-runs `main.bicep`.
 
 ## GitHub Actions OIDC: manual federated-credential step (NOT in Bicep)
 
@@ -115,6 +134,27 @@ step with:
 - `tenant-id`: the Azure AD tenant ID
 - `subscription-id`: the target subscription ID
 - no client secret — OIDC replaces it entirely.
+
+## `trustEasyAuthHeaders`: persisted through Bicep, defaults false everywhere
+
+Both `main.bicep` and `app.bicep` accept a `trustEasyAuthHeaders bool = false`
+parameter, threaded into `modules/containerapp.bicep`, which explicitly sets
+`TRUST_EASYAUTH_HEADERS` (`'true'`/`'false'`) as a backend container env var
+rather than omitting it. This matters because Azure Container Apps Easy Auth
+is not configured by this Bicep at all — it is a manual step performed
+after the Container App already exists (see
+`docs/deployment/AZURE_DEPLOYMENT.md`, `docs/security/AUTHENTICATION.md`).
+Explicitly declaring the env var (instead of relying on the app's own
+`false` default by omission) means a later declarative deployment of this
+module can never silently drop an operator's prior `true` setting — the
+value is always exactly what was passed to that specific deployment.
+
+Both templates default this parameter to `false`, and neither
+`infra/azure/parameters/dev.bicepparam` nor `deploy-azure.yml` ever
+overrides it to `true`. It is only ever passed as `true` explicitly, on a
+manual invocation, after Easy Auth has been configured and verified — see
+`docs/deployment/AZURE_DEPLOYMENT.md`'s "Enabling `trustEasyAuthHeaders=true`
+on a later release" section for the exact command.
 
 ## Role assignments (least privilege)
 
@@ -163,12 +203,13 @@ Phase 7+ hardening opportunity if the project ever needs it.
 
 ## Validation performed
 
-- **`bicep build`: run successfully** (Azure CLI + Bicep CLI installed
-  per-user via pip into an isolated venv, since the machine-wide MSI
-  installer requires admin rights this session does not have) — clean
-  build, zero errors, zero warnings, for both the original template set and
-  after the `deployContainerApp` bootstrap-split correction. This is local,
-  offline compilation only (no Azure account/credentials involved).
+- **`bicep build`: run successfully** on both `main.bicep` and `app.bicep`
+  (Azure CLI + Bicep CLI installed per-user via pip into an isolated venv,
+  since the machine-wide MSI installer requires admin rights this session
+  does not have) — clean build, zero errors, zero warnings, for the original
+  template set, after the `deployContainerApp` bootstrap-split correction,
+  and again after adding `app.bicep` and `trustEasyAuthHeaders`. This is
+  local, offline compilation only (no Azure account/credentials involved).
 - **`az deployment sub validate` / `az deployment sub what-if`: NOT run.**
   Both require live Azure authentication against the real subscription,
   which is out of scope for this phase — deferred to the manual hosting

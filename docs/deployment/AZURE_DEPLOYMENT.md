@@ -28,9 +28,26 @@ A brand-new environment cannot be created in a single automated pass:
   after PASS 1 below.
 
 So the **first-ever** deployment to a fresh subscription is a manual,
-human-run process (this section). Only **after** that bootstrap exists does
+human-run process (this section), using the subscription-scope
+`infra/azure/main.bicep`. Only **after** that bootstrap exists does
 `.github/workflows/deploy-azure.yml` become usable for subsequent,
-manually-triggered deployments (see "Running a deployment" below).
+manually-triggered deployments (see "Running a deployment" below) — and
+those subsequent deployments use a **different**, resource-group-scoped
+template, `infra/azure/app.bicep`, not `main.bicep` again. This distinction
+matters for least privilege:
+
+| | Template | Scope | Creates | Used by |
+|---|---|---|---|---|
+| **Initial bootstrap** (this section, manual, once) | `infra/azure/main.bicep` | `subscription` | Resource group, both identities, ACR, Key Vault, Log Analytics, Container Apps Environment, PostgreSQL, and (PASS 2) the Container App | A human operator with subscription-level permissions |
+| **Normal release** (every deploy after) | `infra/azure/app.bicep` | `resourceGroup` (`rg-aegisarena-dev`) | Nothing new — updates only the existing Container App | `deploy-azure.yml`, authenticated as `id-aegisarena-github` |
+
+`id-aegisarena-github` holds only RG-scoped `Contributor` on
+`rg-aegisarena-dev` (see the least-privilege table in
+`infra/azure/README.md`) — it is deliberately never granted
+subscription-wide access, so it is incapable of running
+`main.bicep`/`az deployment sub create` at all. This is why normal releases
+use `app.bicep`/`az deployment group create` instead: that identity's
+existing RG-scoped privileges are exactly sufficient for it.
 
 ## Ordered manual hosting sequence
 
@@ -206,18 +223,18 @@ These are identifiers, not credentials — there is no secret material in any
 of them, which is why they are GitHub *variables* rather than *secrets*
 (and why `deploy-azure.yml` reads them via `vars.*`).
 
-### Set the one GitHub secret that is genuinely sensitive
+### No GitHub secret is needed for normal releases
 
-Settings → Secrets and variables → Actions → Secrets:
-
-| Secret | Value |
-|---|---|
-| `PGADMIN_PASSWORD` | The SAME Postgres Flexible Server admin password used in PASS 1/PASS 2 above |
-
-This is only ever used by Bicep at Postgres *server creation* time and to
-seed the corresponding Key Vault secret. Because Bicep is idempotent about
-the server itself, subsequent deploys do not need to (and should not)
-rotate this value.
+`PGADMIN_PASSWORD` is used **only** at manual bootstrap time (PASS 1/PASS 2
+above, run directly with `az deployment sub create` on an operator's own
+machine) — it seeds the Postgres admin account and the corresponding Key
+Vault secret once. `infra/azure/app.bicep` (what `deploy-azure.yml` actually
+runs) never touches PostgreSQL or writes Key Vault secrets, so it needs no
+password at all. **`PGADMIN_PASSWORD` should never be added as a GitHub
+Actions secret** — it has no use there, and not storing it in GitHub reduces
+the number of places a sensitive value could ever leak from. Keep it only
+wherever you generated/recorded it for the manual bootstrap (e.g. a local
+password manager), not in this repository or its CI configuration.
 
 ### Create the GitHub `production` Environment (manual, one-time)
 
@@ -240,7 +257,8 @@ already run. Trigger it via **Actions → Deploy Azure → Run workflow**,
 optionally supplying an `image_tag` (defaults to the triggering commit SHA
 if left blank). It will:
 
-1. Authenticate to Azure via OIDC (no stored secret).
+1. Authenticate to Azure via OIDC (no stored secret), as `id-aegisarena-github`
+   (RG-scoped `Contributor` only — see the table above).
 2. **Preflight-check** that `rg-aegisarena-dev` and the configured
    `ACR_NAME` registry already exist, failing immediately with a message
    pointing back to this document if they don't — it will not attempt to
@@ -248,12 +266,41 @@ if left blank). It will:
 3. `az acr login` and build+push the backend and frontend images, tagged
    both with the immutable SHA and `:latest` (SHA tag is what actually gets
    deployed).
-4. Run `az deployment sub create` against `infra/azure/main.bicep` and
-   `infra/azure/parameters/dev.bicepparam`, overriding `imageTag`
-   (`deployContainerApp` stays at its default `true`).
+4. Run `az deployment group create --resource-group rg-aegisarena-dev`
+   against `infra/azure/app.bicep`, passing `acrName` (from the `ACR_NAME`
+   variable) and `imageTag` — **not** `infra/azure/main.bicep`, and no
+   `PGADMIN_PASSWORD`/Postgres involvement at all (see above). This only
+   ever updates the Container App; `trustEasyAuthHeaders` is left at its
+   default `false` in the workflow.
 5. Poll `/api/health/live` and `/api/health/ready` on the resulting
    Container App FQDN, retrying for cold starts, and fail the job if either
    check does not return 200 within the retry budget.
 
 There is no automatic trigger on push to `develop` or any other branch —
 every Azure deployment is an explicit, manual action.
+
+### Enabling `trustEasyAuthHeaders=true` on a later release
+
+Once Easy Auth has been configured and verified (steps 5–9 of the ordered
+sequence above), subsequent releases should keep granting real ANALYST/ADMIN
+access, which requires `TRUST_EASYAUTH_HEADERS=true` on the Container App.
+`deploy-azure.yml` never sets this itself (its default stays `false`, by
+design — the workflow has no way to know Easy Auth has actually been
+verified). To supply it explicitly on a manual run, invoke the same
+resource-group-scoped deployment directly with the extra parameter:
+
+```bash
+az deployment group create \
+  --resource-group rg-aegisarena-dev \
+  --template-file infra/azure/app.bicep \
+  --parameters acrName=<the deployed ACR name> \
+  --parameters imageTag=<git-sha> \
+  --parameters trustEasyAuthHeaders=true
+```
+
+This does not need to be repeated on every future release once Easy Auth is
+confirmed working — but it does need `trustEasyAuthHeaders=true` passed
+explicitly each time `app.bicep` is deployed (declarative infrastructure has
+no persistent "remembered" state of its own; the value must come from the
+caller every time, which is exactly why this parameter exists rather than
+being hardcoded — see `infra/azure/modules/containerapp.bicep`).
