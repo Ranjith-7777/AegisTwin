@@ -17,23 +17,33 @@ require any cloud credentials.
 ## Continuous Deployment
 
 `deploy-azure.yml` (new in Phase 6) is the one workflow that touches real
-Azure resources. It is deliberately **manual-first**:
+Azure resources. It is **manual-only**:
 
-- Primary trigger: `workflow_dispatch`, with an optional `image_tag` input
-  (defaults to the triggering commit SHA). This is the PM's explicit
-  cost-safety preference for a student subscription — no deployment happens
-  without someone explicitly clicking "Run workflow."
-- Secondary trigger: `push` to the `develop` branch (per the brief's
-  "deploy on approved changes to develop"), gated by
-  `if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'`
-  so pushes to any other branch, and pull requests, never trigger a deploy.
+- Only trigger: `workflow_dispatch`, with an optional `image_tag` input
+  (defaults to the triggering commit SHA). There is no `push` trigger of any
+  kind — the user explicitly wants to control Azure spending by hand, so no
+  deployment happens without someone explicitly clicking "Run workflow." An
+  earlier draft of this workflow included a secondary `push`-to-`develop`
+  trigger; it was removed for this reason.
+- It is for **post-bootstrap deployments only**. A brand-new environment's
+  first-ever deployment is a manual, human-run two-pass process (PASS 1
+  creates supporting infrastructure without the Container App; images are
+  built/pushed; PASS 2 creates the Container App) — see
+  `docs/deployment/AZURE_DEPLOYMENT.md` and `infra/azure/README.md`'s
+  "Two-pass bootstrap" section. `deploy-azure.yml` cannot perform that first
+  deployment (the identity it authenticates as does not exist until
+  bootstrap has run), and it explicitly **preflight-checks** that
+  `rg-aegisarena-dev` and the configured ACR already exist before doing
+  anything else, failing with a message pointing back to
+  `AZURE_DEPLOYMENT.md` if they don't.
 
 It authenticates to Azure via **OIDC workload identity federation**
 (`azure/login@v2` with `client-id`/`tenant-id`/`subscription-id` read from
 GitHub repository **variables**, not secrets — see
 `docs/deployment/AZURE_DEPLOYMENT.md` and ADR-017) — there is no long-lived
-Azure credential stored in GitHub at all. It then builds and pushes both
-container images, runs the Bicep deployment, and gates success on
+Azure credential stored in GitHub at all. After the preflight check passes,
+it builds and pushes both container images, runs the Bicep deployment
+(`deployContainerApp` stays at its default `true`), and gates success on
 `/api/health/live` and `/api/health/ready` responding, with retries to
 absorb Container Apps scale-from-zero cold starts.
 

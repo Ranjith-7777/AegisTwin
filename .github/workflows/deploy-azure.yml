@@ -1,10 +1,18 @@
 name: Deploy Azure
 
 # Cost-safety note: this workflow deploys/updates real Azure resources and is
-# deliberately manual-first (workflow_dispatch). It is NOT wired to run on
-# every push to avoid surprise Azure spend on a student subscription. The
-# optional `push` trigger on `develop` below is gated so it only ever fires
-# for that one branch — PRs and feature branches never auto-deploy.
+# MANUAL-ONLY (workflow_dispatch) — the user explicitly wants to control
+# Azure spending by hand, not have it triggered by any push. There is
+# deliberately no `push` trigger of any kind.
+#
+# This workflow is for POST-BOOTSTRAP deployments only — i.e. every deploy
+# AFTER the manual PASS 1 / PASS 2 bootstrap described in
+# docs/deployment/AZURE_DEPLOYMENT.md has already created the resource group,
+# ACR, and the id-aegisarena-github identity this workflow authenticates as.
+# It cannot perform the first-ever deployment of a fresh environment (see the
+# preflight check below) — that bootstrap is a manual, human-run process by
+# design, not something a GitHub workflow should be able to trigger on its
+# own.
 on:
   workflow_dispatch:
     inputs:
@@ -12,8 +20,6 @@ on:
         description: "Image tag to build and deploy (defaults to the triggering commit SHA)"
         required: false
         type: string
-  push:
-    branches: [develop]
 
 # id-token: write is required for OIDC federation with Entra ID (azure/login
 # below exchanges this workflow's GitHub-issued OIDC token for an Azure AD
@@ -25,10 +31,6 @@ permissions:
 
 jobs:
   deploy:
-    # Gate: only a manual dispatch (any branch, operator's explicit choice) or
-    # a push that landed on `develop` (the PM's "approved changes" branch) may
-    # run this job. A push to any other branch, or a PR, never reaches here.
-    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # Targets the GitHub "production" Environment so a required reviewer /
     # manual approval gate can be layered on top of this workflow purely via
@@ -53,6 +55,32 @@ jobs:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Preflight: this workflow is for POST-BOOTSTRAP deploys only. It
+      # authenticates as id-aegisarena-github, which does not exist until the
+      # manual PASS 1 bootstrap (docs/deployment/AZURE_DEPLOYMENT.md) has
+      # already run — so if we got this far via OIDC at all, the identity
+      # exists, but the resource group and ACR need an explicit check too,
+      # since a partially-run or wrong-subscription bootstrap should fail
+      # loudly here rather than surface as a confusing ACR-login error.
+      - name: Preflight - verify bootstrap infrastructure exists
+        run: |
+          if ! az group show --name rg-aegisarena-dev >/dev/null 2>&1; then
+            echo "::error::Resource group 'rg-aegisarena-dev' does not exist." \
+                 "This workflow only performs POST-BOOTSTRAP deployments." \
+                 "Run the manual PASS 1 / PASS 2 bootstrap described in" \
+                 "docs/deployment/AZURE_DEPLOYMENT.md before using this workflow."
+            exit 1
+          fi
+          if ! az acr show --name "${{ vars.ACR_NAME }}" --resource-group rg-aegisarena-dev >/dev/null 2>&1; then
+            echo "::error::Container Registry '${{ vars.ACR_NAME }}' was not found in" \
+                 "rg-aegisarena-dev. This workflow only performs POST-BOOTSTRAP" \
+                 "deployments. Run the manual PASS 1 bootstrap and confirm the" \
+                 "ACR_NAME repository variable matches the actual deployed registry" \
+                 "name — see docs/deployment/AZURE_DEPLOYMENT.md."
+            exit 1
+          fi
+          echo "Bootstrap infrastructure verified: resource group and ACR exist."
 
       # AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID are non-secret
       # identifiers (they identify *which* identity/tenant/subscription, not

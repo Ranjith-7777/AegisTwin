@@ -8,18 +8,17 @@
 // NOTE ON FEDERATED CREDENTIALS: this module deliberately does NOT create a
 // `Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials`
 // child resource for id-aegisarena-github. Wiring GitHub OIDC requires the
-// consuming GitHub repo/org, branch (or environment) name, and subject claim
-// format up front — details that belong to the CI setup, not to this
-// general-purpose infra template. Create it once, after this Bicep has run,
-// with (see infra/azure/README.md for the full walkthrough):
-//
-//   az identity federated-credential create \
-//     --name gha-federated-credential \
-//     --identity-name id-aegisarena-github \
-//     --resource-group rg-aegisarena-dev \
-//     --issuer https://token.actions.githubusercontent.com \
-//     --subject repo:<org>/<repo>:ref:refs/heads/main \
-//     --audiences api://AzureADTokenExchange
+// consuming GitHub repo/org and the EXACT subject claim GitHub emits for
+// this repository's workflow — details that belong to the CI setup, not to
+// this general-purpose infra template, and that must be verified against
+// the real repository rather than assumed. .github/workflows/deploy-azure.yml
+// runs its deploy job under GitHub Environment `production`, so this needs
+// an environment-context subject, not a branch-ref subject — and some
+// repositories/orgs use GitHub's newer immutable, ID-based OIDC subject
+// format instead of the classic name-based one. See
+// infra/azure/README.md and docs/deployment/AZURE_DEPLOYMENT.md for the
+// full walkthrough, including how to verify the actual subject before
+// creating anything here. No federated credential has been created.
 
 @description('Azure region for both identities.')
 param location string

@@ -25,6 +25,30 @@ param resourceGroupName string = 'rg-aegisarena-dev'
 @description('Immutable image tag (e.g. a git SHA) applied to both the frontend and backend containers. "latest" is a placeholder for local iteration only — real deployments MUST override this with an immutable tag.')
 param imageTag string = 'latest'
 
+@description('''
+Two-pass bootstrap switch. A brand-new environment cannot create the
+Container App in the same pass that creates the ACR it pulls from (no
+images exist yet), and GitHub OIDC cannot be used for that very first
+deployment either (id-aegisarena-github, the identity OIDC federates
+against, is itself created by this template). Deploy in two passes:
+
+  PASS 1 (deployContainerApp=false): creates every supporting resource
+  (resource group, both identities, ACR, Key Vault, Log Analytics,
+  Container Apps Environment, PostgreSQL) but NOT the Container App.
+  Run this manually/authenticated as a human operator — see
+  docs/deployment/AZURE_DEPLOYMENT.md.
+
+  Then: build/push the frontend+backend images to the now-existing ACR.
+
+  PASS 2 (deployContainerApp=true, default): re-run with the real
+  imageTag — creates/updates the Container App referencing the
+  now-existing images. Safe to re-run with this default on every
+  subsequent deploy (including via deploy-azure.yml once OIDC
+  federation has been configured against the now-existing
+  id-aegisarena-github identity).
+''')
+param deployContainerApp bool = true
+
 @description('Minimum Container App replicas (0 = scale to zero when idle, for near-zero cost between demos).')
 param minReplicas int = 0
 
@@ -101,7 +125,7 @@ module postgres 'modules/postgres.bicep' = {
   }
 }
 
-module containerApp 'modules/containerapp.bicep' = {
+module containerApp 'modules/containerapp.bicep' = if (deployContainerApp) {
   name: 'aegisarena-containerapp'
   scope: resourceGroup(rg.name)
   params: {
@@ -127,7 +151,12 @@ module containerApp 'modules/containerapp.bicep' = {
 // manual federated-credential + RBAC follow-up steps (see
 // infra/azure/README.md) need the principal ID for verification, and the
 // client ID for the GitHub Actions azure/login step configuration.
-output containerAppFqdn string = containerApp.outputs.containerAppFqdn
+//
+// containerAppFqdn is '' when deployContainerApp=false (PASS 1 bootstrap) —
+// there is no Container App yet to have an FQDN. Callers (deploy-azure.yml,
+// a human operator) must check for an empty string rather than assume it is
+// always populated.
+output containerAppFqdn string = deployContainerApp ? containerApp!.outputs.containerAppFqdn : ''
 output acrLoginServer string = acr.outputs.acrLoginServer
 output keyVaultName string = keyVault.outputs.keyVaultName
 output postgresServerFqdn string = postgres.outputs.postgresServerFqdn

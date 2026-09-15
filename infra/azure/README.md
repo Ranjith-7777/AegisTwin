@@ -46,13 +46,56 @@ uses `uniqueString(resourceGroup().id)`, which is a pure function of the
 resource group's resource ID — re-running the same deployment produces the
 same names and updates resources in place rather than creating duplicates.
 
+## Two-pass bootstrap (`deployContainerApp`)
+
+A brand-new environment cannot be created in one pass: the Container App
+needs images that don't exist until the ACR this same template creates has
+something pushed to it, and GitHub OIDC cannot authenticate the very first
+deployment because the identity it federates against (`id-aegisarena-github`)
+is itself created by this template. `main.bicep`'s `deployContainerApp`
+parameter (default `true`) exists to break that cycle:
+
+- **PASS 1** — `deployContainerApp=false`: creates the resource group, both
+  managed identities, ACR, Key Vault, Log Analytics, Container Apps
+  Environment, and PostgreSQL Flexible Server. Does **not** create the
+  Container App. Run manually by an authenticated human operator.
+- Build and push `aegisarena/frontend`/`aegisarena/backend` (tagged by git
+  SHA) to the now-existing ACR.
+- **PASS 2** — `deployContainerApp=true` (default), `imageTag=<git-sha>`:
+  creates the Container App referencing the now-existing images. Every
+  subsequent deploy (manual or via `deploy-azure.yml` once OIDC is
+  configured) simply re-runs PASS 2 with the default `deployContainerApp=true`.
+
+`containerAppFqdn` is the empty string when `deployContainerApp=false` —
+there is no Container App yet to have one. See
+`docs/deployment/AZURE_DEPLOYMENT.md` for the full ordered command sequence.
+
 ## GitHub Actions OIDC: manual federated-credential step (NOT in Bicep)
 
 `modules/identity.bicep` creates `id-aegisarena-github` but deliberately does
-**not** create a `federatedIdentityCredentials` child resource for it.
-Federated credentials need the consuming GitHub org/repo and branch (or
-environment) name and the exact subject claim format — CI configuration, not
-general infra — so wire it up once, after this Bicep has been deployed, with:
+**not** create a `federatedIdentityCredentials` child resource for it — and
+only after PASS 1 above has actually created that identity is there anything
+to federate against. Federated credentials need the consuming GitHub org/repo
+and the **exact** subject claim GitHub issues, which is not safe to hardcode
+here:
+
+`.github/workflows/deploy-azure.yml`'s `deploy` job runs under
+`environment: production`, so the federated credential's `--subject` must
+match whatever subject GitHub actually emits for that Environment context —
+conceptually `repo:<OWNER>/<REPO>:environment:production` for the classic
+subject format, **but**:
+
+- GitHub has introduced an immutable/ID-based OIDC subject format on some
+  repositories that includes owner/repository IDs rather than names — if
+  this repository uses that format, the classic `repo:OWNER/REPO:...` string
+  will not match.
+- **Verify the actual subject this repository's OIDC tokens emit before
+  creating the Azure federated credential** (e.g. by inspecting a decoded
+  OIDC token from a test run, or GitHub's own OIDC documentation for the
+  repository's current subject format) rather than assuming the classic
+  string is correct.
+- The Azure federated credential's `--subject` must match that verified
+  value exactly, or token exchange fails.
 
 ```
 az identity federated-credential create \
@@ -60,14 +103,14 @@ az identity federated-credential create \
   --identity-name id-aegisarena-github \
   --resource-group rg-aegisarena-dev \
   --issuer https://token.actions.githubusercontent.com \
-  --subject repo:<org>/<repo>:ref:refs/heads/main \
+  --subject <VERIFY-AND-SUBSTITUTE-THE-ACTUAL-SUBJECT-FOR-THIS-REPO> \
   --audiences api://AzureADTokenExchange
 ```
 
-Adjust `--subject` if the workflow should trigger from a different branch,
-a tag, a pull request, or a GitHub Environment (see Microsoft's OIDC subject
-claim docs for the exact string per trigger type). After this, configure the
-GitHub Actions `azure/login` step with:
+No federated credential has been created — this is documentation only, to
+be run manually once PASS 1 has created the identity and the actual subject
+has been verified. After this, configure the GitHub Actions `azure/login`
+step with:
 - `client-id`: the `githubIdentityClientId` output of `main.bicep`
 - `tenant-id`: the Azure AD tenant ID
 - `subscription-id`: the target subscription ID
@@ -120,10 +163,16 @@ Phase 7+ hardening opportunity if the project ever needs it.
 
 ## Validation performed
 
-- **`bicep build` / `az bicep build`: NOT run.** Neither the Bicep CLI nor
-  the Azure CLI is installed in this environment (`bicep --version` and
-  `az --version` both fail with "command not found" in both the bash and
-  PowerShell shells checked). This is a manual-review-only validation pass.
+- **`bicep build`: run successfully** (Azure CLI + Bicep CLI installed
+  per-user via pip into an isolated venv, since the machine-wide MSI
+  installer requires admin rights this session does not have) — clean
+  build, zero errors, zero warnings, for both the original template set and
+  after the `deployContainerApp` bootstrap-split correction. This is local,
+  offline compilation only (no Azure account/credentials involved).
+- **`az deployment sub validate` / `az deployment sub what-if`: NOT run.**
+  Both require live Azure authentication against the real subscription,
+  which is out of scope for this phase — deferred to the manual hosting
+  stage (see `docs/deployment/AZURE_DEPLOYMENT.md`).
 - Every resource type and API version was cross-checked against the Azure
   MCP `bicepschema` tool's live schema lookup (not guessed):
   - `Microsoft.App/containerApps@2025-01-01`
