@@ -1,0 +1,177 @@
+name: Deploy Azure
+
+# Cost-safety note: this workflow deploys/updates real Azure resources and is
+# deliberately manual-first (workflow_dispatch). It is NOT wired to run on
+# every push to avoid surprise Azure spend on a student subscription. The
+# optional `push` trigger on `develop` below is gated so it only ever fires
+# for that one branch — PRs and feature branches never auto-deploy.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to build and deploy (defaults to the triggering commit SHA)"
+        required: false
+        type: string
+  push:
+    branches: [develop]
+
+# id-token: write is required for OIDC federation with Entra ID (azure/login
+# below exchanges this workflow's GitHub-issued OIDC token for an Azure AD
+# access token). No client secret is used or stored anywhere — this is the
+# entire point of workload identity federation over a long-lived credential.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    # Gate: only a manual dispatch (any branch, operator's explicit choice) or
+    # a push that landed on `develop` (the PM's "approved changes" branch) may
+    # run this job. A push to any other branch, or a PR, never reaches here.
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Targets the GitHub "production" Environment so a required reviewer /
+    # manual approval gate can be layered on top of this workflow purely via
+    # GitHub repository settings (Settings -> Environments -> production),
+    # with no change needed here. See docs/devops/CI_CD.md for the one-time
+    # manual setup steps — creating the Environment and its protection rules
+    # cannot be done from a workflow file.
+    environment: production
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # OIDC login: exchanges the job's short-lived GitHub OIDC token for an
+      # Azure AD token, scoped to the `id-aegisarena-github` user-assigned
+      # managed identity via a federated credential (configured once, outside
+      # this repo, per docs/deployment/AZURE_DEPLOYMENT.md). No secret input
+      # is supplied here on purpose.
+      - name: Azure login (OIDC, no client secret)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID are non-secret
+      # identifiers (they identify *which* identity/tenant/subscription, not
+      # a credential that proves who you are) so they are stored as
+      # repository/environment `vars`, not `secrets`, per the project's
+      # preference for variables over secrets wherever a value isn't
+      # actually sensitive.
+      - name: ACR login
+        run: az acr login --name ${{ vars.ACR_NAME }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Backend image: no build-time secrets are needed — the container reads
+      # its configuration (DATABASE_URL, CORS_ORIGINS, etc.) from environment
+      # variables injected by the Container App at runtime, never baked into
+      # the image.
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: true
+          tags: |
+            ${{ vars.ACR_NAME }}.azurecr.io/aegisarena/backend:${{ env.IMAGE_TAG }}
+            ${{ vars.ACR_NAME }}.azurecr.io/aegisarena/backend:latest
+          cache-from: type=gha,scope=backend-deploy
+          cache-to: type=gha,mode=max,scope=backend-deploy
+
+      # Frontend image: VITE_API_BASE_URL / VITE_WS_BASE_URL build args are
+      # intentionally NOT passed here. frontend/src/lib/constants.ts already
+      # falls back to `window.location.origin` (and derives the WebSocket URL
+      # from it) whenever these are unset, and the Azure deployment always
+      # serves frontend and backend from the same Container App / same
+      # origin (nginx sidecar proxying /api and /ws to localhost:8000 — see
+      # frontend/Dockerfile and frontend/nginx.conf.template). Same-origin is
+      # therefore already correct with no build args, so the Dockerfile's
+      # localhost:8000 defaults are simply unused at runtime in this image.
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ vars.ACR_NAME }}.azurecr.io/aegisarena/frontend:${{ env.IMAGE_TAG }}
+            ${{ vars.ACR_NAME }}.azurecr.io/aegisarena/frontend:latest
+          cache-from: type=gha,scope=frontend-deploy
+          cache-to: type=gha,mode=max,scope=frontend-deploy
+
+      # Subscription-scoped deployment: main.bicep provisions/updates the
+      # resource group and everything inside it (Container App, ACR
+      # role-assignments, Key Vault, Postgres, Log Analytics, identities).
+      # PGADMIN_PASSWORD is the one genuinely sensitive value in this
+      # workflow, so it is (correctly) read from `secrets`, not `vars`. It is
+      # only ever used by Bicep at Postgres *server creation* time and to
+      # seed the corresponding Key Vault secret — Bicep is idempotent on
+      # re-deploys (the server already exists, so the password argument is
+      # not "rotated" on every run), so the operator should only ever need to
+      # set this GitHub secret once, at first deploy, not on every release.
+      # PGADMIN_PASSWORD must be a real environment variable (not a
+      # `--parameters key=value` override) because infra/azure/parameters/
+      # dev.bicepparam resolves the password via
+      # `readEnvironmentVariable('PGADMIN_PASSWORD')` at template-compile
+      # time — the actual Bicep parameter name is
+      # `postgresAdministratorPassword`, so passing
+      # `--parameters pgAdminPassword=...` (a name that does not exist in
+      # main.bicep) would either fail or silently no-op.
+      - name: Deploy infrastructure (Bicep)
+        id: deploy
+        env:
+          PGADMIN_PASSWORD: ${{ secrets.PGADMIN_PASSWORD }}
+        run: |
+          az deployment sub create \
+            --name "aegisarena-${{ env.IMAGE_TAG }}" \
+            --location centralindia \
+            --template-file infra/azure/main.bicep \
+            --parameters infra/azure/parameters/dev.bicepparam \
+            --parameters imageTag="${{ env.IMAGE_TAG }}" \
+            --query "properties.outputs" -o json > deployment-outputs.json
+          cat deployment-outputs.json
+
+      # Surface the Bicep `containerAppFqdn` output for the health-gate step
+      # below, without ever echoing secret values into logs.
+      - name: Capture deployment outputs
+        id: outputs
+        run: |
+          fqdn=$(jq -r '.containerAppFqdn.value' deployment-outputs.json)
+          echo "container_app_fqdn=${fqdn}" >> "$GITHUB_OUTPUT"
+
+      # Health gate: Container Apps runs with minReplicas=0 in steady state
+      # (see docs/deployment/COST_CONTROL.md), so the very first request
+      # after a scale-to-zero period cold-starts the revision. Retry with
+      # backoff instead of failing immediately on the first miss.
+      - name: Health gate - liveness
+        run: |
+          fqdn="${{ steps.outputs.outputs.container_app_fqdn }}"
+          url="https://${fqdn}/api/health/live"
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS "$url"; then
+              echo "Liveness check passed on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt failed (cold start?); retrying in 15s..."
+            sleep 15
+          done
+          echo "Liveness check failed after 5 attempts"
+          exit 1
+
+      - name: Health gate - readiness
+        run: |
+          fqdn="${{ steps.outputs.outputs.container_app_fqdn }}"
+          url="https://${fqdn}/api/health/ready"
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS "$url"; then
+              echo "Readiness check passed on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt failed (cold start?); retrying in 15s..."
+            sleep 15
+          done
+          echo "Readiness check failed after 5 attempts"
+          exit 1
