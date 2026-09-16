@@ -104,10 +104,12 @@ export function BlueAgentOverviewPage() {
             </p>
           ) : (
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
-              <dt>Current incident</dt>
-              <dd>{activeOrchestration.incident_candidate_id.slice(0, 8)}</dd>
-              <dt>Selected plan</dt>
-              <dd>{activeOrchestration.selected_recommendation_id.slice(0, 8)}</dd>
+              <dt>Response action</dt>
+              <dd>
+                {activeOrchestration.plan_steps[0]
+                  ? `${label(activeOrchestration.plan_steps[0].playbook_id)} → ${activeOrchestration.plan_steps[0].target_type.replaceAll('_', ' ')} ${activeOrchestration.plan_steps[0].target_id}`
+                  : 'No plan step recorded'}
+              </dd>
               <dt>Orchestration state</dt>
               <dd>{label(activeOrchestration.current_state)}</dd>
               <dt>Approval status</dt>

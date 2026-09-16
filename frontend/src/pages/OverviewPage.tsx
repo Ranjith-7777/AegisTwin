@@ -7,6 +7,7 @@ import { DetectionSummaryCard } from '../components/dashboard/DetectionSummaryCa
 import { KpiCards } from '../components/dashboard/KpiCards'
 import { MissionProgress, type StageKey } from '../components/dashboard/MissionProgress'
 import { RecentActivity, type ActivityItem } from '../components/dashboard/RecentActivity'
+import { ResilienceCard } from '../components/dashboard/ResilienceCard'
 import { RiskGauge } from '../components/dashboard/RiskGauge'
 import { PageHeader } from '../components/layout/PageHeader'
 import { RedAgentPanel } from '../components/simulation/RedAgentPanel'
@@ -241,6 +242,7 @@ export function OverviewPage() {
           onApprove={approve}
         />
       </div>
+      <ResilienceCard />
       <div className="workspace">
         <RedAgentPanel state={state} />
         <RecentActivity items={activityItems} />

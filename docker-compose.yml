@@ -13,6 +13,11 @@ services:
       CORS_ORIGINS: http://localhost:5173
       LOG_LEVEL: INFO
       SIMULATION_ONLY: "true"
+      # Local/dev convenience only: grants every request ADMIN without a real
+      # sign-in. backend/app/core/config.py hard-fails at startup if this is
+      # ever set with ENVIRONMENT=production, so it cannot leak into a real
+      # deployment. See docs/security/AUTHENTICATION.md.
+      AUTH_DEV_BYPASS_ROLE: ADMIN
     ports:
       - "8000:8000"
     volumes:
