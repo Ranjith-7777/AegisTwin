@@ -53,21 +53,22 @@ describe('AegisArena command centre', () => {
   it('renders the application', () => {
     renderApp()
     expect(screen.getByLabelText('Cloud Digital Twin')).toBeInTheDocument()
-    expect(screen.getByLabelText('Demonstration progress')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Command Centre' })).toBeInTheDocument()
   })
-  it('renders the six grouped sidebar entries', async () => {
+  it('renders the seven grouped sidebar entries', async () => {
     renderApp()
     const nav = screen.getByRole('navigation', { name: 'Primary navigation' })
     for (const label of [
       'Command Centre',
       'Digital Twin',
       'Threat Analysis',
-      'Defense',
-      'Evaluation',
+      'Blue Agent',
+      'Red Agent',
+      'Reports',
       'Results',
     ])
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument()
-    expect(within(nav).getAllByRole('link')).toHaveLength(6)
+    expect(within(nav).getAllByRole('link')).toHaveLength(7)
     expect(await screen.findByText('Backend connected')).toBeInTheDocument()
   })
   it('exposes every original route through section sub-navigation', async () => {
@@ -119,21 +120,21 @@ describe('AegisArena command centre', () => {
   })
   it('renders exactly the four command centre KPI cards', () => {
     renderApp()
-    for (const label of ['Cloud Health', 'Risk Score', 'Availability', 'Active Incidents'])
+    for (const label of ['Resilience', 'Threats', 'Blue Agent', 'Red Agent'])
       expect(screen.getByLabelText(label)).toBeInTheDocument()
-    expect(screen.getByLabelText('Cloud posture').children).toHaveLength(4)
+    expect(screen.getByLabelText('Command Centre summary').children).toHaveLength(4)
   })
   it('renders the compact command centre workspace', () => {
     renderApp()
+    // One merged panel carries both the incident summary and the Blue Agent
+    // response — no separate bordered card per widget.
+    const incidentPanel = screen.getByLabelText('Active incident')
+    expect(incidentPanel).toBeInTheDocument()
+    expect(within(incidentPanel).getByText('Blue Agent Response')).toBeInTheDocument()
     expect(screen.getByLabelText('Cloud Digital Twin')).toBeInTheDocument()
-    expect(screen.getByLabelText('Red Agent controls')).toBeInTheDocument()
-    expect(screen.getByLabelText('Blue Agent recommendation')).toBeInTheDocument()
-    // The long demonstration checklist is replaced by a five-step indicator.
-    const steps = within(screen.getByLabelText('Demonstration progress')).getAllByRole('listitem')
-    expect(steps).toHaveLength(5)
-    expect(screen.getByLabelText('Demonstration progress')).toHaveTextContent(
-      /Simulate.*Detect.*Predict.*Defend.*Recover/,
-    )
+    expect(screen.getByText('Recent Activity')).toBeInTheDocument()
+    expect(screen.getByLabelText('Quick actions')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Scenario' })).toBeInTheDocument()
   })
   it('navigates to the interactive synthetic topology route', async () => {
     renderApp()

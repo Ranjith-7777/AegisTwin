@@ -45,9 +45,9 @@ const positions: Record<string, { x: number; y: number }> = {
   'simulation-egress-sink-01': { x: 830, y: 330 },
 }
 
-const FIT_PADDING = 16
-const FIT_MIN_ZOOM = 0.2
-const FIT_MAX_ZOOM = 1.25
+const FIT_PADDING = 8
+const FIT_MIN_ZOOM = 0.35
+const FIT_MAX_ZOOM = 1.5
 
 export interface AttackPathHighlight {
   pathType: string

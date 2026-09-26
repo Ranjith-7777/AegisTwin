@@ -12,6 +12,7 @@ import {
   Settings,
   ShieldAlert,
   ShieldCheck,
+  Swords,
   Target,
   Workflow,
   type LucideIcon,
@@ -23,35 +24,48 @@ export interface AppRouteDefinition {
   icon: LucideIcon
 }
 
+export type NavGroupId = 'operations' | 'agents' | 'analysis'
+
 export interface NavSection {
   id: string
   label: string
   icon: LucideIcon
+  group: NavGroupId
   /** The first entry is the section landing route. */
   routes: [AppRouteDefinition, ...AppRouteDefinition[]]
 }
 
+export const navGroupLabels: Record<NavGroupId, string> = {
+  operations: 'Operations',
+  agents: 'Agents',
+  analysis: 'Analysis',
+}
+
 /**
- * Five sidebar entries. Every existing route is preserved and reachable through
- * the grouped sub-navigation rendered inside each section.
+ * Sidebar entries grouped into Operations / Agents / Analysis. Every existing
+ * route is preserved and reachable through the grouped sub-navigation
+ * rendered inside each section (see SectionNav).
  */
 export const navSections: NavSection[] = [
   {
     id: 'overview',
     label: 'Command Centre',
     icon: LayoutDashboard,
+    group: 'operations',
     routes: [{ path: '/', label: 'Command Centre', icon: LayoutDashboard }],
   },
   {
     id: 'digital-twin',
     label: 'Digital Twin',
     icon: Boxes,
+    group: 'operations',
     routes: [{ path: '/digital-twin', label: 'Cloud Digital Twin', icon: Boxes }],
   },
   {
     id: 'threat-analysis',
     label: 'Threat Analysis',
     icon: Target,
+    group: 'operations',
     routes: [
       { path: '/telemetry', label: 'Live Telemetry', icon: RadioTower },
       { path: '/incidents', label: 'Incidents', icon: ShieldAlert },
@@ -61,8 +75,9 @@ export const navSections: NavSection[] = [
   },
   {
     id: 'defense',
-    label: 'Defense',
+    label: 'Blue Agent',
     icon: Bot,
+    group: 'agents',
     routes: [
       { path: '/blue-agent/overview', label: 'Overview', icon: Bot },
       { path: '/blue-agent/agent-workflow', label: 'Agent Workflow', icon: Workflow },
@@ -72,12 +87,20 @@ export const navSections: NavSection[] = [
     ],
   },
   {
+    id: 'red-agent',
+    label: 'Red Agent',
+    icon: Swords,
+    group: 'agents',
+    routes: [{ path: '/red-agent', label: 'Red Agent', icon: Swords }],
+  },
+  {
     id: 'evaluation',
-    label: 'Evaluation',
-    icon: FlaskConical,
+    label: 'Reports',
+    icon: ListChecks,
+    group: 'analysis',
     routes: [
+      { path: '/evaluation/experiments', label: 'Reports', icon: ListChecks },
       { path: '/evaluation', label: 'Overview', icon: FlaskConical },
-      { path: '/evaluation/experiments', label: 'Experiments', icon: ListChecks },
       { path: '/evaluation/compare', label: 'Compare', icon: GitBranch },
       { path: '/evaluation/aggregate', label: 'Aggregate', icon: Activity },
       { path: '/evaluation/batches', label: 'Batches', icon: Boxes },
@@ -87,6 +110,7 @@ export const navSections: NavSection[] = [
     id: 'results',
     label: 'Results',
     icon: FileClock,
+    group: 'analysis',
     routes: [
       { path: '/model-analytics', label: 'Detection Models', icon: Activity },
       { path: '/audit-trail', label: 'Audit Trail', icon: FileClock },

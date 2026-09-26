@@ -2,7 +2,8 @@ import { PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 
 import { APP_NAME, APP_TAGLINE } from '../../lib/constants'
-import { navSections, sectionForPath } from '../../lib/routes'
+import { navGroupLabels, navSections, sectionForPath, type NavGroupId } from '../../lib/routes'
+import { useSystemData } from '../../hooks/useSystemData'
 import { cn } from '../../lib/utils'
 
 interface AppSidebarProps {
@@ -12,9 +13,13 @@ interface AppSidebarProps {
   onNavigate: () => void
 }
 
+const GROUP_ORDER: NavGroupId[] = ['operations', 'agents', 'analysis']
+
 export function AppSidebar({ collapsed, mobileOpen, onCollapse, onNavigate }: AppSidebarProps) {
   const { pathname } = useLocation()
   const active = sectionForPath(pathname)
+  const { health } = useSystemData()
+  const connected = health?.status === 'healthy' && health.database === 'connected'
   return (
     <aside
       className={cn('app-sidebar', collapsed && 'is-collapsed', mobileOpen && 'is-mobile-open')}
@@ -32,26 +37,34 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapse, onNavigate }: Ap
         )}
       </div>
       <nav className="sidebar-nav" aria-label="Primary navigation">
-        {navSections.map((section) => (
-          <NavLink
-            key={section.id}
-            to={section.routes[0].path}
-            onClick={onNavigate}
-            title={section.label}
-            className={cn('nav-item', active?.id === section.id && 'is-active')}
-          >
-            <section.icon className="size-[1.05rem] shrink-0" aria-hidden="true" />
-            <span className={cn(collapsed && 'lg:hidden')}>{section.label}</span>
-          </NavLink>
+        {GROUP_ORDER.map((groupId) => (
+          <div className="sidebar-group" key={groupId}>
+            {!collapsed && <p className="sidebar-group-label">{navGroupLabels[groupId]}</p>}
+            {navSections
+              .filter((section) => section.group === groupId)
+              .map((section) => (
+                <NavLink
+                  key={section.id}
+                  to={section.routes[0].path}
+                  onClick={onNavigate}
+                  title={section.label}
+                  className={cn('nav-item', active?.id === section.id && 'is-active')}
+                >
+                  <section.icon className="size-[1.05rem] shrink-0" aria-hidden="true" />
+                  <span className={cn(collapsed && 'lg:hidden')}>{section.label}</span>
+                </NavLink>
+              ))}
+          </div>
         ))}
       </nav>
       <div className="sidebar-foot">
         {!collapsed && (
           <div className="sidebar-env">
-            <span className="chip-dot" aria-hidden="true" />
-            Safe Simulation
+            <span className={cn('chip-dot', connected ? 'is-healthy' : 'is-offline')} aria-hidden="true" />
+            {connected ? 'Backend Connected' : 'Backend Disconnected'}
           </div>
         )}
+        {!collapsed && <div className="sidebar-env sidebar-env-muted">Demo Environment</div>}
         <button
           className="nav-item"
           onClick={onCollapse}

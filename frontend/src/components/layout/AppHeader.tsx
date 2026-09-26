@@ -1,13 +1,17 @@
-import { Menu, RefreshCw, Shield } from 'lucide-react'
+import { Menu, RefreshCw } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 
 import { useSystemData } from '../../hooks/useSystemData'
 import { useSafetyStatus } from '../../hooks/useSafetyStatus'
-import { APP_NAME, FALLBACK_SAFETY_MESSAGE } from '../../lib/constants'
+import { FALLBACK_SAFETY_MESSAGE } from '../../lib/constants'
+import { sectionForPath } from '../../lib/routes'
 import { Button } from '../ui/button'
 
 export function AppHeader({ onMenu }: { onMenu: () => void }) {
   const { health, system, loading, refresh } = useSystemData()
   const { safety } = useSafetyStatus()
+  const { pathname } = useLocation()
+  const section = sectionForPath(pathname)
   const connected = health?.status === 'healthy' && health.database === 'connected'
   const operational = connected && system?.operational === true
   return (
@@ -22,10 +26,7 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
         >
           <Menu className="size-5" />
         </Button>
-        <span className="brand-mark" aria-hidden="true">
-          <Shield className="size-[1.05rem]" />
-        </span>
-        <p className="brand-name">{APP_NAME}</p>
+        <p className="header-crumb">{section?.label ?? 'AegisArena'}</p>
         <span className="chip chip-accent">Simulation Mode</span>
       </div>
       <div className="header-statuses">

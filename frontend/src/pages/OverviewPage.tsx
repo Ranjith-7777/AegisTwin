@@ -1,16 +1,11 @@
+import { Boxes, FileBarChart, ShieldAlert, Swords } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-import { ActiveIncidentCard } from '../components/dashboard/ActiveIncidentCard'
-import { BlueAgentCard } from '../components/dashboard/BlueAgentCard'
-import { DetectionSummaryCard } from '../components/dashboard/DetectionSummaryCard'
-import { KpiCards } from '../components/dashboard/KpiCards'
-import { MissionProgress, type StageKey } from '../components/dashboard/MissionProgress'
-import { RecentActivity, type ActivityItem } from '../components/dashboard/RecentActivity'
-import { ResilienceCard } from '../components/dashboard/ResilienceCard'
-import { RiskGauge } from '../components/dashboard/RiskGauge'
-import { PageHeader } from '../components/layout/PageHeader'
-import { RedAgentPanel } from '../components/simulation/RedAgentPanel'
+import { CommandKpiRow } from '../components/dashboard/CommandKpiRow'
+import { SecurityPostureWidget } from '../components/dashboard/SecurityPostureWidget'
+import type { ActivityItem } from '../components/dashboard/RecentActivity'
+import { Button } from '../components/ui/button'
 import { CyberDigitalTwin } from '../components/topology/CyberDigitalTwin'
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
 import { useTopology } from '../hooks/useTopology'
@@ -140,14 +135,6 @@ export function OverviewPage() {
     ],
   )
 
-  const completed: Record<StageKey, boolean> = {
-    simulate: playback.activeRun !== null,
-    detect: playback.assessmentTimeline.length > 0,
-    predict: playback.predictionTimeline.length > 0,
-    defend: recommendation !== null,
-    recover: recovered,
-  }
-
   const activityItems: ActivityItem[] = [
     {
       label: 'Scenario started',
@@ -187,65 +174,186 @@ export function OverviewPage() {
     },
   ]
 
+  const incident = playback.currentIncidentCandidate
+  const components = recommendation?.defense_components
+  const slaImpact = components ? components.sla_penalty + components.service_disruption : 0
+
   return (
-    <div className="overview">
-      <PageHeader
-        title="Command Centre"
-        subtitle="Autonomous cloud cyber-resilience overview — simulation environment"
-      />
-      <MissionProgress completed={completed} />
-      <div className="overview-risk-row">
-        <RiskGauge state={state} hasEvidence={playback.activeRun !== null} />
-        <KpiCards state={state} />
+    <div className="viewport-page">
+      <div className="command-header">
+        <div>
+          <h1>Command Centre</h1>
+          <p>Autonomous cloud security overview</p>
+        </div>
+        <span className="command-header-status">
+          <span className="chip-dot" aria-hidden="true" />
+          Demo · Operational
+        </span>
       </div>
-      <div className="overview-row">
-        <ActiveIncidentCard incident={playback.currentIncidentCandidate} />
-        <section className="card twin-panel" aria-label="Cloud Digital Twin">
-          <div className="card-head">
-            <h2 className="card-title">Digital Twin</h2>
-            <Link className="card-link" to="/digital-twin">
-              Open Digital Twin
-            </Link>
-          </div>
-          <div className="twin-canvas-wrap">
+
+      <CommandKpiRow state={state} />
+
+      <div className="command-main">
+        <div className="command-left">
+          <section className="command-twin" aria-label="Cloud Digital Twin">
+            <div className="command-twin-head">
+              <h2 className="panel-title">Digital Twin</h2>
+              <Link className="card-link" to="/digital-twin">
+                Open Digital Twin
+              </Link>
+            </div>
+            <div className="twin-canvas-wrap">
+              {topology ? (
+                <CyberDigitalTwin
+                  topology={topology}
+                  runState={null}
+                  liveOverlay={playback.liveTopology}
+                  animationPaused={playback.playbackState === 'paused'}
+                  variant="workspace"
+                />
+              ) : (
+                <p className="twin-loading">Loading synthetic cloud topology…</p>
+              )}
+            </div>
             {topology ? (
-              <CyberDigitalTwin
-                topology={topology}
-                runState={null}
-                liveOverlay={playback.liveTopology}
-                animationPaused={playback.playbackState === 'paused'}
-                variant="workspace"
-              />
-            ) : (
-              <p className="twin-loading">Loading synthetic cloud topology…</p>
-            )}
+              <p className="command-twin-foot">
+                {topology.nodes.length} synthetic assets · {topology.edges.length} relationships
+              </p>
+            ) : null}
+          </section>
+
+          <section className="command-activity" aria-label="Recent activity">
+            <div className="command-activity-head">
+              <h2>Recent Activity</h2>
+            </div>
+            <div className="activity-table-scroll">
+              <table className="activity-table">
+                <thead>
+                  <tr>
+                    <th>Stage</th>
+                    <th>Detail</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activityItems.map((item) => (
+                    <tr key={item.label}>
+                      <td className="is-primary">{item.label}</td>
+                      <td>{item.detail}</td>
+                      <td>
+                        <span
+                          className={
+                            item.done ? 'activity-status is-done' : 'activity-status is-pending'
+                          }
+                        >
+                          <span className="chip-dot" aria-hidden="true" />
+                          {item.done ? 'Done' : 'Pending'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div className="command-right">
+          <SecurityPostureWidget state={state} totalAssets={topology?.nodes.length ?? 0} />
+
+          <aside className="command-panel" aria-label="Active incident">
+            <div className="command-panel-section">
+              <p className="command-panel-label">
+                <ShieldAlert className="size-3.5" aria-hidden="true" />
+                Active Incident
+              </p>
+              {incident ? (
+                <>
+                  <p className="text-sm font-semibold capitalize text-slate-900">
+                    {incident.priority} priority
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {incident.evidence_count} evidence items ·{' '}
+                    {incident.observed_technique_ids.length} MITRE techniques
+                  </p>
+                  <Link className="card-link text-xs" to="/incidents">
+                    View incident →
+                  </Link>
+                </>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  No active incidents. Correlated evidence will appear here once detected.
+                </p>
+              )}
+            </div>
+            <div className="command-panel-section">
+              <p className="command-panel-label">Blue Agent Response</p>
+              {recommendation && components ? (
+                <>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {recommendation.playbook_name}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Defense score {recommendation.defense_score.toFixed(2)} · +
+                    {components.security_improvement.toFixed(2)} security · −
+                    {slaImpact.toFixed(2)} SLA impact
+                  </p>
+                  <Button size="sm" disabled={busy} onClick={approve}>
+                    Approve
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-500">
+                    {error ??
+                      (ready
+                        ? 'No mitigation has been ranked for the current sequence.'
+                        : 'Start a scenario with a detection model to rank mitigations.')}
+                  </p>
+                  <Button size="sm" variant="outline" disabled={!ready || busy} onClick={analyze}>
+                    {busy ? 'Ranking…' : 'Rank mitigations'}
+                  </Button>
+                </>
+              )}
+            </div>
+          </aside>
+
+          <div className="quick-actions-row" aria-label="Quick actions">
+            <Button
+              variant="outline"
+              size="sm"
+              className="quick-action-btn"
+              onClick={() => {
+                void navigate('/red-agent')
+              }}
+            >
+              <Swords className="size-3.5" />
+              Run Scenario
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="quick-action-btn"
+              onClick={() => {
+                void navigate('/digital-twin')
+              }}
+            >
+              <Boxes className="size-3.5" />
+              Open Twin
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="quick-action-btn"
+              onClick={() => {
+                void navigate('/evaluation')
+              }}
+            >
+              <FileBarChart className="size-3.5" />
+              Report
+            </Button>
           </div>
-          <p className="px-4 pb-3 text-xs text-slate-500">
-            {topology
-              ? `${String(topology.nodes.length)} synthetic assets · ${String(topology.edges.length)} relationships`
-              : null}
-          </p>
-        </section>
-      </div>
-      <div className="overview-row">
-        <DetectionSummaryCard
-          model={playback.selectedModel}
-          assessments={playback.assessmentTimeline}
-          prediction={playback.currentPrediction}
-        />
-        <BlueAgentCard
-          recommendation={recommendation}
-          busy={busy}
-          ready={ready}
-          error={error}
-          onAnalyze={analyze}
-          onApprove={approve}
-        />
-      </div>
-      <ResilienceCard />
-      <div className="workspace">
-        <RedAgentPanel state={state} />
-        <RecentActivity items={activityItems} />
+        </div>
       </div>
     </div>
   )

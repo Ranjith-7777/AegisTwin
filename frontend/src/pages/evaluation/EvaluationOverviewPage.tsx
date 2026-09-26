@@ -72,17 +72,20 @@ export function EvaluationOverviewPage() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
 
   return (
-    <section className="space-y-6" aria-labelledby="evaluation-overview-title">
+    <section className="viewport-page" aria-labelledby="evaluation-overview-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Evaluation</p>
-          <h1 id="evaluation-overview-title">Evaluation Overview</h1>
+          <p className="eyebrow">Reports · Evaluation</p>
+          <h1 id="evaluation-overview-title">Reports Overview</h1>
           <p>
             A summary of real, persisted experiments - deterministic scenario/seed/defence-mode runs
             with computed metrics, MCI and Aegis Resilience Score. No projected or estimated
             figures.
           </p>
         </div>
+        <Link to="/evaluation/experiments" className="card-link">
+          Open full report list →
+        </Link>
       </header>
       {error ? (
         <p role="alert" className="text-red-700">

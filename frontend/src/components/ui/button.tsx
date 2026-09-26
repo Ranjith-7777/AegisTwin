@@ -9,9 +9,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-blue-600 text-white hover:bg-blue-700',
-        outline: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
-        ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+        default: 'bg-indigo-600 text-white hover:bg-indigo-700',
+        outline: 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+        ghost: 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
         danger: 'bg-red-600 text-white hover:bg-red-700',
       },
       size: { default: 'h-9 px-4', icon: 'size-9', sm: 'h-8 px-3 text-xs' },

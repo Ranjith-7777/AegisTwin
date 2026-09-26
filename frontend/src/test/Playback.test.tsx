@@ -317,10 +317,9 @@ describe('synthetic playback dashboard', () => {
 
   it('does not fabricate risk or availability values before a run', () => {
     renderApp()
-    expect(screen.getByLabelText('Risk Score')).toHaveTextContent('0')
-    expect(screen.getByLabelText('Active Incidents')).toHaveTextContent('0')
-    expect(screen.getByLabelText('Active Incidents')).toHaveTextContent('No correlated incident')
-    expect(screen.getByLabelText('Cloud Health')).toHaveTextContent('healthy')
+    expect(screen.getByLabelText('Resilience')).toHaveTextContent('100%')
+    expect(screen.getByLabelText('Threats')).toHaveTextContent('None')
+    expect(screen.getByLabelText('Threats')).toHaveTextContent('No correlated incident')
   })
 
   it('defaults detection off and loads selectable models from the API', async () => {

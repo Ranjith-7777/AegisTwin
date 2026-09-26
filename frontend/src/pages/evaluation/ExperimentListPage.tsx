@@ -90,11 +90,11 @@ export function ExperimentListPage() {
   }
 
   return (
-    <section className="space-y-6" aria-labelledby="experiment-list-title">
+    <section className="viewport-page" aria-labelledby="experiment-list-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Evaluation · Experiments</p>
-          <h1 id="experiment-list-title">Experiments</h1>
+          <p className="eyebrow">Reports</p>
+          <h1 id="experiment-list-title">Reports</h1>
           <p>
             Every reproducible evaluation run: one scenario, one seed, one defence mode. Select a
             row to inspect its full metrics, Aegis Resilience Score, mission-health curve and
@@ -189,8 +189,8 @@ export function ExperimentListPage() {
         <p>No experiments match this filter selection.</p>
       ) : null}
       {!loading && experiments.length > 0 ? (
-        <Card>
-          <CardContent className="overflow-x-auto p-0">
+        <Card className="reports-table-panel">
+          <CardContent className="overflow-auto p-0">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                 <tr>

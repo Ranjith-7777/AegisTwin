@@ -18,6 +18,11 @@ const AuditTrailPage = lazy(() =>
 const DigitalTwinPage = lazy(() =>
   import('../pages/DigitalTwinPage').then((module) => ({ default: module.DigitalTwinPage })),
 )
+const RedAgentOverviewPage = lazy(() =>
+  import('../pages/RedAgentOverviewPage').then((module) => ({
+    default: module.RedAgentOverviewPage,
+  })),
+)
 const ModelAnalyticsPage = lazy(() =>
   import('../pages/ModelAnalyticsPage').then((module) => ({ default: module.ModelAnalyticsPage })),
 )
@@ -97,6 +102,14 @@ export function AppRoutes() {
           element={
             <LazyPage>
               <DigitalTwinPage />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="red-agent"
+          element={
+            <LazyPage>
+              <RedAgentOverviewPage />
             </LazyPage>
           }
         />

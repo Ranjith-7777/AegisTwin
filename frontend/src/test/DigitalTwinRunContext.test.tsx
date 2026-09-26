@@ -116,10 +116,10 @@ describe('Digital Twin run-context persistence', () => {
         1,
       )
     })
-    expect(await screen.findByText('Topology version')).toBeInTheDocument()
+    expect(await screen.findByText(/assets ·/)).toBeInTheDocument()
   })
 
-  it('visibly represents the restored run and sequence instead of "Run: none"', async () => {
+  it('visibly represents the restored run and sequence instead of "run none"', async () => {
     const { container } = renderApp(`/digital-twin?run=${knownRun.simulation_run_id}&seq=4`)
     await waitFor(() => {
       expect(topologyApi.getRunTopologyState).toHaveBeenCalledWith(
@@ -128,13 +128,13 @@ describe('Digital Twin run-context persistence', () => {
         4,
       )
     })
-    const status = await screen.findByText(/Playback:/, { selector: 'p' })
+    const status = await screen.findByText(/· run /, { selector: 'p' })
     // The restored run id (first 8 chars, matching how a live run id is
     // rendered elsewhere on this page) and the restored sequence must be
     // visible - this is the user-observable fix, not just the API call.
     expect(status.textContent).toContain(knownRun.simulation_run_id.slice(0, 8))
-    expect(status.textContent).toContain('Sequence 4')
-    expect(status.textContent).not.toContain('Run: none')
+    expect(status.textContent).toContain('seq 4')
+    expect(status.textContent).not.toContain('run none')
     // The header chip must also stop claiming "Static topology" once a run
     // has been restored.
     expect(container.textContent).toContain('Restored replay')
@@ -147,16 +147,16 @@ describe('Digital Twin run-context persistence', () => {
       expect(new URLSearchParams(window.location.search).get('run')).toBeNull()
     })
     expect(topologyApi.getRunTopologyState).not.toHaveBeenCalled()
-    expect(await screen.findByText('Topology version')).toBeInTheDocument()
+    expect(await screen.findByText(/assets ·/)).toBeInTheDocument()
     // Once cleared, the status line must honestly show no run - not the
     // discarded id and not a stale sequence.
-    const status = await screen.findByText(/Playback:/, { selector: 'p' })
-    expect(status.textContent).toContain('Run: none')
+    const status = await screen.findByText(/· run /, { selector: 'p' })
+    expect(status.textContent).toContain('run none')
   })
 
   it('has no run context in the URL on a plain visit', async () => {
     renderApp('/digital-twin')
-    expect(await screen.findByText('Topology version')).toBeInTheDocument()
+    expect(await screen.findByText(/assets ·/)).toBeInTheDocument()
     expect(new URLSearchParams(window.location.search).get('run')).toBeNull()
     expect(topologyApi.getRunTopologyState).not.toHaveBeenCalled()
   })
