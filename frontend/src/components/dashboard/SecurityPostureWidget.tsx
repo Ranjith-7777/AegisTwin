@@ -20,7 +20,12 @@ export function SecurityPostureWidget({
   const radius = 30
   const circumference = 2 * Math.PI * radius
   const offset = circumference * (1 - resilience / 100)
-  const tone = resilience >= 70 ? 'var(--state-ok)' : resilience >= 40 ? 'var(--state-degraded)' : 'var(--state-attack)'
+  const tone =
+    resilience >= 70
+      ? 'var(--state-ok)'
+      : resilience >= 40
+        ? 'var(--state-degraded)'
+        : 'var(--state-attack)'
 
   return (
     <section className="posture-widget" aria-label="Security posture">
@@ -45,7 +50,11 @@ export function SecurityPostureWidget({
         <p className="command-panel-label">Security Posture</p>
         <div className="posture-stat-row">
           <span className="posture-stat-label">
-            <span className="chip-dot" style={{ background: 'var(--state-ok)' }} aria-hidden="true" />
+            <span
+              className="chip-dot"
+              style={{ background: 'var(--state-ok)' }}
+              aria-hidden="true"
+            />
             Healthy assets
           </span>
           <span className="posture-stat-value">{healthy}</span>
@@ -63,7 +72,11 @@ export function SecurityPostureWidget({
         </div>
         <div className="posture-stat-row">
           <span className="posture-stat-label">
-            <span className="chip-dot" style={{ background: 'var(--state-attack)' }} aria-hidden="true" />
+            <span
+              className="chip-dot"
+              style={{ background: 'var(--state-attack)' }}
+              aria-hidden="true"
+            />
             Active incidents
           </span>
           <span className="posture-stat-value">{state.activeIncidents}</span>

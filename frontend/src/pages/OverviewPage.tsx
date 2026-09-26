@@ -295,8 +295,8 @@ export function OverviewPage() {
                   </p>
                   <p className="text-xs text-slate-500">
                     Defense score {recommendation.defense_score.toFixed(2)} · +
-                    {components.security_improvement.toFixed(2)} security · −
-                    {slaImpact.toFixed(2)} SLA impact
+                    {components.security_improvement.toFixed(2)} security · −{slaImpact.toFixed(2)}{' '}
+                    SLA impact
                   </p>
                   <Button size="sm" disabled={busy} onClick={approve}>
                     Approve

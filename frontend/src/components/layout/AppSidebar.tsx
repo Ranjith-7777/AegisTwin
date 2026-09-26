@@ -60,7 +60,10 @@ export function AppSidebar({ collapsed, mobileOpen, onCollapse, onNavigate }: Ap
       <div className="sidebar-foot">
         {!collapsed && (
           <div className="sidebar-env">
-            <span className={cn('chip-dot', connected ? 'is-healthy' : 'is-offline')} aria-hidden="true" />
+            <span
+              className={cn('chip-dot', connected ? 'is-healthy' : 'is-offline')}
+              aria-hidden="true"
+            />
             {connected ? 'Backend Connected' : 'Backend Disconnected'}
           </div>
         )}

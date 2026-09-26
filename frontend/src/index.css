@@ -46,9 +46,7 @@
 
   --radius: 14px;
   --radius-sm: 10px;
-  --shadow-card:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 6px 16px -8px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px -8px rgba(15, 23, 42, 0.08);
   --header-h: 60px;
   --sidebar-w: 13.75rem;
   --sidebar-collapsed-w: 4.25rem;

@@ -254,8 +254,8 @@ export function DigitalTwinPage() {
           <div className="twin-canvas-frame">
             <div className="twin-floating-toolbar">
               <span>
-                {topologyState.topology.nodes.length} assets ·{' '}
-                {topologyState.topology.edges.length} links
+                {topologyState.topology.nodes.length} assets · {topologyState.topology.edges.length}{' '}
+                links
               </span>
               {(['observed', 'correlated', 'predicted'] as const).map((layer) => (
                 <label key={layer}>
@@ -342,9 +342,8 @@ export function DigitalTwinPage() {
                       disabled={!runId}
                       onClick={() => {
                         void listOrchestrations().then((rows) => {
-                          const execution = rows.find(
-                            (item) => item.simulation_run_id === runId,
-                          )?.executions[0]
+                          const execution = rows.find((item) => item.simulation_run_id === runId)
+                            ?.executions[0]
                           setSyntheticExecution(execution ?? null)
                         })
                       }}
@@ -371,8 +370,8 @@ export function DigitalTwinPage() {
                     onQuery={query}
                   />
                   <p className="text-xs text-amber-700">
-                    Observed/anomalous states describe synthetic replay evidence and do not
-                    confirm compromise.
+                    Observed/anomalous states describe synthetic replay evidence and do not confirm
+                    compromise.
                   </p>
                 </div>
               </div>
@@ -388,7 +387,7 @@ export function DigitalTwinPage() {
               syntheticExecution={syntheticExecution}
               variant="workspace"
             />
-            {syntheticExecution ?? responseImpact ? (
+            {(syntheticExecution ?? responseImpact) ? (
               <p className="twin-canvas-note" aria-live="polite">
                 {syntheticExecution
                   ? `${syntheticExecution.execution_state === 'rolled_back_simulated' ? 'Restored by synthetic rollback' : 'Applied in synthetic twin'}: ${String(syntheticExecution.changed_node_ids.length)} nodes, ${String(syntheticExecution.changed_edge_ids.length)} links.`
