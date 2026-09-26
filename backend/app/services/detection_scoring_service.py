@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from uuid import UUID, uuid5
+
+from sqlalchemy import delete, func, select
+from sqlalchemy.orm import Session
+
+from app.core.exceptions import ApplicationError
+from app.database.models import AnomalyAssessmentRecord, SimulationRunRecord
+from app.events.envelope import AnomalyDetectedPayload, DomainEvent
+from app.events.registry import get_event_bus
+from app.events.types import EventType
+from app.schemas.detection import Classification, RunScoringResult
+from app.schemas.telemetry import TelemetryEvent
+from app.services.detection_training_service import detection_training_service
+from app.services.feature_pipeline_service import feature_pipeline_service
+from app.services.model_artifact_service import DetectionArtifact, model_artifact_service
+from app.services.score_calibration_service import score_calibration_service
+from app.services.telemetry_service import telemetry_service
+
+ASSESSMENT_NAMESPACE = UUID("ad668afe-0559-4c4b-a03e-993e56dff72a")
+ScoreTuple = tuple[TelemetryEvent, float, float, Classification, list[str], dict[str, float]]
+
+
+class DetectionScoringService:
+    def load_artifact(self, session: Session, model_id: str) -> DetectionArtifact:
+        record = detection_training_service.get_record(session, model_id)
+        try:
+            return model_artifact_service.load(record.artifact_path)
+        except (OSError, ValueError) as exc:
+            raise ApplicationError(
+                "MODEL_ARTIFACT_INVALID",
+                "The persisted synthetic model artifact could not be loaded.",
+                500,
+            ) from exc
+
+    def score_events(
+        self, artifact: DetectionArtifact, events: list[TelemetryEvent]
+    ) -> list[ScoreTuple]:
+        rows = feature_pipeline_service.extract(events, artifact.baselines)
+        raw_scores = artifact.pipeline.decision_function(rows)
+        results: list[ScoreTuple] = []
+        for event, row, raw_score in zip(events, rows, raw_scores, strict=True):
+            isolation_rank = score_calibration_service.normalise(
+                -float(raw_score), artifact.pure_isolation_reference
+            )
+            components = feature_pipeline_service.hybrid_components(event, row, artifact.baselines)
+            components["isolation_forest"] = isolation_rank
+            hybrid_raw = sum(
+                artifact.hybrid_weights[name] * value for name, value in components.items()
+            )
+            final_raw = hybrid_raw if artifact.use_hybrid_score else -float(raw_score)
+            anomaly_score = score_calibration_service.normalise(
+                final_raw, artifact.calibration_scores
+            )
+            classification = (
+                Classification.ANOMALOUS
+                if final_raw >= artifact.raw_threshold
+                else Classification.NORMAL
+            )
+            components["hybrid_raw"] = hybrid_raw
+            components["normalised_final"] = anomaly_score
+            results.append(
+                (
+                    event,
+                    float(raw_score),
+                    anomaly_score,
+                    classification,
+                    feature_pipeline_service.contributing_signals(event, row, artifact.baselines),
+                    components,
+                )
+            )
+        return results
+
+    def score_run(
+        self, session: Session, run_id: str, model_id: str, force_rescore: bool
+    ) -> RunScoringResult:
+        if session.get(SimulationRunRecord, run_id) is None:
+            raise ApplicationError(
+                "SIMULATION_RUN_NOT_FOUND", "The simulation run was not found.", 404
+            )
+        artifact = self.load_artifact(session, model_id)
+        existing = int(
+            session.scalar(
+                select(func.count())
+                .select_from(AnomalyAssessmentRecord)
+                .where(
+                    AnomalyAssessmentRecord.model_id == model_id,
+                    AnomalyAssessmentRecord.simulation_run_id == run_id,
+                )
+            )
+            or 0
+        )
+        if existing and not force_rescore:
+            anomalous = self._anomalous_count(session, run_id, model_id)
+            return RunScoringResult(
+                model_id=model_id,
+                simulation_run_id=run_id,
+                assessment_count=existing,
+                anomalous_count=anomalous,
+                force_rescore=False,
+                synthetic=True,
+            )
+        if force_rescore:
+            session.execute(
+                delete(AnomalyAssessmentRecord).where(
+                    AnomalyAssessmentRecord.model_id == model_id,
+                    AnomalyAssessmentRecord.simulation_run_id == run_id,
+                )
+            )
+        events = telemetry_service.list_run_events(session, run_id)
+        scored = self.score_events(artifact, events)
+        return self._persist_scores(
+            session, model_id, run_id, artifact.calibrated_threshold, scored, force_rescore
+        )
+
+    def _persist_scores(
+        self,
+        session: Session,
+        model_id: str,
+        run_id: str,
+        threshold: float,
+        scored: list[ScoreTuple],
+        force_rescore: bool,
+        publish_event: bool = True,
+    ) -> RunScoringResult:
+        """Shared persistence step: turns a list of `ScoreTuple`s (from
+        `score_events`, for an arbitrary event list - possibly a filtered
+        subset) into persisted `AnomalyAssessmentRecord` rows under
+        `model_id`, one per tuple, numbered by list position. Used by both
+        `score_run` (the full-run path) and
+        `perturbation_service.score_visible_events` (the perturbation-scoped
+        path, which passes `publish_event=False` since a perturbed identity
+        is not a real detector run other systems should react to)."""
+
+        scored_at = datetime.now(UTC)
+        for sequence, (event, raw, anomaly, classification, signals, components) in enumerate(
+            scored, 1
+        ):
+            session.add(
+                AnomalyAssessmentRecord(
+                    assessment_id=str(uuid5(ASSESSMENT_NAMESPACE, f"{model_id}:{event.event_id}")),
+                    model_id=model_id,
+                    simulation_run_id=run_id,
+                    event_id=event.event_id,
+                    sequence_number=sequence,
+                    raw_score=raw,
+                    anomaly_score=anomaly,
+                    threshold=threshold,
+                    classification=classification.value,
+                    contributing_signals_json=signals,
+                    component_scores_json=components,
+                    scored_at=scored_at,
+                    synthetic=True,
+                )
+            )
+        session.flush()
+        anomalous_count = sum(item[3] is Classification.ANOMALOUS for item in scored)
+        if publish_event:
+            get_event_bus().publish(
+                DomainEvent(
+                    event_type=EventType.ANOMALY_DETECTED,
+                    source="detection",
+                    run_id=run_id,
+                    correlation_id=run_id,
+                    payload=AnomalyDetectedPayload(
+                        run_id=run_id,
+                        model_id=model_id,
+                        assessment_count=len(scored),
+                        anomalous_count=anomalous_count,
+                    ),
+                )
+            )
+        return RunScoringResult(
+            model_id=model_id,
+            simulation_run_id=run_id,
+            assessment_count=len(scored),
+            anomalous_count=anomalous_count,
+            force_rescore=force_rescore,
+            synthetic=True,
+        )
+
+    @staticmethod
+    def _anomalous_count(session: Session, run_id: str, model_id: str) -> int:
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(AnomalyAssessmentRecord)
+                .where(
+                    AnomalyAssessmentRecord.model_id == model_id,
+                    AnomalyAssessmentRecord.simulation_run_id == run_id,
+                    AnomalyAssessmentRecord.classification == Classification.ANOMALOUS.value,
+                )
+            )
+            or 0
+        )
+
+
+detection_scoring_service = DetectionScoringService()

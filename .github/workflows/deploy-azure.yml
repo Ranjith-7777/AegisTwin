@@ -1,0 +1,206 @@
+name: Deploy Azure
+
+# Cost-safety note: this workflow deploys/updates real Azure resources and is
+# MANUAL-ONLY (workflow_dispatch) — the user explicitly wants to control
+# Azure spending by hand, not have it triggered by any push. There is
+# deliberately no `push` trigger of any kind.
+#
+# This workflow is for POST-BOOTSTRAP deployments only — i.e. every deploy
+# AFTER the manual PASS 1 / PASS 2 bootstrap described in
+# docs/deployment/AZURE_DEPLOYMENT.md has already created the resource group,
+# ACR, and the id-aegisarena-github identity this workflow authenticates as.
+# It cannot perform the first-ever deployment of a fresh environment (see the
+# preflight check below) — that bootstrap is a manual, human-run process by
+# design, not something a GitHub workflow should be able to trigger on its
+# own.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to build and deploy (defaults to the triggering commit SHA)"
+        required: false
+        type: string
+
+# id-token: write is required for OIDC federation with Entra ID (azure/login
+# below exchanges this workflow's GitHub-issued OIDC token for an Azure AD
+# access token). No client secret is used or stored anywhere — this is the
+# entire point of workload identity federation over a long-lived credential.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Targets the GitHub "production" Environment so a required reviewer /
+    # manual approval gate can be layered on top of this workflow purely via
+    # GitHub repository settings (Settings -> Environments -> production),
+    # with no change needed here. See docs/devops/CI_CD.md for the one-time
+    # manual setup steps — creating the Environment and its protection rules
+    # cannot be done from a workflow file.
+    environment: production
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # OIDC login: exchanges the job's short-lived GitHub OIDC token for an
+      # Azure AD token, scoped to the `id-aegisarena-github` user-assigned
+      # managed identity via a federated credential (configured once, outside
+      # this repo, per docs/deployment/AZURE_DEPLOYMENT.md). No secret input
+      # is supplied here on purpose.
+      - name: Azure login (OIDC, no client secret)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Preflight: this workflow is for POST-BOOTSTRAP deploys only. It
+      # authenticates as id-aegisarena-github, which does not exist until the
+      # manual PASS 1 bootstrap (docs/deployment/AZURE_DEPLOYMENT.md) has
+      # already run — so if we got this far via OIDC at all, the identity
+      # exists, but the resource group and ACR need an explicit check too,
+      # since a partially-run or wrong-subscription bootstrap should fail
+      # loudly here rather than surface as a confusing ACR-login error.
+      - name: Preflight - verify bootstrap infrastructure exists
+        run: |
+          if ! az group show --name rg-aegisarena-dev >/dev/null 2>&1; then
+            echo "::error::Resource group 'rg-aegisarena-dev' does not exist." \
+                 "This workflow only performs POST-BOOTSTRAP deployments." \
+                 "Run the manual PASS 1 / PASS 2 bootstrap described in" \
+                 "docs/deployment/AZURE_DEPLOYMENT.md before using this workflow."
+            exit 1
+          fi
+          if ! az acr show --name "${{ vars.ACR_NAME }}" --resource-group rg-aegisarena-dev >/dev/null 2>&1; then
+            echo "::error::Container Registry '${{ vars.ACR_NAME }}' was not found in" \
+                 "rg-aegisarena-dev. This workflow only performs POST-BOOTSTRAP" \
+                 "deployments. Run the manual PASS 1 bootstrap and confirm the" \
+                 "ACR_NAME repository variable matches the actual deployed registry" \
+                 "name — see docs/deployment/AZURE_DEPLOYMENT.md."
+            exit 1
+          fi
+          echo "Bootstrap infrastructure verified: resource group and ACR exist."
+
+      # AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID are non-secret
+      # identifiers (they identify *which* identity/tenant/subscription, not
+      # a credential that proves who you are) so they are stored as
+      # repository/environment `vars`, not `secrets`, per the project's
+      # preference for variables over secrets wherever a value isn't
+      # actually sensitive.
+      - name: ACR login
+        run: az acr login --name ${{ vars.ACR_NAME }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Backend image: no build-time secrets are needed — the container reads
+      # its configuration (DATABASE_URL, CORS_ORIGINS, etc.) from environment
+      # variables injected by the Container App at runtime, never baked into
+      # the image.
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: true
+          tags: |
+            ${{ vars.ACR_NAME }}.azurecr.io/aegisarena/backend:${{ env.IMAGE_TAG }}
+            ${{ vars.ACR_NAME }}.azurecr.io/aegisarena/backend:latest
+          cache-from: type=gha,scope=backend-deploy
+          cache-to: type=gha,mode=max,scope=backend-deploy
+
+      # Frontend image: VITE_API_BASE_URL / VITE_WS_BASE_URL build args are
+      # intentionally NOT passed here. frontend/src/lib/constants.ts already
+      # falls back to `window.location.origin` (and derives the WebSocket URL
+      # from it) whenever these are unset, and the Azure deployment always
+      # serves frontend and backend from the same Container App / same
+      # origin (nginx sidecar proxying /api and /ws to localhost:8000 — see
+      # frontend/Dockerfile and frontend/nginx.conf.template). Same-origin is
+      # therefore already correct with no build args, so the Dockerfile's
+      # localhost:8000 defaults are simply unused at runtime in this image.
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ vars.ACR_NAME }}.azurecr.io/aegisarena/frontend:${{ env.IMAGE_TAG }}
+            ${{ vars.ACR_NAME }}.azurecr.io/aegisarena/frontend:latest
+          cache-from: type=gha,scope=frontend-deploy
+          cache-to: type=gha,mode=max,scope=frontend-deploy
+
+      # Resource-group-scoped release deployment: infra/azure/app.bicep
+      # updates ONLY the Container App, referencing the already-bootstrapped
+      # supporting resources (Container Apps Environment, ACR, the runtime
+      # identity, Key Vault) as `existing`. This is deliberately NOT
+      # infra/azure/main.bicep (the subscription-scope bootstrap template) —
+      # id-aegisarena-github (the identity this job authenticates as) holds
+      # only RG-scoped Contributor on rg-aegisarena-dev, which cannot run a
+      # subscription-scope `az deployment sub create`. See
+      # infra/azure/README.md and docs/deployment/AZURE_DEPLOYMENT.md for the
+      # full bootstrap-vs-release distinction.
+      #
+      # No PostgreSQL admin password is needed here — app.bicep never touches
+      # PostgreSQL or writes Key Vault secrets; that only happens once, during
+      # the manual bootstrap that runs main.bicep. There is deliberately no
+      # PGADMIN_PASSWORD (or any secret) required by this step.
+      #
+      # trustEasyAuthHeaders is left at its default `false` here. Only pass
+      # `--parameters trustEasyAuthHeaders=true` on a manual invocation of
+      # this same command AFTER Easy Auth has been configured and verified
+      # per docs/deployment/AZURE_DEPLOYMENT.md — never make it the default
+      # in this workflow.
+      - name: Deploy application release (Bicep)
+        id: deploy
+        run: |
+          az deployment group create \
+            --name "aegisarena-release-${{ env.IMAGE_TAG }}" \
+            --resource-group rg-aegisarena-dev \
+            --template-file infra/azure/app.bicep \
+            --parameters acrName="${{ vars.ACR_NAME }}" \
+            --parameters imageTag="${{ env.IMAGE_TAG }}" \
+            --query "properties.outputs" -o json > deployment-outputs.json
+          cat deployment-outputs.json
+
+      # Surface the Bicep `containerAppFqdn` output for the health-gate step
+      # below, without ever echoing secret values into logs.
+      - name: Capture deployment outputs
+        id: outputs
+        run: |
+          fqdn=$(jq -r '.containerAppFqdn.value' deployment-outputs.json)
+          echo "container_app_fqdn=${fqdn}" >> "$GITHUB_OUTPUT"
+
+      # Health gate: Container Apps runs with minReplicas=0 in steady state
+      # (see docs/deployment/COST_CONTROL.md), so the very first request
+      # after a scale-to-zero period cold-starts the revision. Retry with
+      # backoff instead of failing immediately on the first miss.
+      - name: Health gate - liveness
+        run: |
+          fqdn="${{ steps.outputs.outputs.container_app_fqdn }}"
+          url="https://${fqdn}/api/health/live"
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS "$url"; then
+              echo "Liveness check passed on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt failed (cold start?); retrying in 15s..."
+            sleep 15
+          done
+          echo "Liveness check failed after 5 attempts"
+          exit 1
+
+      - name: Health gate - readiness
+        run: |
+          fqdn="${{ steps.outputs.outputs.container_app_fqdn }}"
+          url="https://${fqdn}/api/health/ready"
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS "$url"; then
+              echo "Readiness check passed on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt failed (cold start?); retrying in 15s..."
+            sleep 15
+          done
+          echo "Readiness check failed after 5 attempts"
+          exit 1

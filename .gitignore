@@ -1,0 +1,48 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Configuration (examples remain tracked)
+.env
+.env.*
+!.env.example
+!**/.env.example
+!**/.env.*.example
+
+# Databases and generated output
+*.db
+*.joblib
+backend/artifacts/
+*.sqlite
+*.sqlite3
+*.joblib
+*.pkl
+models/artifacts/
+logs/
+test-results/
+playwright-report/
+backend/.e2e/
+reports/*.tmp
+.aegistwin-demo/
+demo-package-output/
+
+# Frontend
+node_modules/
+dist/
+build/
+.vite/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+

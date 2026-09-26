@@ -1,0 +1,72 @@
+# LOCAL PRODUCTION-PARITY VALIDATION ONLY — the CHANGEME_LOCAL_ONLY password is a
+# throwaway local development credential, never used in Azure; production secrets
+# come from Key Vault/Container Apps secrets, see docs/security/SECRETS_AND_IDENTITY.md
+#
+# This compose file is NOT used to deploy to Azure (Bicep/Container Apps owns that).
+# It exists solely so Phase 6 can prove, on a local Docker engine, that the
+# hardened backend image + nginx-fronted frontend image + Postgres work together
+# the same way they will in Container Apps (nginx reverse-proxying /api and /ws to
+# the backend, Postgres instead of the dev sqlite volume).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: CHANGEME_LOCAL_ONLY
+      POSTGRES_DB: aegisarena
+    volumes:
+      - aegisarena-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis -d aegisarena"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      APP_NAME: AegisArena API
+      ENVIRONMENT: production
+      DEBUG: "false"
+      API_PREFIX: /api
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: "8000"
+      DATABASE_URL: postgresql+psycopg://aegis:CHANGEME_LOCAL_ONLY@postgres:5432/aegisarena
+      CORS_ORIGINS: http://localhost:8080
+      LOG_LEVEL: INFO
+      SIMULATION_ONLY: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ""
+        VITE_WS_BASE_URL: ""
+    environment:
+      # Matches docker-compose service DNS naming — see frontend/nginx.conf.template
+      # for the full BACKEND_UPSTREAM contract (Azure Container Apps uses
+      # localhost:8000 instead, since sidecar containers share a network namespace).
+      BACKEND_UPSTREAM: backend:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  aegisarena-postgres-data:
