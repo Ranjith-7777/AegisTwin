@@ -1,29 +1,38 @@
+import { Bot, Cpu } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { Badge } from '../../components/ui/badge'
-import { Card, CardContent, CardHeader } from '../../components/ui/card'
+import { Badge, type BadgeTone } from '../../components/ui/badge'
+import { KeyValue, Panel } from '../../components/ui/panel'
+import { BlueDecisionPanel } from '../../components/workflow/BlueDecisionPanel'
+import { useOptionalAutonomyWorkflow } from '../../hooks/useAutonomyWorkflow'
+import { humanize } from '../../lib/orchestrationState'
+import { getAgentRegistry } from '../../services/agentsApi'
 import { getAutonomyConfig } from '../../services/autonomyApi'
 import { getOrchestration } from '../../services/orchestrationApi'
+import type { AgentRegistry } from '../../types/agents'
 import type { AutonomyConfig } from '../../types/autonomy'
 import type { Orchestration } from '../../types/orchestration'
 import { useBlueAgentSelection } from './useBlueAgentSelection'
 
-function label(value: string) {
-  return value.replaceAll('_', ' ')
+const AUTONOMY_TONE: Record<string, BadgeTone> = {
+  observe: 'neutral',
+  recommend: 'accent',
+  approval_required: 'warn',
+  autonomous: 'ok',
 }
 
-const AUTONOMY_TONE: Record<string, string> = {
-  observe: 'chip-muted',
-  recommend: 'chip-accent',
-  approval_required: 'chip-warn',
-  autonomous: 'chip-danger',
-}
-
+/**
+ * Blue Agent overview: the autonomy mode, the current response decision and
+ * its lifecycle, and the registry of deterministic agents that produce it -
+ * only computed and persisted state, no simulated "AI thinking".
+ */
 export function BlueAgentOverviewPage() {
   const selection = useBlueAgentSelection()
+  const workflow = useOptionalAutonomyWorkflow()
   const [autonomy, setAutonomy] = useState<AutonomyConfig | null>(null)
   const [orchestration, setOrchestration] = useState<Orchestration | null>(null)
+  const [registry, setRegistry] = useState<AgentRegistry | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -31,6 +40,11 @@ export function BlueAgentOverviewPage() {
       .then(setAutonomy)
       .catch(() => {
         setError('The synthetic autonomy configuration is unavailable.')
+      })
+    void getAgentRegistry()
+      .then(setRegistry)
+      .catch(() => {
+        setRegistry(null)
       })
   }, [])
 
@@ -42,138 +56,144 @@ export function BlueAgentOverviewPage() {
         setOrchestration(null)
       })
   }, [selection.orchestrationId])
-  const activeOrchestration = selection.orchestrationId ? orchestration : null
 
+  // An explicit URL selection wins; otherwise follow the live run.
+  const activeOrchestration = selection.orchestrationId
+    ? orchestration
+    : (workflow?.orchestration ?? null)
+  const mode = workflow?.autonomy ?? autonomy
   const approval = activeOrchestration?.approvals.find((item) => item.approval_state === 'pending')
   const execution = activeOrchestration?.executions[0]
   const verification = activeOrchestration?.verifications[0]
+  const blueAgents = registry?.agents.filter((agent) => agent.side === 'blue') ?? []
 
   return (
-    <section className="viewport-page" aria-labelledby="blue-agent-overview-title">
+    <section className="page-stack" aria-labelledby="blue-agent-overview-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Blue Agent · Overview</p>
+          <p className="eyebrow">Defence · Blue Agent</p>
           <h1 id="blue-agent-overview-title">Blue Agent Overview</h1>
           <p>
-            A real snapshot of the current autonomy mode and the selected synthetic response, if any
-            - no simulated "AI thinking" animation, only computed and persisted state.
+            A real snapshot of the autonomy mode, the selected synthetic response and the
+            deterministic agents behind it - no simulated "AI thinking", only computed and persisted
+            state.
           </p>
         </div>
       </header>
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="error-state">
           {error}
         </p>
       ) : null}
-      <div className="agent-workspace">
-        <div className="agent-workspace-col">
-          <Card>
-            <CardHeader>
-              <h2 className="panel-title">Autonomy mode</h2>
-              <Link to="/blue-agent/verification" className="card-link">
-                Change mode
-              </Link>
-            </CardHeader>
-            <CardContent>
-              {autonomy ? (
-                <>
-                  <Badge className={AUTONOMY_TONE[autonomy.mode] ?? 'chip-muted'}>
-                    {label(autonomy.mode)}
-                  </Badge>
-                  <p className="mt-2 text-sm">{autonomy.description}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Last changed by {autonomy.updated_by} at{' '}
-                    {new Date(autonomy.updated_at).toLocaleString()}
-                  </p>
-                </>
-              ) : (
-                <p>Loading autonomy configuration…</p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <h2 className="panel-title">Latest decision</h2>
-            </CardHeader>
-            <CardContent>
-              {!activeOrchestration ? (
-                <p className="text-sm text-slate-500">
-                  No synthetic response has been actioned yet in this session.
-                </p>
-              ) : (
-                <>
-                  <p className="text-sm font-medium">
-                    {activeOrchestration.plan_steps[0]
-                      ? label(activeOrchestration.plan_steps[0].playbook_id)
-                      : 'No plan step recorded'}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {activeOrchestration.plan_steps[0]
-                      ? `${activeOrchestration.plan_steps[0].target_type.replaceAll('_', ' ')} · ${activeOrchestration.plan_steps[0].target_id}`
-                      : null}
-                  </p>
-                  <p className="mt-2 text-xs text-slate-500">
-                    Confidence basis: computed defense score and simulated impact, not a
-                    self-reported estimate.
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        <div className="agent-workspace-col">
-          <Card>
-            <CardHeader>
-              <h2 className="panel-title">Selected synthetic response</h2>
-            </CardHeader>
-            <CardContent>
-              {!activeOrchestration ? (
-                <p>
-                  No synthetic response orchestration selected. Use{' '}
-                  <Link to="/blue-agent/response-plans" className="card-link">
-                    Response Plans
-                  </Link>{' '}
-                  to compare candidates and create one.
-                </p>
-              ) : (
-                <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                  <dt>Response action</dt>
-                  <dd>
-                    {activeOrchestration.plan_steps[0]
-                      ? `${label(activeOrchestration.plan_steps[0].playbook_id)} → ${activeOrchestration.plan_steps[0].target_type.replaceAll('_', ' ')} ${activeOrchestration.plan_steps[0].target_id}`
-                      : 'No plan step recorded'}
-                  </dd>
-                  <dt>Orchestration state</dt>
-                  <dd>{label(activeOrchestration.current_state)}</dd>
-                  <dt>Approval status</dt>
-                  <dd>
-                    {approval
+      <div className="split-main">
+        <div className="grid content-start gap-3">
+          <Panel
+            title="Selected synthetic response"
+            icon={<Bot className="size-4" />}
+            actions={
+              activeOrchestration ? (
+                <Link className="card-link" to="/blue-agent/verification">
+                  Verification
+                </Link>
+              ) : null
+            }
+          >
+            {!activeOrchestration ? (
+              <p className="m-0 text-[0.82rem] text-[var(--text-dim)]">
+                No synthetic response orchestration selected. Run a scenario (the Blue workflow
+                responds automatically) or use{' '}
+                <Link to="/blue-agent/response-plans" className="card-link">
+                  Response Plans
+                </Link>{' '}
+                to compare candidates and create one.
+              </p>
+            ) : (
+              <KeyValue
+                left
+                rows={[
+                  [
+                    'Response action',
+                    activeOrchestration.plan_steps[0]
+                      ? `${humanize(activeOrchestration.plan_steps[0].playbook_id)} → ${humanize(activeOrchestration.plan_steps[0].target_type)} ${activeOrchestration.plan_steps[0].target_id}`
+                      : 'No plan step recorded',
+                  ],
+                  ['Orchestration state', humanize(activeOrchestration.current_state)],
+                  [
+                    'Approval status',
+                    approval
                       ? `pending (${approval.required_role})`
                       : activeOrchestration.approvals.length > 0
                         ? 'decided'
-                        : 'not required'}
-                  </dd>
-                  <dt>Execution status</dt>
-                  <dd>{execution ? label(execution.execution_state) : 'not yet executed'}</dd>
-                  <dt>Verification result</dt>
-                  <dd>
-                    {verification ? label(verification.verification_status) : 'not yet verified'}
-                  </dd>
-                </dl>
-              )}
-            </CardContent>
-          </Card>
-          <p className="text-xs text-slate-500">
-            Deeper history is available under{' '}
-            <Link to="/blue-agent/response-plans" className="card-link">
-              Response Plans
-            </Link>{' '}
-            and{' '}
-            <Link to="/blue-agent/verification" className="card-link">
-              Verification
-            </Link>
-            .
-          </p>
+                        : 'not required',
+                  ],
+                  [
+                    'Execution status',
+                    execution ? humanize(execution.execution_state) : 'not yet executed',
+                  ],
+                  [
+                    'Verification result',
+                    verification ? humanize(verification.verification_status) : 'not yet verified',
+                  ],
+                ]}
+              />
+            )}
+          </Panel>
+          {workflow ? <BlueDecisionPanel className="max-h-[32rem]" /> : null}
+        </div>
+        <div className="grid content-start gap-3">
+          <Panel
+            title="Autonomy mode"
+            actions={
+              <Link to="/workflow" className="card-link">
+                Change mode
+              </Link>
+            }
+          >
+            {mode ? (
+              <div className="grid gap-1.5">
+                <Badge tone={AUTONOMY_TONE[mode.mode] ?? 'neutral'} className="w-fit">
+                  {humanize(mode.mode)}
+                </Badge>
+                <p className="m-0 text-[0.8rem] text-[var(--text-dim)]">{mode.description}</p>
+                <p className="m-0 text-[0.72rem] text-[var(--text-faint)]">
+                  Last changed by {mode.updated_by} at {new Date(mode.updated_at).toLocaleString()}
+                </p>
+              </div>
+            ) : (
+              <p className="m-0 text-[0.8rem] text-[var(--text-faint)]">
+                Loading autonomy configuration…
+              </p>
+            )}
+          </Panel>
+          <Panel title="Agent roster" icon={<Cpu className="size-4" />}>
+            {blueAgents.length > 0 ? (
+              <ol className="m-0 grid list-none gap-2 p-0">
+                {blueAgents.map((agent, index) => (
+                  <li key={agent.agent_id} className="grid gap-0.5 text-[0.76rem]">
+                    <span className="flex items-center gap-2">
+                      <span className="stage-index">{String(index + 1).padStart(2, '0')}</span>
+                      <strong className="text-[var(--text)]">{agent.display_name}</strong>
+                    </span>
+                    <span className="pl-6 text-[var(--text-faint)]">
+                      {agent.implementation_type}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="m-0 text-[0.78rem] text-[var(--text-faint)]">
+                Agent registry unavailable.
+              </p>
+            )}
+            <p className="m-0 mt-3 text-[0.72rem] text-[var(--text-faint)]">
+              Deterministic, policy-governed agents. No language model or learned policy is
+              involved; see the{' '}
+              <Link className="card-link" to="/blue-agent/agent-workflow">
+                decision trace
+              </Link>
+              .
+            </p>
+          </Panel>
         </div>
       </div>
     </section>

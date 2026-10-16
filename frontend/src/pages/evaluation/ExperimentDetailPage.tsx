@@ -282,10 +282,10 @@ export function ExperimentDetailPage() {
                       data={chartData}
                       margin={{ top: 8, right: 12, left: -12, bottom: 0 }}
                     >
-                      <CartesianGrid stroke="var(--color-slate-800, #e2e8f0)" vertical={false} />
+                      <CartesianGrid stroke="#eef1f6" vertical={false} />
                       <XAxis
                         dataKey="time"
-                        stroke="var(--color-slate-600, #64748b)"
+                        stroke="#94a3b8"
                         fontSize={11}
                         tickLine={false}
                         axisLine={false}
@@ -298,7 +298,7 @@ export function ExperimentDetailPage() {
                       />
                       <YAxis
                         domain={[0, 1]}
-                        stroke="var(--color-slate-600, #64748b)"
+                        stroke="#94a3b8"
                         fontSize={11}
                         tickLine={false}
                         axisLine={false}

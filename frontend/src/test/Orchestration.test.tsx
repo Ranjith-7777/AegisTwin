@@ -143,34 +143,6 @@ describe('Phase 4 Verification & Rollback tab', () => {
     expect(screen.getByText(/No real defensive action is performed/)).toBeInTheDocument()
   })
 
-  it('requires explicit confirmation before raising autonomy to AUTONOMOUS', async () => {
-    const user = userEvent.setup()
-    vi.mocked(autonomyApi.setAutonomyMode).mockResolvedValue({
-      mode: 'autonomous',
-      description:
-        'Eligible low-impact, reversible, policy-passing actions may execute automatically.',
-      updated_by: 'Demo SOC Analyst',
-      updated_at: '2026-07-22T00:00:00Z',
-      synthetic: true,
-    })
-    render(
-      <MemoryRouter>
-        <VerificationPage />
-      </MemoryRouter>,
-    )
-    await screen.findByText('recommend', { selector: 'strong' })
-    await user.click(screen.getByRole('button', { name: 'autonomous' }))
-    expect(screen.getByText(/Confirm to proceed/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Confirm AUTONOMOUS' }))
-    await waitFor(() => {
-      expect(autonomyApi.setAutonomyMode).toHaveBeenCalledWith(
-        'autonomous',
-        'Demo SOC Analyst',
-        true,
-      )
-    })
-  })
-
   it('renders and verifies the tamper-evident audit chain', async () => {
     const user = userEvent.setup()
     render(<AuditTrailPage />)

@@ -1,11 +1,23 @@
-import { CircleDashed } from 'lucide-react'
+import { CircleDashed, type LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 
-export function EmptyState({ title, detail }: { title: string; detail: string }) {
+export function EmptyState({
+  title,
+  detail,
+  icon: Icon = CircleDashed,
+  action,
+}: {
+  title: string
+  detail: ReactNode
+  icon?: LucideIcon
+  action?: ReactNode
+}) {
   return (
-    <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-      <CircleDashed className="mb-3 size-6 text-slate-500" aria-hidden="true" />
-      <p className="font-medium text-slate-700">{title}</p>
-      <p className="mt-1 max-w-md text-sm text-slate-500">{detail}</p>
+    <div className="empty-state">
+      <Icon className="size-6" aria-hidden="true" />
+      <strong>{title}</strong>
+      <p className="m-0 max-w-md">{detail}</p>
+      {action ? <div className="mt-1">{action}</div> : null}
     </div>
   )
 }

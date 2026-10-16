@@ -83,7 +83,7 @@ export function AggregatePage() {
     <section className="space-y-6" aria-labelledby="aggregate-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Evaluation · Aggregate</p>
+          <p className="eyebrow">Analysis · Evaluation</p>
           <h1 id="aggregate-title">Aggregate results</h1>
           <p>
             Mean ± std across completed experiments. No significance or p-value claims are shown -

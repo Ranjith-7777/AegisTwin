@@ -101,7 +101,9 @@ resource databaseUrlSecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'database-url'
   properties: {
-    value: 'postgresql+psycopg://${administratorLogin}:${administratorLoginPassword}@${postgresServer.properties.fullyQualifiedDomainName}:5432/${databaseName}?sslmode=require'
+    // uriComponent(): a generated password may contain '/', '+', '@' or ':',
+    // which would otherwise corrupt the URL that SQLAlchemy parses.
+    value: 'postgresql+psycopg://${uriComponent(administratorLogin)}:${uriComponent(administratorLoginPassword)}@${postgresServer.properties.fullyQualifiedDomainName}:5432/${databaseName}?sslmode=require'
   }
 }
 

@@ -123,6 +123,15 @@ module containerAppsEnvironment 'modules/containerapps-env.bicep' = {
   }
 }
 
+module modelStorage 'modules/modelstorage.bicep' = {
+  name: 'aegisarena-modelstorage'
+  scope: resourceGroup(rg.name)
+  params: {
+    location: location
+    containerAppsEnvironmentName: containerAppsEnvironment.outputs.environmentName
+  }
+}
+
 module postgres 'modules/postgres.bicep' = {
   name: 'aegisarena-postgres'
   scope: resourceGroup(rg.name)
@@ -148,6 +157,7 @@ module containerApp 'modules/containerapp.bicep' = if (deployContainerApp) {
     maxReplicas: maxReplicas
     adminPrincipalIds: adminPrincipalIds
     trustEasyAuthHeaders: trustEasyAuthHeaders
+    modelArtifactStorageName: modelStorage.outputs.environmentStorageName
   }
   dependsOn: [
     // The Container App's Key Vault secret reference (database-url) must

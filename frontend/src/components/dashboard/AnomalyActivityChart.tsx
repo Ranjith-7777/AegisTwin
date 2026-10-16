@@ -35,20 +35,20 @@ export function AnomalyActivityChart() {
               <AreaChart data={data} margin={{ top: 8, right: 4, left: -28, bottom: 0 }}>
                 <defs>
                   <linearGradient id="anomalyFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-cyan-400)" stopOpacity={0.38} />
-                    <stop offset="95%" stopColor="var(--color-cyan-400)" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.38} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="var(--color-slate-800)" vertical={false} />
+                <CartesianGrid stroke="#eef1f6" vertical={false} />
                 <XAxis
                   dataKey="sequence"
-                  stroke="var(--color-slate-600)"
+                  stroke="#94a3b8"
                   fontSize={11}
                   tickLine={false}
                   axisLine={false}
                 />
                 <YAxis
-                  stroke="var(--color-slate-600)"
+                  stroke="#94a3b8"
                   fontSize={11}
                   tickLine={false}
                   axisLine={false}
@@ -56,8 +56,8 @@ export function AnomalyActivityChart() {
                 />
                 <Tooltip
                   contentStyle={{
-                    background: '#0b1728',
-                    border: '1px solid #253247',
+                    background: '#ffffff',
+                    border: '1px solid #e4e8ef',
                     borderRadius: 8,
                   }}
                 />
@@ -67,7 +67,7 @@ export function AnomalyActivityChart() {
                 <Area
                   type="monotone"
                   dataKey="score"
-                  stroke="var(--color-cyan-400)"
+                  stroke="#2563eb"
                   fill="url(#anomalyFill)"
                   strokeWidth={2}
                   isAnimationActive={false}

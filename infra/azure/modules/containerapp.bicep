@@ -54,6 +54,9 @@ verified it is genuinely fronting the backend — never as a default.
 ''')
 param trustEasyAuthHeaders bool = false
 
+@description('Container Apps Environment storage (Azure Files) mounted at /data for model artifacts. Empty = no mount: artifacts then live on the ephemeral container filesystem and are rebuilt deterministically on first use after a restart.')
+param modelArtifactStorageName string = 'modelartifacts'
+
 var frontendImage = '${acrLoginServer}/aegisarena/frontend:${imageTag}'
 var backendImage = '${acrLoginServer}/aegisarena/backend:${imageTag}'
 // Container Apps' native Key Vault secret reference wants the secret's full
@@ -173,7 +176,19 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
               name: 'CORS_ORIGINS'
               value: 'https://${containerAppName}.internal.invalid'
             }
+            {
+              name: 'MODEL_ARTIFACT_DIR'
+              value: '/data/models'
+            }
           ]
+          volumeMounts: empty(modelArtifactStorageName)
+            ? []
+            : [
+                {
+                  volumeName: 'model-artifacts'
+                  mountPath: '/data'
+                }
+              ]
           resources: {
             cpu: json('0.25')
             memory: '0.5Gi'
@@ -220,6 +235,18 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
         minReplicas: minReplicas
         maxReplicas: maxReplicas
       }
+      volumes: empty(modelArtifactStorageName)
+        ? []
+        : [
+            {
+              name: 'model-artifacts'
+              storageType: 'AzureFile'
+              storageName: modelArtifactStorageName
+              // The backend runs as a non-root user; SMB mounts default to
+              // root ownership, so grant write access explicitly.
+              mountOptions: 'dir_mode=0777,file_mode=0777'
+            }
+          ]
     }
   }
 }

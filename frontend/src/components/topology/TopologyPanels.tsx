@@ -7,15 +7,6 @@ import type {
 import type { LiveTopologyOverlay } from '../../types/liveTopology'
 import { Card, CardContent, CardHeader } from '../ui/card'
 
-export function ZoneGroup() {
-  return (
-    <p className="text-xs text-slate-500">
-      Zones: Edge → Cluster → Workload → Data · Identity, Management and Operations adjacent ·
-      Synthetic External isolated
-    </p>
-  )
-}
-
 export function PathLegend() {
   return (
     <div className="topology-legend" aria-label="Topology path legend">

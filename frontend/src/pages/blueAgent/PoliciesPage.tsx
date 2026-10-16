@@ -21,7 +21,7 @@ export function PoliciesPage() {
     <section className="space-y-6" aria-labelledby="policies-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Blue Agent · Policies</p>
+          <p className="eyebrow">Defence · Policies</p>
           <h1 id="policies-title">Policy-as-Code</h1>
           <p>
             A small, deterministic, inspectable policy engine - deliberately not OPA/Gatekeeper.

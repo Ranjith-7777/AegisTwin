@@ -2,14 +2,20 @@ import type { HTMLAttributes } from 'react'
 
 import { cn } from '../../lib/utils'
 
-export function Badge({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+export type BadgeTone =
+  'neutral' | 'accent' | 'ok' | 'warn' | 'danger' | 'predicted' | 'proposed' | 'executed'
+
+export function Badge({
+  className,
+  tone = 'neutral',
+  dot = false,
+  children,
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone; dot?: boolean }) {
   return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.12em]',
-        className,
-      )}
-      {...props}
-    />
+    <span className={cn('badge', `badge-${tone}`, className)} {...props}>
+      {dot ? <span className="status-dot" aria-hidden="true" /> : null}
+      {children}
+    </span>
   )
 }

@@ -15,7 +15,8 @@ import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardHeader } from '../../components/ui/card'
 import { toClientApiError } from '../../services/apiClient'
 import { listRedScenarios } from '../../services/purpleTeamApi'
-import { compareModes } from '../../services/evaluationApi'
+import { compareModes, createExperiment } from '../../services/evaluationApi'
+import { useOptionalAutonomyWorkflow } from '../../hooks/useAutonomyWorkflow'
 import type { RedScenarioSummary } from '../../types/purpleTeam'
 import {
   ALL_DEFENCE_MODES,
@@ -29,9 +30,13 @@ const KEY_CHART_METRICS = ['ars_total', 'mci', 'attack_path_reduction']
 
 const METRIC_LABELS: Record<string, string> = {
   detection_coverage: 'Detection coverage',
-  time_to_first_detection: 'Time to first detection (s)',
-  time_to_containment: 'Time to containment (s)',
-  time_to_verified_recovery: 'Time to verified recovery (s)',
+  false_positive_rate: 'False-positive rate',
+  time_to_first_detection: 'Time to first detection (logical s)',
+  time_to_incident: 'Time to incident (logical s)',
+  time_to_response: 'Time to response (logical s)',
+  time_to_containment: 'Time to containment (logical s)',
+  time_to_verified_recovery: 'Time to verified recovery (logical s)',
+  containment_success: 'Containment success',
   attack_path_reduction: 'Attack-path reduction',
   blast_radius_reduction: 'Blast-radius reduction',
   critical_exposure_reduction: 'Critical exposure reduction',
@@ -56,7 +61,10 @@ function formatCell(value: number | boolean | null): string {
  * (time-to-* and operational disruption). Computed purely from the real
  * response values - never hardcoded to favour any one mode. */
 function bestMode(row: ModeComparisonResult['rows'][number]): string | null {
-  const lowerIsBetter = row.metric.startsWith('time_to_') || row.metric === 'operational_disruption'
+  const lowerIsBetter =
+    row.metric.startsWith('time_to_') ||
+    row.metric === 'operational_disruption' ||
+    row.metric === 'false_positive_rate'
   let best: { mode: string; value: number } | null = null
   for (const [mode, cell] of Object.entries(row.values)) {
     if (!cell.applicable || cell.value === null) continue
@@ -71,10 +79,25 @@ function bestMode(row: ModeComparisonResult['rows'][number]): string | null {
   return best?.mode ?? null
 }
 
+const MODE_COLORS: Record<DefenceMode, string> = {
+  no_active_defence: '#64748b',
+  rule_based: '#fbbf24',
+  ml_assisted: '#38bdf8',
+  agentic: '#34d399',
+}
+
+function cellValue(result: ModeComparisonResult, metric: string, mode: string) {
+  const cell = result.rows.find((row) => row.metric === metric)?.values[mode]
+  return cell?.applicable ? cell.value : null
+}
+
 export function ComparisonPage() {
   const [scenarios, setScenarios] = useState<RedScenarioSummary[]>([])
   const [scenarioId, setScenarioId] = useState('')
-  const [seed, setSeed] = useState<number>(CANONICAL_SEEDS[0] ?? 17)
+  const [seed, setSeed] = useState<number>(84)
+  const [running, setRunning] = useState<string | null>(null)
+  const workflow = useOptionalAutonomyWorkflow()
+  const canOperate = workflow?.session?.can_operate ?? true
   const [result, setResult] = useState<ModeComparisonResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -84,8 +107,9 @@ export function ComparisonPage() {
     void listRedScenarios()
       .then((rows) => {
         setScenarios(rows)
-        const first = rows[0]
-        if (first && !scenarioId) setScenarioId(first.scenario_id)
+        const preferred =
+          rows.find((row) => row.scenario_id === 'staged-compromise-demo') ?? rows[0]
+        if (preferred && !scenarioId) setScenarioId(preferred.scenario_id)
       })
       .catch(() => {
         // Scenario catalogue is a convenience dropdown only; the free-text
@@ -93,6 +117,26 @@ export function ComparisonPage() {
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /** Create one experiment per defence mode that has none for this scenario
+   * and seed, then compare - the "same attack, four defenders" experiment. */
+  async function runAllStrategies() {
+    if (!scenarioId) return
+    setError(null)
+    try {
+      const existing = await compareModes({ scenarioId, seed })
+      const missing = ALL_DEFENCE_MODES.filter((mode) => !existing.available_modes.includes(mode))
+      for (const mode of missing) {
+        setRunning(DEFENCE_MODE_LABELS[mode])
+        await createExperiment({ scenario_id: scenarioId, seed, defence_mode: mode })
+      }
+    } catch (cause) {
+      setError(toClientApiError(cause).message)
+    } finally {
+      setRunning(null)
+    }
+    submitComparison()
+  }
 
   function submitComparison() {
     if (!scenarioId) return
@@ -130,7 +174,7 @@ export function ComparisonPage() {
     <section className="space-y-6" aria-labelledby="comparison-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Evaluation · Comparison</p>
+          <p className="eyebrow">Analysis · Evaluation</p>
           <h1 id="comparison-title">Defence-mode comparison</h1>
           <p>
             Compare all four defence strategies on the SAME scenario and seed, side by side. Real
@@ -202,8 +246,16 @@ export function ComparisonPage() {
                 Canonical set: {CANONICAL_SEEDS.join(', ')} (any seed may be entered)
               </span>
             </label>
-            <Button type="submit" disabled={!scenarioId || loading}>
+            <Button type="submit" variant="outline" disabled={!scenarioId || loading}>
               {loading ? 'Comparing…' : 'Compare modes'}
+            </Button>
+            <Button
+              type="button"
+              disabled={!scenarioId || loading || running !== null || !canOperate}
+              title={canOperate ? undefined : 'Running experiments requires the ANALYST role.'}
+              onClick={() => void runAllStrategies()}
+            >
+              {running ? `Running ${running}…` : 'Run all four strategies'}
             </Button>
           </form>
         </CardContent>
@@ -232,6 +284,82 @@ export function ComparisonPage() {
               {result.missing_modes.map((m) => DEFENCE_MODE_LABELS[m as DefenceMode]).join(', ')}.
             </p>
           ) : null}
+
+          <div className="split-3 !grid-cols-4" aria-label="Strategy outcomes">
+            {ALL_DEFENCE_MODES.map((mode) => {
+              const present = result.available_modes.includes(mode)
+              const ars = cellValue(result, 'ars_total', mode)
+              const mci = cellValue(result, 'mci', mode)
+              const contained = cellValue(result, 'containment_success', mode)
+              const verified = cellValue(result, 'verification_success', mode)
+              return (
+                <div
+                  key={mode}
+                  className="panel p-3"
+                  style={{ borderTop: `2px solid ${MODE_COLORS[mode]}` }}
+                >
+                  <p className="m-0 text-[0.8rem] font-semibold text-[var(--text)]">
+                    {DEFENCE_MODE_LABELS[mode]}
+                  </p>
+                  {present ? (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="metric">
+                        <span className="metric-label">ARS</span>
+                        <span className="metric-value is-sm">
+                          {typeof ars === 'number' ? ars.toFixed(1) : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="metric">
+                        <span className="metric-label">MCI</span>
+                        <span className="metric-value is-sm">
+                          {typeof mci === 'number' ? mci.toFixed(3) : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="metric">
+                        <span className="metric-label">Contained</span>
+                        <span
+                          className={`metric-value is-sm ${contained === true ? 'tone-ok' : ''}`}
+                        >
+                          {contained === null ? 'N/A' : contained ? 'yes' : 'no'}
+                        </span>
+                      </div>
+                      <div className="metric">
+                        <span className="metric-label">Verified</span>
+                        <span
+                          className={`metric-value is-sm ${verified === true ? 'tone-ok' : ''}`}
+                        >
+                          {verified === null ? 'N/A' : verified ? 'yes' : 'no'}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="m-0 mt-2 text-[0.75rem] italic text-[var(--text-faint)]">
+                      No experiment
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {(() => {
+            const values = result.available_modes
+              .map((mode) => cellValue(result, 'mci', mode))
+              .filter((value): value is number => typeof value === 'number')
+            return values.length > 1 && values.every((value) => value === values[0]) ? (
+              <p className="notice is-warn m-0" role="note">
+                MCI is identical ({values[0]?.toFixed(3)}) for every strategy here, so it does not
+                discriminate between them for this scenario: evidence exposure saturates the compact
+                synthetic topology at the first anomaly, and evaluation responses land at the end of
+                the replay, leaving no post-recovery interval to credit. Compare containment,
+                verification and ARS instead. This is a documented property of the bundled
+                environment, not a measurement failure.
+              </p>
+            ) : null
+          })()}
+          <p className="m-0 text-[0.74rem] text-[var(--text-faint)]">
+            Times are logical (simulated) seconds on the replayed scenario timeline - not real-world
+            latency. ARS = Aegis Resilience Score, MCI = Mission Continuity Index.
+          </p>
 
           <Card>
             <CardHeader>
@@ -289,18 +417,13 @@ export function ComparisonPage() {
               <div className="h-72" aria-label="Defence-mode comparison chart">
                 <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={240}>
                   <BarChart data={chartData}>
-                    <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                    <CartesianGrid vertical={false} />
                     <XAxis dataKey="metric" fontSize={11} tickLine={false} />
                     <YAxis fontSize={11} tickLine={false} />
-                    <Tooltip />
+                    <Tooltip cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
                     <Legend formatter={(value) => DEFENCE_MODE_LABELS[value as DefenceMode]} />
-                    {ALL_DEFENCE_MODES.map((mode, index) => (
-                      <Bar
-                        key={mode}
-                        dataKey={mode}
-                        name={mode}
-                        fill={['#94a3b8', '#f59e0b', '#0ea5e9', '#2563eb'][index]}
-                      />
+                    {ALL_DEFENCE_MODES.map((mode) => (
+                      <Bar key={mode} dataKey={mode} name={mode} fill={MODE_COLORS[mode]} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>

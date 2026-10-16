@@ -16,6 +16,7 @@ export interface SystemStatusResponse {
   red_agent_runs?: number
   blue_agent_orchestrations?: number
   version?: string
+  environment?: string
   git_commit?: string | null
   build_mode?: string
   demo_mode?: boolean

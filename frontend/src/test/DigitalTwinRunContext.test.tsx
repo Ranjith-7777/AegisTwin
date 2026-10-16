@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { renderApp } from './test-utils'
@@ -159,5 +160,40 @@ describe('Digital Twin run-context persistence', () => {
     expect(await screen.findByText(/assets ·/)).toBeInTheDocument()
     expect(new URLSearchParams(window.location.search).get('run')).toBeNull()
     expect(topologyApi.getRunTopologyState).not.toHaveBeenCalled()
+  })
+
+  it('keeps the asset inspector as a closed drawer until it is asked for', async () => {
+    renderApp('/digital-twin')
+    const toggle = await screen.findByRole('button', { name: 'Inspector' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByLabelText('Selected asset')).not.toBeInTheDocument()
+    await userEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findByLabelText('Selected asset')).toHaveTextContent('API Gateway')
+    await userEvent.click(screen.getByRole('button', { name: 'Close inspector' }))
+    expect(screen.queryByLabelText('Selected asset')).not.toBeInTheDocument()
+  })
+
+  it('opens the inspector for an asset requested from the header search', async () => {
+    renderApp('/digital-twin?asset=api-gateway-01')
+    await waitFor(() => {
+      expect(screen.getByLabelText('Selected asset')).toHaveTextContent('API Gateway')
+    })
+    expect(screen.getByRole('button', { name: 'Inspector' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  it('collapses the legend behind a toggle', async () => {
+    renderApp('/digital-twin')
+    const toggle = await screen.findByRole('button', { name: 'Legend' })
+    expect(screen.queryByLabelText('Digital Twin legend')).not.toBeInTheDocument()
+    await userEvent.click(toggle)
+    expect(screen.getByLabelText('Digital Twin legend')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide legend' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
   })
 })

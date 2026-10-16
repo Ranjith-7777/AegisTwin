@@ -75,7 +75,7 @@ export function AgentWorkflowPage() {
     <section className="space-y-6" aria-labelledby="agent-workflow-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Blue Agent · Agent Workflow</p>
+          <p className="eyebrow">Defence · Agent decision trace</p>
           <h1 id="agent-workflow-title">Agent Architecture</h1>
           <p>
             AegisArena runs exactly {registry?.total_agents ?? 7} functional agents:{' '}

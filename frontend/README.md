@@ -1,42 +1,36 @@
-# AegisTwin Frontend Dashboard Foundation
+# AegisArena Frontend
 
-The Windows judge launcher builds and serves this frontend locally with synchronized localhost REST/WebSocket endpoints and no remote assets. See `docs/LOCAL_DEMO_GUIDE.md`.
+The operator console for AegisArena: React 19, TypeScript, Vite 7,
+Tailwind CSS v4, React Router 7, Axios, @xyflow/react and Recharts. For the
+product overview, see the [root README](../README.md). For the visual
+language, see [docs/ui/DESIGN_SYSTEM.md](../docs/ui/DESIGN_SYSTEM.md).
 
-Phase 8A adds explicit Demo Mode, Playwright Chromium E2E coverage, same-origin-safe production URL fallbacks, and lazy/vendor chunk splitting. Run `npm run test:e2e` after installing the pinned Playwright Chromium runtime.
+## Structure
 
-Phase 7B adds Response Operations, a functional Audit Trail, incident workflow context, and distinct applied/rollback synthetic-twin overlays.
-
-Phase 6A replaces the Digital Twin placeholder with a reusable React Flow topology, asset and relationship inspectors, layer controls, and cautious path inspection.
-
-Phase 6B drives that topology from ordered playback messages. The Overview card and full Digital Twin share reducer state, expose event history and evidence details, separate observed/correlated/predicted semantics, and recover an exact sequence prefix before WebSocket resume. See `../docs/PHASE_6B_LIVE_DIGITAL_TWIN.md`.
-
-Phase 7A replaces the Response Centre placeholder with sequence-bounded recommendation ranking, approval-tier display, component/penalty inspection, and baseline-versus-cloned-topology impact comparison. Incident, prediction, and topology views expose qualified response context without implying execution. See `../docs/PHASE_7A_RESPONSE_RECOMMENDATION_SIMULATION.md`.
-
-Phase 5B adds opt-in prediction controls, a live ranked-hypothesis panel, and `/predictive-analytics` for snapshot and outcome review.
-
-Phase 3B connects the React dashboard foundation to deterministic synthetic simulation runs and controlled real-time playback. It is dark by default, responsive, and permanently identifies itself as a simulation environment.
-
-The dashboard reads health and safety status, loads synthetic scenarios, run history and detection models, scores a run before optional assessment playback, and opens a typed run-scoped WebSocket only after an explicit user action. It renders persisted synthetic anomaly values but no fabricated incident, MTTD, MTTR or confirmed-attack values.
-
-## Windows CMD
-
-```bat
-cd /d D:\Ranjith\ET_2.0\AegisTwin\frontend
-npm install
-copy .env.example .env
-npm run dev
+```text
+src/app/          Router, providers (simulation playback, autonomous workflow)
+src/pages/        Command Centre, Workflow, Red Agent, Digital Twin, Blue Agent,
+                  Incidents, Evaluation, Audit Trail, Detection Models, ...
+src/components/   ui/ (Button, Card, Badge, Panel, Dialog), layout/, workflow/,
+                  topology/, detection/, common/
+src/lib/          routes, workflowStages, decision, posture, prediction, autonomy
+src/services/     typed REST clients (apiClient with per-route timeout policy)
+src/test/         Vitest + Testing Library suites
+e2e/              Playwright end-to-end tests (isolated test backend)
 ```
 
-## Windows PowerShell
+## Run locally
 
 ```powershell
-Set-Location 'D:\Ranjith\ET_2.0\AegisTwin\frontend'
+Set-Location '<path-to-repo>\frontend'
 npm.cmd install
 Copy-Item .env.example .env
-npm.cmd run dev
+npm.cmd run dev                 # http://localhost:5173
 ```
 
-If PowerShell script execution prevents `npm`, use `npm.cmd` as shown.
+Start the backend on `http://127.0.0.1:8000` with `AUTH_DEV_BYPASS_ROLE=ADMIN`
+(see `backend/.env.example`). Without it, the console is read-only. The
+header shows the backend health and your resolved role.
 
 ## Configuration
 
@@ -45,7 +39,9 @@ VITE_API_BASE_URL=http://localhost:8000
 VITE_WS_BASE_URL=ws://localhost:8000
 ```
 
-These are public browser endpoints, not secrets. Copy `.env.example` to `.env`; never add credentials.
+These are public browser endpoints, not secrets. When they are **empty** (as
+in the Docker and Azure image builds), the app uses its own origin, and nginx
+proxies `/api/` and `/api/v1/ws/` to the backend.
 
 ## Quality commands
 
@@ -55,20 +51,11 @@ npm.cmd run format:check
 npm.cmd run typecheck
 npm.cmd run test:run
 npm.cmd run build
+npm.cmd run test:e2e            # needs Playwright Chromium: npx playwright install chromium
 ```
 
-Use `npm.cmd run format` to apply Prettier. `npm.cmd run preview` serves the production build locally.
+## Notes
 
-## Routes
-
-`/` implements simulation controls, live telemetry and anomaly assessment views. `/model-analytics` implements model listing, synthetic training and benchmark evaluation. The remaining named routes are explicitly deferred placeholders. Unknown paths render a 404 page.
-
-## Open-source foundation
-
-The component approach is adapted from the open-source shadcn/ui conventions and official dashboard patterns. It uses Radix UI Slot and retains project-owned component source for adaptation. Package licences remain available through their respective distributions.
-
-## Current limitations
-
-The overview can optionally prepare and stream causal correlation after detection scoring. `/incidents` is the Incident Candidates workspace and `/mitre` separates the local catalogue from actual persisted observations. All values are synthetic evidence heuristics, not attack probabilities or confirmed incidents.
-
-Playback keeps at most 200 rendered telemetry rows. Detection is optional and uses only offline persisted assessments. Topology animation is a synthetic evidence projection, not infrastructure discovery or confirmed compromise. There is no agent or response orchestration.
+- Every value shown comes from the backend. A missing value is shown as `—`, never invented.
+- Proposed mitigations are never drawn as executed ones. The twin keeps the evidence, proposed and executed layers separate.
+- The simulation-only notice appears on every route.

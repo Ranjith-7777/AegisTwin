@@ -75,8 +75,8 @@ export function EvaluationOverviewPage() {
     <section className="viewport-page" aria-labelledby="evaluation-overview-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Reports · Evaluation</p>
-          <h1 id="evaluation-overview-title">Reports Overview</h1>
+          <p className="eyebrow">Analysis · Evaluation</p>
+          <h1 id="evaluation-overview-title">Evaluation Overview</h1>
           <p>
             A summary of real, persisted experiments - deterministic scenario/seed/defence-mode runs
             with computed metrics, MCI and Aegis Resilience Score. No projected or estimated

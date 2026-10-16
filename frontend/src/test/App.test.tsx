@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { renderApp } from './test-utils'
+import { appRoutes } from '../lib/routes'
 import * as simulationApi from '../services/simulationApi'
 import * as systemApi from '../services/systemApi'
 import { parseConnectionAck } from '../types/websocket'
@@ -50,63 +51,96 @@ beforeEach(() => {
 })
 
 describe('AegisArena command centre', () => {
-  it('renders the application', () => {
+  it('renders the application', async () => {
     renderApp()
-    expect(screen.getByLabelText('Cloud Digital Twin')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Command Centre' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Cloud Digital Twin')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Command Centre' })).toBeInTheDocument()
   })
-  it('renders the seven grouped sidebar entries', async () => {
+  it('keeps the sidebar to ten lifecycle-ordered sections', async () => {
     renderApp()
-    const nav = screen.getByRole('navigation', { name: 'Primary navigation' })
-    for (const label of [
+    const nav = await screen.findByRole('navigation', { name: 'Primary navigation' })
+    const expected = [
       'Command Centre',
       'Digital Twin',
-      'Threat Analysis',
-      'Blue Agent',
+      'Workflow & Agents',
       'Red Agent',
+      'Incidents',
+      'Threat Intelligence',
       'Reports',
-      'Results',
-    ])
+      'Detection Models',
+      'Audit Trail',
+      'Settings',
+    ]
+    for (const label of expected)
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument()
-    expect(within(nav).getAllByRole('link')).toHaveLength(7)
+    expect(within(nav).getAllByRole('link')).toHaveLength(expected.length)
     expect(await screen.findByText('Backend connected')).toBeInTheDocument()
   })
-  it('exposes every original route through section sub-navigation', async () => {
-    renderApp('/telemetry')
-    const nav = await screen.findByRole('navigation', { name: 'Threat Analysis sections' })
-    for (const label of ['Live Telemetry', 'Incidents', 'MITRE ATT&CK', 'Attack Prediction'])
+  it('keeps every original route reachable from navigation or sub-navigation', async () => {
+    const original = [
+      '/app',
+      '/digital-twin',
+      '/red-agent',
+      '/telemetry',
+      '/incidents',
+      '/mitre',
+      '/predictive-analytics',
+      '/blue-agent/overview',
+      '/blue-agent/agent-workflow',
+      '/blue-agent/response-plans',
+      '/blue-agent/policies',
+      '/blue-agent/verification',
+      '/evaluation',
+      '/evaluation/experiments',
+      '/evaluation/compare',
+      '/evaluation/aggregate',
+      '/evaluation/batches',
+      '/model-analytics',
+      '/audit-trail',
+      '/settings',
+    ]
+    const reachable = new Set(appRoutes.map((route) => route.path))
+    for (const path of original) expect(reachable.has(path)).toBe(true)
+    renderApp('/mitre')
+    const nav = await screen.findByRole('navigation', { name: 'Threat Intelligence sections' })
+    for (const label of ['MITRE ATT&CK', 'Attack Prediction'])
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument()
   })
   it('renders safe system information without local environment values', async () => {
     renderApp('/settings')
     expect(await screen.findByRole('heading', { name: 'System Information' })).toBeInTheDocument()
-    expect(screen.getByText('0.8.0')).toBeInTheDocument()
-    expect(screen.getByText('20260722_0008')).toBeInTheDocument()
+    expect(await screen.findByText('0.8.0')).toBeInTheDocument()
+    expect(await screen.findByText('20260722_0008')).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent('C:\\Users')
   })
-  it('shows a compact synthetic environment badge instead of a banner', () => {
+  it('shows a compact simulation-only badge instead of a banner', async () => {
     renderApp()
-    expect(
-      screen.getByRole('status', { name: 'Simulation environment safety notice' }),
-    ).toHaveTextContent('Synthetic Environment')
-    expect(screen.getByText('Simulation Mode')).toBeInTheDocument()
+    expect(await screen.findByRole('status', { name: 'Simulation-only safety' })).toHaveTextContent(
+      'Simulation only',
+    )
   })
-  it('renders connected health status', async () => {
+  it('renders connected health status from the backend', async () => {
     renderApp()
     expect(await screen.findByText('Backend connected')).toBeInTheDocument()
-    expect(await screen.findByText('System operational')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('status', { name: /^Backend healthy, environment test$/ }),
+    ).toBeInTheDocument()
+    // The environment pill comes from the health response, not a hardcoded label.
+    expect(await screen.findByText('Test')).toBeInTheDocument()
   })
-  it('renders disconnected state on backend failure', async () => {
+  it('renders an unavailable state on backend failure', async () => {
     vi.mocked(systemApi.getHealth).mockRejectedValue(new Error('offline'))
     renderApp()
-    expect(await screen.findByText('Backend disconnected')).toBeInTheDocument()
+    expect((await screen.findAllByText('Backend unavailable')).length).toBeGreaterThan(0)
   })
-  it('exposes the backend safety statement on the badge', async () => {
+  it('exposes the backend safety statement in the badge tooltip', async () => {
     renderApp()
     await waitFor(() => {
       expect(
-        screen.getByRole('status', { name: 'Simulation environment safety notice' }),
-      ).toHaveAttribute('title', 'Backend confirms synthetic telemetry only.')
+        screen
+          .getAllByRole('tooltip')
+          .some((item) => item.textContent.includes('Backend confirms synthetic telemetry only.')),
+      ).toBe(true)
     })
   })
   it('falls back to safe wording when safety is unavailable', async () => {
@@ -114,46 +148,60 @@ describe('AegisArena command centre', () => {
     renderApp()
     await waitFor(() => {
       expect(
-        screen.getByRole('status', { name: 'Simulation environment safety notice' }),
-      ).toHaveAttribute('title', expect.stringContaining('No action affects real systems'))
+        screen
+          .getAllByRole('tooltip')
+          .some((item) => item.textContent.includes('No action affects real systems')),
+      ).toBe(true)
     })
   })
-  it('renders exactly the four command centre KPI cards', () => {
+  it('renders the four command centre indicators without fabricated values', async () => {
     renderApp()
-    for (const label of ['Resilience', 'Threats', 'Blue Agent', 'Red Agent'])
-      expect(screen.getByLabelText(label)).toBeInTheDocument()
-    expect(screen.getByLabelText('Command Centre summary').children).toHaveLength(4)
+    const indicators = await screen.findByRole('group', { name: 'Key indicators' })
+    expect(indicators.children).toHaveLength(4)
+    for (const label of [
+      'Digital Twin Assets',
+      'Active Incidents',
+      'Anomalies Detected',
+      'Mitigations Executed',
+    ])
+      expect(within(indicators).getByText(label)).toBeInTheDocument()
   })
-  it('renders the compact command centre workspace', () => {
+  it('renders the command centre workspace: twin, workflow rail, incident and decision', async () => {
     renderApp()
-    // One merged panel carries both the incident summary and the Blue Agent
-    // response — no separate bordered card per widget.
-    const incidentPanel = screen.getByLabelText('Active incident')
-    expect(incidentPanel).toBeInTheDocument()
-    expect(within(incidentPanel).getByText('Blue Agent Response')).toBeInTheDocument()
-    expect(screen.getByLabelText('Cloud Digital Twin')).toBeInTheDocument()
-    expect(screen.getByText('Recent Activity')).toBeInTheDocument()
-    expect(screen.getByLabelText('Quick actions')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Run Scenario' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Cloud Digital Twin')).toBeInTheDocument()
+    const rail = await screen.findByRole('list', { name: 'Autonomous workflow progress' })
+    expect(within(rail).getAllByRole('button')).toHaveLength(8)
+    expect(screen.getByLabelText('Red Agent activity')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Threat activity')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Recent incidents')).toBeInTheDocument()
+    expect(screen.getByLabelText('Blue Agent decision')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Launch simulation/ })).toHaveAttribute(
+      'href',
+      '/red-agent',
+    )
+    expect(screen.getByText('Standby')).toBeInTheDocument()
   })
   it('navigates to the interactive synthetic topology route', async () => {
     renderApp()
-    await userEvent.click(screen.getByRole('link', { name: 'Digital Twin' }))
+    await userEvent.click(await screen.findByRole('link', { name: 'Digital Twin' }))
     expect(
       await screen.findByRole('heading', { name: 'Cloud Digital Twin' }, { timeout: 5000 }),
     ).toBeInTheDocument()
     expect(screen.getByText(/sequence-bounded path evidence/)).toBeInTheDocument()
   })
-  it('renders the 404 page for an unknown route', () => {
+  it('renders the 404 page for an unknown route', async () => {
     renderApp('/unknown')
-    expect(screen.getByRole('heading', { name: 'Route not found' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Route not found' })).toBeInTheDocument()
   })
-  it('keeps Blue Agent ranking disabled until a run and model exist', () => {
+  it('keeps the Blue workflow unavailable until a correlated incident exists', async () => {
     renderApp()
-    expect(screen.getByRole('button', { name: 'Rank mitigations' })).toBeDisabled()
+    await screen.findByRole('heading', { name: 'Command Centre' })
+    expect(screen.queryByRole('button', { name: /Run Blue workflow/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/Waiting for a correlated incident/)).toBeInTheDocument()
   })
-  it('does not display prohibited live-action claims', () => {
+  it('does not display prohibited live-action claims', async () => {
     renderApp()
+    await screen.findByRole('heading', { name: 'Command Centre' })
     expect(screen.queryByText(/isolate real endpoint/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/disable real account/i)).not.toBeInTheDocument()
   })
