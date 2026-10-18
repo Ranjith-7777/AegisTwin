@@ -2,7 +2,7 @@ param(
     [ValidateSet("Development", "Production")][string]$Mode = "Production",
     [int]$BackendPort = 8000, [int]$FrontendPort = 5173,
     [switch]$NoBrowser, [switch]$Reset, [switch]$SkipModelBootstrap,
-    [ValidateSet("overview", "digital-twin", "response-centre", "response-operations", "audit-trail")]
+    [ValidateSet("overview", "digital-twin", "blue-agent", "response-plans", "verification", "audit-trail")]
     [string]$OpenPage = "overview"
 )
 $ErrorActionPreference = "Stop"
@@ -59,7 +59,14 @@ try {
         backend = @{ pid = $backend.Id }; frontend = @{ pid = $frontend.Id }
     }
     $metadata | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $paths.ProcessFile
-    $route = if ($OpenPage -eq "overview") { "" } else { $OpenPage }
+    $route = @{
+        "overview" = "app"
+        "digital-twin" = "digital-twin"
+        "blue-agent" = "blue-agent/overview"
+        "response-plans" = "blue-agent/response-plans"
+        "verification" = "blue-agent/verification"
+        "audit-trail" = "audit-trail"
+    }[$OpenPage]
     $url = "http://127.0.0.1:$FrontendPort/$route"
     if (-not $NoBrowser) { Start-Process $url }
     Write-Host "AegisArena Judge Demo READY: $url"

@@ -26,11 +26,11 @@ Run `START_AEGISTWIN_DEMO.bat`. It runs these steps in order:
 3. Creates or reuses the deterministic demo detection model.
 4. Builds the frontend.
 5. Starts both services and verifies they are ready.
-6. Opens `http://127.0.0.1:5173`.
+6. Opens `http://127.0.0.1:5173/app`.
 
 The launcher runs the backend with:
 
-- `ENVIRONMENT=development`
+- `ENVIRONMENT=demo`
 - `AUTH_DEV_BYPASS_ROLE=ADMIN`
 - `AEGISARENA_DISABLE_DOTENV=1`
 
@@ -46,7 +46,12 @@ PowerShell options:
 - `-NoBrowser`
 - `-Reset`
 - `-SkipModelBootstrap`
-- `-OpenPage overview|digital-twin|response-centre|response-operations|audit-trail`
+- `-OpenPage overview|digital-twin|blue-agent|response-plans|verification|audit-trail`
+
+The page names resolve to the current React routes: `overview` opens `/app`,
+`blue-agent` opens `/blue-agent/overview`, `response-plans` opens
+`/blue-agent/response-plans`, and `verification` opens
+`/blue-agent/verification`.
 
 To manage the demo:
 

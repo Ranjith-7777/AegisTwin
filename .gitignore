@@ -29,6 +29,8 @@ models/artifacts/
 logs/
 test-results/
 playwright-report/
+docs/ui/screenshots/**/*.png
+docs/ui/screenshots/**/computed-colors.json
 backend/.e2e/
 reports/*.tmp
 .aegistwin-demo/
