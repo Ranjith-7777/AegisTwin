@@ -74,6 +74,9 @@ class DetectionModel(BaseModel):
     validation_event_count: int
     created_at: datetime
     synthetic: bool
+    # Whether the artifact file currently exists under MODEL_ARTIFACT_DIR. A
+    # missing artifact is rebuilt deterministically on first use.
+    artifact_available: bool = True
 
 
 class DetectionTrainingResult(BaseModel):

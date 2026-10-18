@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
+from app.core.artifacts import set_model_artifact_dir
 from app.core.config import Settings, get_settings
 from app.core.constants import APP_DESCRIPTION
 from app.core.exceptions import ConfigurationError, register_exception_handlers
@@ -62,7 +63,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not active_settings.model_artifact_dir.is_dir():
             database.dispose()
             raise ConfigurationError("MODEL_ARTIFACT_DIR must identify a directory")
-        logger.info("Model artifact directory verified")
+        set_model_artifact_dir(active_settings.model_artifact_dir)
+        logger.info("Model artifact directory verified path=%s", active_settings.model_artifact_dir)
         event_bus = get_event_bus()
         register_logging_subscriber(event_bus)
         application.state.event_bus = event_bus
@@ -93,7 +95,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=active_settings.cors_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        # Exactly the methods the API exposes (PUT is used by /api/v1/autonomy).
+        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
         allow_headers=["Content-Type", "X-Correlation-ID"],
     )
     application.include_router(api_router, prefix=active_settings.api_prefix)

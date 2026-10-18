@@ -1001,3 +1001,98 @@ class ResponsePlanAssessmentRecord(Base):
         DateTime(timezone=True), nullable=False, default=utc_now
     )
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class DataSourceRecord(Base):
+    """One imported telemetry file and its provenance. Recorded datasets are
+    `source_kind="replay"` - never presented as live. See
+    docs/REAL_DATA_INGESTION.md."""
+
+    __tablename__ = "data_sources"
+
+    source_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    source_kind: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    adapter: Mapped[str] = mapped_column(String(40), nullable=False)
+    dataset_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    file_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    licence: Mapped[str] = mapped_column(String(500), nullable=False)
+    citation: Mapped[str | None] = mapped_column(String(500))
+    provenance_notes_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    window_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    window_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rows_read: Mapped[int] = mapped_column(Integer, nullable=False)
+    rows_accepted: Mapped[int] = mapped_column(Integer, nullable=False)
+    rows_rejected: Mapped[int] = mapped_column(Integer, nullable=False)
+    rows_duplicate: Mapped[int] = mapped_column(Integer, nullable=False)
+    rows_unmapped: Mapped[int] = mapped_column(Integer, nullable=False)
+    rows_timestamp_adjusted: Mapped[int] = mapped_column(Integer, nullable=False)
+    rows_rate_missing: Mapped[int] = mapped_column(Integer, nullable=False)
+    rejection_reasons_json: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    unmapped_endpoints_json: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    label_counts_json: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    imported_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class NetworkFlowRecord(Base):
+    """A canonical network flow from an imported source. `evaluation_label`
+    is ground truth for evaluation only and is never a detection feature."""
+
+    __tablename__ = "network_flows"
+    __table_args__ = (Index("ix_network_flows_source_time", "source_id", "observed_at"),)
+
+    flow_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source_id: Mapped[str] = mapped_column(
+        ForeignKey("data_sources.source_id"), nullable=False, index=True
+    )
+    row_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    src_ip: Mapped[str] = mapped_column(String(45), nullable=False)
+    src_port: Mapped[int] = mapped_column(Integer, nullable=False)
+    dst_ip: Mapped[str] = mapped_column(String(45), nullable=False)
+    dst_port: Mapped[int] = mapped_column(Integer, nullable=False)
+    protocol: Mapped[int] = mapped_column(Integer, nullable=False)
+    duration_s: Mapped[float] = mapped_column(Float, nullable=False)
+    fwd_packets: Mapped[int] = mapped_column(Integer, nullable=False)
+    bwd_packets: Mapped[int] = mapped_column(Integer, nullable=False)
+    fwd_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    bwd_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    syn_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    fin_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    rst_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    psh_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    ack_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    flow_bytes_per_s: Mapped[float | None] = mapped_column(Float)
+    flow_packets_per_s: Mapped[float | None] = mapped_column(Float)
+    src_testbed_identity: Mapped[str | None] = mapped_column(String(80))
+    dst_testbed_identity: Mapped[str | None] = mapped_column(String(80))
+    src_asset_id: Mapped[str | None] = mapped_column(String(80))
+    dst_asset_id: Mapped[str | None] = mapped_column(String(80))
+    evaluation_label: Mapped[str | None] = mapped_column(String(80))
+
+
+class NetworkFlowEvaluationRecord(Base):
+    """One train-on-benign / evaluate-on-labelled run of the network-flow
+    detector, with the protocol and metrics needed to reproduce it."""
+
+    __tablename__ = "network_flow_evaluations"
+
+    evaluation_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    model_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    feature_schema_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    train_source_id: Mapped[str] = mapped_column(
+        ForeignKey("data_sources.source_id"), nullable=False, index=True
+    )
+    eval_source_id: Mapped[str] = mapped_column(
+        ForeignKey("data_sources.source_id"), nullable=False, index=True
+    )
+    protocol_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    metrics_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    artifact_path: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )

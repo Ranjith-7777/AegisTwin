@@ -23,7 +23,8 @@ def test_demo_environment_is_explicit_and_safe(tmp_path: Path) -> None:
     assert status.demo_mode is True
     assert status.synthetic_only is True
     assert status.git_commit == "abcdef1"
-    assert status.database_revision == "20260817_0009"
+    assert status.database_revision == "unknown"
+    assert status.environment == "demo"
     assert "ASUS" not in status.model_dump_json()
 
 

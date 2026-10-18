@@ -22,7 +22,8 @@ def test_system_status_is_foundation_data(client: TestClient) -> None:
         "git_commit": None,
         "build_mode": "development",
         "demo_mode": False,
-        "database_revision": "20260817_0009",
+        "database_revision": "unversioned",
+        "environment": "development",
         "synthetic_only": True,
         "benchmark_report_timestamp": None,
     }

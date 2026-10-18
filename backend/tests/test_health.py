@@ -59,3 +59,22 @@ def test_readiness_fails_when_model_artifact_dir_is_removed(client: TestClient) 
     assert body["status"] == "not_ready"
     failed = {check["name"] for check in body["checks"] if check["status"] == "failed"}
     assert "model_subsystem" in failed
+
+
+def test_metrics_endpoint_exposes_persisted_counts(client: TestClient) -> None:
+    run = client.post(
+        "/api/v1/simulation/runs",
+        json={
+            "scenario_id": "credential-compromise",
+            "seed": 3,
+            "start_time": "2026-07-21T01:30:00Z",
+        },
+    )
+    assert run.status_code == 201
+    response = client.get("/api/metrics")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    body = response.text
+    assert "# TYPE aegisarena_simulation_runs gauge" in body
+    assert "aegisarena_simulation_runs 1" in body
+    assert "aegisarena_up 1" in body

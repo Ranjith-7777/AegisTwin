@@ -27,6 +27,7 @@ from fastapi import Depends, HTTPException, Request, status
 from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
+_bypass_warned: set[str] = set()
 
 
 class Role(IntEnum):
@@ -61,11 +62,14 @@ def _decode_client_principal(header_value: str) -> dict[str, Any]:
 def resolve_principal(request: Request, settings: Settings) -> Principal:
     if settings.environment != "production" and settings.auth_dev_bypass_role:
         role = Role.from_str(settings.auth_dev_bypass_role)
-        logger.warning(
-            "AUTH_DEV_BYPASS_ROLE=%s is active — every request is treated as this role. "
-            "This must never be set in production.",
-            role.name,
-        )
+        if role.name not in _bypass_warned:
+            # Logged once per process and role rather than on every request.
+            _bypass_warned.add(role.name)
+            logger.warning(
+                "AUTH_DEV_BYPASS_ROLE=%s is active - every request is treated as this role. "
+                "This must never be set in production.",
+                role.name,
+            )
         return Principal(role=role, subject="dev-bypass", authenticated=True)
 
     # Identity headers are only meaningful once Easy Auth is genuinely

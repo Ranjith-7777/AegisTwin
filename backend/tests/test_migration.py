@@ -97,3 +97,42 @@ def test_migration_downgrade_removes_purple_team_tables(
     assert "purple_team_step_results" not in tables
     assert "system_state" in tables
     engine.dispose()
+
+
+def test_migrated_schema_matches_the_orm_with_no_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: `alembic check` used to report ~33 ORM-declared indexes
+    that no migration created (20261007_0018 aligns them)."""
+
+    database_url = f"sqlite:///{(tmp_path / 'drift.db').as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    config = _alembic_config()
+    command.upgrade(config, "head")
+    command.check(config)
+    engine = create_engine(database_url)
+    indexes = {item["name"] for item in inspect(engine).get_indexes("technique_observations")}
+    engine.dispose()
+    assert "ix_technique_observations_simulation_run_id" in indexes
+    assert "ix_technique_run" not in indexes
+
+
+def test_system_status_reports_the_applied_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.core.config import Settings
+    from app.main import create_app
+
+    database_url = f"sqlite:///{(tmp_path / 'status.db').as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    command.upgrade(_alembic_config(), "head")
+    settings = Settings(
+        _env_file=None, DATABASE_URL=database_url, MODEL_ARTIFACT_DIR=tmp_path / "artifacts"
+    )
+    with TestClient(create_app(settings)) as client:
+        body = client.get("/api/system/status").json()
+    assert body["database_revision"] == "20261013_0019"

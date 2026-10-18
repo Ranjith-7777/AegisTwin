@@ -27,12 +27,18 @@ Coordinator itself never overrides that routing.
 
 from __future__ import annotations
 
+import logging
+
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.database.models import ResponseOrchestrationRecord, ResponsePlanAssessmentRecord
 from app.schemas.workflow import WorkflowRunResult
 from app.services.autonomy_service import autonomy_service
 from app.services.blue_planning_service import blue_planning_service
 from app.services.orchestration_service import orchestration_service
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowCoordinator:
@@ -44,6 +50,38 @@ class WorkflowCoordinator:
         incident_candidate_id: str,
         through_sequence: int,
         top_k: int = 5,
+    ) -> WorkflowRunResult:
+        logger.info(
+            "workflow_started run_id=%s model_id=%s incident_id=%s through_sequence=%d",
+            run_id,
+            model_id,
+            incident_candidate_id,
+            through_sequence,
+        )
+        result = self._run(
+            session, run_id, model_id, incident_candidate_id, through_sequence, top_k
+        )
+        logger.info(
+            "workflow_finished run_id=%s autonomy_mode=%s orchestration_id=%s state=%s "
+            "auto_executed=%s auto_verified=%s stopped_reason=%r",
+            run_id,
+            result.autonomy_mode,
+            result.orchestration.orchestration_id if result.orchestration else None,
+            result.orchestration.current_state if result.orchestration else None,
+            result.auto_executed,
+            result.auto_verified,
+            result.stopped_reason,
+        )
+        return result
+
+    def _run(
+        self,
+        session: Session,
+        run_id: str,
+        model_id: str,
+        incident_candidate_id: str,
+        through_sequence: int,
+        top_k: int,
     ) -> WorkflowRunResult:
         autonomy_mode = autonomy_service.require_mode(session).value
         if autonomy_mode == "observe":
@@ -141,6 +179,74 @@ class WorkflowCoordinator:
                 else "Verification did not confirm containment; automatic rollback policy "
                 f"was evaluated (orchestration state is '{orchestration.current_state}')."
             ),
+        )
+
+    def restore(self, session: Session, run_id: str, model_id: str) -> WorkflowRunResult | None:
+        """Rebuild the workflow result for a run purely from persisted records.
+
+        Runs are deterministic, so replaying the same scenario/seed reuses a
+        run that may already carry a ranked comparison and an orchestration.
+        Restoring both together keeps every lifecycle stage consistent (a
+        restored execution is never shown without the plan it executed).
+        Nothing is recomputed; returns None when nothing was persisted.
+        """
+
+        orchestration_record = session.scalars(
+            select(ResponseOrchestrationRecord)
+            .where(
+                ResponseOrchestrationRecord.simulation_run_id == run_id,
+                ResponseOrchestrationRecord.model_id == model_id,
+            )
+            .order_by(ResponseOrchestrationRecord.updated_at.desc())
+            .limit(1)
+        ).first()
+        if orchestration_record is not None:
+            assessment_id = blue_planning_service.assessment_id(
+                run_id,
+                model_id,
+                orchestration_record.incident_candidate_id,
+                orchestration_record.through_sequence_number,
+            )
+        else:
+            latest = session.scalars(
+                select(ResponsePlanAssessmentRecord)
+                .where(
+                    ResponsePlanAssessmentRecord.simulation_run_id == run_id,
+                    ResponsePlanAssessmentRecord.model_id == model_id,
+                )
+                .order_by(ResponsePlanAssessmentRecord.through_sequence_number.desc())
+                .limit(1)
+            ).first()
+            if latest is None:
+                return None
+            assessment_id = latest.assessment_id
+        comparison = blue_planning_service.load(session, assessment_id)
+        orchestration = (
+            orchestration_service.view(session, orchestration_record)
+            if orchestration_record is not None
+            else None
+        )
+        if comparison is None and orchestration is None:
+            return None
+        human_gate = orchestration is not None and any(
+            approval.decided_by is not None for approval in orchestration.approvals
+        )
+        executed = orchestration is not None and bool(orchestration.executions)
+        verified = orchestration is not None and any(
+            item.verification_status == "successful_simulation"
+            for item in orchestration.verifications
+        )
+        return WorkflowRunResult(
+            comparison=comparison,
+            orchestration=orchestration,
+            autonomy_mode=comparison.autonomy_mode
+            if comparison is not None
+            else autonomy_service.require_mode(session).value,
+            auto_executed=executed and not human_gate,
+            auto_verified=verified and not human_gate,
+            stopped_reason="Restored from persisted records of an earlier replay of this "
+            "deterministic run; nothing was re-planned or re-executed.",
+            restored=True,
         )
 
 

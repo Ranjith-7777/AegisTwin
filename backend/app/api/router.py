@@ -7,9 +7,11 @@ from app.api.routes import (
     blast_radius,
     blue_planning,
     correlation,
+    data_sources,
     detection,
     evaluation,
     health,
+    metrics,
     mitre,
     orchestration,
     policy,
@@ -17,6 +19,7 @@ from app.api.routes import (
     purple,
     response,
     safety,
+    session,
     simulation,
     system,
     telemetry,
@@ -26,8 +29,10 @@ from app.api.routes import (
 
 api_router = APIRouter()
 api_router.include_router(health.router)
+api_router.include_router(metrics.router)
 api_router.include_router(system.router)
 api_router.include_router(safety.router)
+api_router.include_router(session.router)
 api_router.include_router(simulation.router)
 api_router.include_router(telemetry.router)
 api_router.include_router(detection.router)
@@ -46,3 +51,4 @@ api_router.include_router(autonomy.router)
 api_router.include_router(blue_planning.router)
 api_router.include_router(workflow.router)
 api_router.include_router(evaluation.router)
+api_router.include_router(data_sources.router)
