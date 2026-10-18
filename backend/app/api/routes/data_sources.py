@@ -76,22 +76,16 @@ def list_sources(request: Request, session: Db) -> DataSourceCatalogue:
 
 @router.get(
     "/evaluations/latest",
-    response_model=NetworkFlowEvaluationView,
+    response_model=NetworkFlowEvaluationView | None,
     dependencies=[RequireViewer],
 )
-def latest_evaluation(session: Db) -> NetworkFlowEvaluationView:
+def latest_evaluation(session: Db) -> NetworkFlowEvaluationView | None:
     record = session.scalar(
         select(NetworkFlowEvaluationRecord)
         .order_by(NetworkFlowEvaluationRecord.created_at.desc())
         .limit(1)
     )
-    if record is None:
-        raise ApplicationError(
-            "NETWORK_FLOW_EVALUATION_NOT_FOUND",
-            "No recorded-dataset evaluation has been run yet.",
-            404,
-        )
-    return NetworkFlowEvaluationView.model_validate(record)
+    return NetworkFlowEvaluationView.model_validate(record) if record is not None else None
 
 
 @router.get("/{source_id}", response_model=DataSourceView, dependencies=[RequireViewer])

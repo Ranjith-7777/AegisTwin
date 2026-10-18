@@ -120,6 +120,38 @@ def test_import_reports_every_row_and_never_invents_values(
         session.close()
 
 
+def test_cross_source_duplicates_do_not_inflate_accepted_row_metadata(
+    client: TestClient, tmp_path: Path
+) -> None:
+    flow = FixtureFlow(
+        "192.168.10.200",
+        50000,
+        "192.168.10.3",
+        389,
+        f"{MONDAY} 2:15",
+        duration_us="0",
+        bytes_rate="Infinity",
+        packets_rate="NaN",
+    )
+    first = write_cic(tmp_path / "first.csv", [flow])
+    second = write_cic(tmp_path / "second.csv", [flow])
+    second.write_text(second.read_text(encoding="latin-1") + "\n", encoding="latin-1")
+
+    session = _session(client)
+    try:
+        assert import_file(session, first, "cicids2017", "pytest").source.rows_accepted == 1
+        duplicate = import_file(session, second, "cicids2017", "pytest").source
+        assert (duplicate.rows_read, duplicate.rows_accepted, duplicate.rows_duplicate) == (1, 0, 1)
+        assert duplicate.rows_unmapped == 0
+        assert duplicate.rows_timestamp_adjusted == 0
+        assert duplicate.rows_rate_missing == 0
+        assert duplicate.label_counts_json == {}
+        assert duplicate.unmapped_endpoints_json == {}
+        assert duplicate.window_start is None and duplicate.window_end is None
+    finally:
+        session.close()
+
+
 def test_import_refuses_non_replay_kinds_and_blank_provenance(
     client: TestClient, tmp_path: Path
 ) -> None:
@@ -332,7 +364,9 @@ def test_read_only_api_exposes_sources_findings_and_evaluation(
     assert catalogue["simulation_only"] is True
     kinds = {item["source_kind"]: item["status"] for item in catalogue["built_in"]}
     assert kinds == {"synthetic": "active", "live_readonly": "not_implemented"}
-    assert client.get("/api/v1/data-sources/evaluations/latest").status_code == 404
+    empty_evaluation = client.get("/api/v1/data-sources/evaluations/latest")
+    assert empty_evaluation.status_code == 200
+    assert empty_evaluation.json() is None
 
     session, train, test = _import_days(client, tmp_path)
     try:

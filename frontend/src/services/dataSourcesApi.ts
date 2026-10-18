@@ -1,5 +1,3 @@
-import { isAxiosError } from 'axios'
-
 import { apiClient } from './apiClient'
 import type {
   DataSourceCatalogue,
@@ -17,13 +15,9 @@ export async function getDataSources(): Promise<DataSourceCatalogue> {
 
 /** null when no recorded-dataset evaluation has been run yet. */
 export async function getLatestFlowEvaluation(): Promise<NetworkFlowEvaluation | null> {
-  try {
-    return (await apiClient.get<NetworkFlowEvaluation>('/api/v1/data-sources/evaluations/latest'))
-      .data
-  } catch (reason) {
-    if (isAxiosError(reason) && reason.response?.status === 404) return null
-    throw reason
-  }
+  return (
+    await apiClient.get<NetworkFlowEvaluation | null>('/api/v1/data-sources/evaluations/latest')
+  ).data
 }
 
 export async function getFlowFindings(sourceId: string): Promise<FlowFindingsResponse> {

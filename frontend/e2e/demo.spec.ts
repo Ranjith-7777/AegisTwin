@@ -133,6 +133,20 @@ test('public and login pages stay within a mobile viewport', async ({ page }) =>
   )
 })
 
+test('recorded-data page reports the absent corpus without console errors', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+  await page.goto('/data-sources')
+  await expect(page.getByRole('heading', { name: 'Data Sources' })).toBeVisible()
+  await expect(page.getByText('No recorded dataset imported')).toBeVisible()
+  await expect(page.getByText('No recorded-dataset evaluation yet')).toBeVisible()
+  await expect(page.getByText('Live · read-only')).toBeVisible()
+  await expect(page.getByText(/Not implemented\./)).toBeVisible()
+  expect(consoleErrors).toEqual([])
+})
+
 test('complete deterministic synthetic demonstration workflow', async ({ page, request }) => {
   const consoleErrors: string[] = []
   page.on('console', (message) => {

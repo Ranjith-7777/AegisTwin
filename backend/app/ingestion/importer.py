@@ -162,11 +162,13 @@ def _ingest(session: Session, source: DataSourceRecord, path: Path, spec: _Adapt
     labels: Counter[str] = Counter()
     seen: set[str] = set()
     pending: dict[str, dict[str, object]] = {}
+    pending_meta: dict[str, tuple[datetime, tuple[str, ...], bool, bool, str | None]] = {}
     counts = Counter[str]()
     window_start: datetime | None = None
     window_end: datetime | None = None
 
     def flush() -> None:
+        nonlocal window_start, window_end
         if not pending:
             return
         already = set(
@@ -174,16 +176,27 @@ def _ingest(session: Session, source: DataSourceRecord, path: Path, spec: _Adapt
                 select(NetworkFlowRecord.flow_id).where(NetworkFlowRecord.flow_id.in_(pending))
             )
         )
-        rows = [row for flow_id, row in pending.items() if flow_id not in already]
+        accepted_ids = [flow_id for flow_id in pending if flow_id not in already]
+        rows = [pending[flow_id] for flow_id in accepted_ids]
         counts["duplicate"] += len(already)
-        counts["accepted"] -= len(already)
-        for flow_id in already:
-            label = pending[flow_id]["evaluation_label"]
-            if isinstance(label, str):
-                labels[label] -= 1
+        counts["accepted"] += len(accepted_ids)
+        for flow_id in accepted_ids:
+            observed_at, unmapped_ips, adjusted, rate_missing, label = pending_meta[flow_id]
+            if unmapped_ips:
+                counts["unmapped"] += 1
+                unmapped.update(unmapped_ips)
+            if adjusted:
+                counts["adjusted"] += 1
+            if rate_missing:
+                counts["rate_missing"] += 1
+            if label is not None:
+                labels[label] += 1
+            window_start = observed_at if window_start is None else min(window_start, observed_at)
+            window_end = observed_at if window_end is None else max(window_end, observed_at)
         if rows:
             session.execute(insert(NetworkFlowRecord), rows)
         pending.clear()
+        pending_meta.clear()
 
     for item in _rows(spec.name, path):
         counts["read"] += 1
@@ -198,23 +211,18 @@ def _ingest(session: Session, source: DataSourceRecord, path: Path, spec: _Adapt
 
         src = map_endpoint(item.src_ip, spec.testbed)
         dst = map_endpoint(item.dst_ip, spec.testbed)
-        if src.testbed_identity is None or dst.testbed_identity is None:
-            counts["unmapped"] += 1
-            for ip, mapping in ((item.src_ip, src), (item.dst_ip, dst)):
-                if mapping.testbed_identity is None:
-                    unmapped[ip] += 1
-        if item.timestamp_adjusted:
-            counts["adjusted"] += 1
-        if item.flow_bytes_per_s is None or item.flow_packets_per_s is None:
-            counts["rate_missing"] += 1
-        if item.evaluation_label is not None:
-            labels[item.evaluation_label] += 1
-        window_start = (
-            item.observed_at if window_start is None else min(window_start, item.observed_at)
+        unmapped_ips = tuple(
+            ip
+            for ip, mapping in ((item.src_ip, src), (item.dst_ip, dst))
+            if mapping.testbed_identity is None
         )
-        window_end = item.observed_at if window_end is None else max(window_end, item.observed_at)
-
-        counts["accepted"] += 1
+        pending_meta[fingerprint] = (
+            item.observed_at,
+            unmapped_ips,
+            item.timestamp_adjusted,
+            item.flow_bytes_per_s is None or item.flow_packets_per_s is None,
+            item.evaluation_label,
+        )
         pending[fingerprint] = {
             "flow_id": fingerprint,
             "source_id": source.source_id,
