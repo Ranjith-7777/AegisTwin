@@ -35,11 +35,12 @@ export async function getWorkflowState(
 ): Promise<WorkflowRunResult | null> {
   try {
     const data = (
-      await apiClient.get<WorkflowRunResult>(
+      await apiClient.get<WorkflowRunResult | null>(
         `/api/v1/workflow/runs/${encodeURIComponent(runId)}/state`,
         { params: { model_id: modelId } },
       )
     ).data
+    if (data === null) return null
     if (data.comparison !== null && !Array.isArray(data.comparison.candidates))
       throw new Error('Malformed synthetic workflow state.')
     return data

@@ -25,11 +25,11 @@ def _state(client: TestClient, run_id: str, model_id: str) -> Response:
     return response
 
 
-def test_state_is_404_before_any_workflow_has_run(client: TestClient) -> None:
+def test_state_is_null_before_any_workflow_has_run(client: TestClient) -> None:
     run_id, model_id, _ = prepare(client)
     response = _state(client, run_id, model_id)
-    assert response.status_code == 404
-    assert response.json()["error_code"] == "WORKFLOW_STATE_NOT_FOUND"
+    assert response.status_code == 200
+    assert response.json() is None
 
 
 def test_recommend_mode_state_restores_the_ranked_comparison(client: TestClient) -> None:
