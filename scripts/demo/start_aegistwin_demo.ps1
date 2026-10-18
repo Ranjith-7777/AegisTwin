@@ -22,8 +22,14 @@ try {
     $env:DATABASE_URL = "sqlite:///$($paths.Database.Replace('\','/'))"
     $env:MODEL_ARTIFACT_DIR = $paths.Artifacts
     $env:SIMULATION_ONLY = "true"; $env:DEMO_MODE = "true"; $env:ENVIRONMENT = "demo"
+    # The demo operator explicitly acts as ADMIN so approval decisions and
+    # rollback are available. This is never read from an untracked .env file
+    # (AEGISARENA_DISABLE_DOTENV) and is hard-rejected by the backend when
+    # ENVIRONMENT=production.
+    $env:AUTH_DEV_BYPASS_ROLE = "ADMIN"; $env:AEGISARENA_DISABLE_DOTENV = "1"
+    $env:API_PREFIX = "/api"; $env:LOG_LEVEL = "INFO"; $env:APP_NAME = "AegisArena API"
     $env:DEBUG = "false"; $env:BACKEND_HOST = "127.0.0.1"; $env:BACKEND_PORT = "$BackendPort"
-    $env:CORS_ORIGINS = "http://127.0.0.1:$FrontendPort"
+    $env:CORS_ORIGINS = "http://127.0.0.1:$FrontendPort,http://localhost:$FrontendPort"
     $env:VITE_API_BASE_URL = "http://127.0.0.1:$BackendPort"
     $env:VITE_WS_BASE_URL = "ws://127.0.0.1:$BackendPort"
     $env:VITE_DEMO_MODE = "true"; $env:VITE_DEPLOYMENT_ENV = "local-demo"
@@ -31,7 +37,7 @@ try {
     $commit = git -C $paths.Root rev-parse --short HEAD 2>$null
     if ($LASTEXITCODE -eq 0) { $env:AEGISTWIN_GIT_COMMIT = $commit }
     if (-not $SkipModelBootstrap) {
-        $bootstrap = Start-Process -FilePath $requirements.Python -ArgumentList @((Join-Path $PSScriptRoot "bootstrap_demo_model.py"), "--database", $paths.Database, "--artifacts", $paths.Artifacts) -WorkingDirectory $paths.Root -WindowStyle Hidden -RedirectStandardOutput (Join-Path $paths.Logs "bootstrap.log") -RedirectStandardError (Join-Path $paths.Logs "bootstrap-error.log") -Wait -PassThru
+        $bootstrap = Start-Process -FilePath $requirements.Python -ArgumentList (ConvertTo-ProcessArguments @((Join-Path $PSScriptRoot "bootstrap_demo_model.py"), "--database", $paths.Database, "--artifacts", $paths.Artifacts)) -WorkingDirectory $paths.Root -WindowStyle Hidden -RedirectStandardOutput (Join-Path $paths.Logs "bootstrap.log") -RedirectStandardError (Join-Path $paths.Logs "bootstrap-error.log") -Wait -PassThru
         if ($bootstrap.ExitCode -ne 0) { throw "Model bootstrap failed. See $($paths.Logs)\bootstrap-error.log" }
     }
     $backend = Start-Process -FilePath $requirements.Python -ArgumentList @("-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "$BackendPort") -WorkingDirectory (Join-Path $paths.Root "backend") -WindowStyle Hidden -RedirectStandardOutput (Join-Path $paths.Logs "backend.log") -RedirectStandardError (Join-Path $paths.Logs "backend-error.log") -PassThru

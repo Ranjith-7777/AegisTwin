@@ -85,6 +85,11 @@ reliably and cheaply, rather than a general-purpose scaled platform.
 - **Log Analytics workspace** — collects Container Apps system logs and
   application stdout/stderr, retained 30 days (see
   `docs/deployment/COST_CONTROL.md`).
+- **Storage account + Azure Files share (`staegis<suffix>` / `model-artifacts`)**
+  — Standard LRS, 1 GiB, registered with the Container Apps Environment as
+  `modelartifacts` and mounted at `/data` in the backend container
+  (`MODEL_ARTIFACT_DIR=/data/models`), so detection-model artifacts survive
+  scale-to-zero and revisions (`infra/azure/modules/modelstorage.bicep`).
 
 ## Scaling: `maxReplicas=1` is intentional
 

@@ -18,6 +18,11 @@ identity = str(os.getpid())
 os.environ.setdefault("DATABASE_URL", f"sqlite:///./.e2e/aegistwin-e2e-{identity}.db")
 os.environ.setdefault("MODEL_ARTIFACT_DIR", f".e2e/artifacts-{identity}")
 os.environ.setdefault("CORS_ORIGINS", "http://127.0.0.1:4307")
+# The E2E suite drives write paths (runs, scoring, approvals), so it uses the
+# explicit development operator role rather than any developer .env file.
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("AUTH_DEV_BYPASS_ROLE", "ADMIN")
+os.environ["AEGISARENA_DISABLE_DOTENV"] = "1"
 (BACKEND / ".e2e" / f"artifacts-{identity}").mkdir(parents=True, exist_ok=True)
 
 configuration = Config(str(BACKEND / "alembic.ini"))

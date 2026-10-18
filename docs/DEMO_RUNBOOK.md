@@ -1,10 +1,10 @@
-# AegisTwin Demonstration Runbook
+# AegisArena Demonstration Runbook
 
 For the packaged Windows judge workflow, use the [Local Demo Guide](LOCAL_DEMO_GUIDE.md). It isolates runtime state under `.aegistwin-demo` and defaults to a production frontend build.
 
 ## Safety
 
-AegisTwin accepts only synthetic scenarios, identities, assets, telemetry, and response state. No workflow affects a real system or establishes production security effectiveness.
+AegisArena accepts only synthetic scenarios, identities, assets, telemetry, and response state. No workflow affects a real system or establishes production security effectiveness.
 
 ## Prerequisites and installation
 

@@ -304,3 +304,36 @@ explicitly each time `app.bicep` is deployed (declarative infrastructure has
 no persistent "remembered" state of its own; the value must come from the
 caller every time, which is exactly why this parameter exists rather than
 being hardcoded — see `infra/azure/modules/containerapp.bicep`).
+
+## Changes from the final hardening pass (2026-10-07)
+
+None of these templates have been compiled or deployed from this workspace.
+Run `az bicep build --file infra/azure/main.bicep` and the `what-if` step above
+before the first bootstrap.
+
+- **Key Vault name.** It is now `kv-aegis-<uniqueString(resourceGroup().id)>`,
+  in both `modules/keyvault.bicep` and `app.bicep`. The previous fixed name
+  `kv-aegisarena-dev` would collide globally, and also with its own soft-deleted
+  copy after a teardown. `main.bicep` outputs the real name.
+- **PostgreSQL connection string.** The login and password are now passed
+  through `uriComponent()`, so a generated password containing `@`, `/` or `:`
+  can no longer corrupt the `DATABASE_URL` stored in Key Vault.
+- **Model artifact storage.** The new `modules/modelstorage.bicep` creates:
+  - a Standard_LRS storage account, `staegis<uniqueString>`;
+  - a 1 GiB `model-artifacts` file share;
+  - a Container Apps environment storage named `modelartifacts`.
+
+  The backend container mounts it at `/data` with
+  `MODEL_ARTIFACT_DIR=/data/models`. Detection-model records live in
+  PostgreSQL, while their joblib files live on this share. When a file is
+  missing, the backend rebuilds it deterministically, so the share is for
+  efficiency rather than correctness.
+- **Same-origin frontend.** The frontend image is now built with empty
+  `VITE_API_BASE_URL` and `VITE_WS_BASE_URL`, so the browser calls `/api/...` on
+  the app's own origin. nginx then proxies to the backend sidecar, including
+  the WebSocket upgrade for `/api/v1/ws/`. Previously the image baked in
+  `http://localhost:8000`, which pointed every visitor's browser at their own
+  machine.
+
+The extra monthly cost of the storage account is negligible (a 1 GiB LRS share).
+The other resources are unchanged; see `COST_CONTROL.md`.

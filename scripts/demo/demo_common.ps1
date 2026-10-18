@@ -1,5 +1,14 @@
 $ErrorActionPreference = "Stop"
 
+# Windows PowerShell 5.1's Start-Process joins -ArgumentList with spaces and
+# does not quote, so any argument containing a space (e.g. a checkout under
+# "Cloud Computing") must be quoted explicitly.
+function ConvertTo-ProcessArguments([string[]]$Values) {
+    return ($Values | ForEach-Object {
+        if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ }
+    })
+}
+
 function Get-AegisTwinRoot { return (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path }
 
 function Get-DemoPaths {

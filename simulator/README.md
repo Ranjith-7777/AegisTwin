@@ -1,4 +1,4 @@
-# AegisTwin Simulator
+# AegisArena Simulator
 
 Phase 8A freezes the submission demonstration at `staged-compromise-demo`, seed 84, accelerated playback speed 50, model random state 17, and top-three predictions. These are regression inputs, not production performance claims.
 
