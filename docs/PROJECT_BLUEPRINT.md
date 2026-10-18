@@ -1,8 +1,8 @@
-# AegisTwin Project Blueprint
+# AegisArena Project Blueprint
 
 ## 1. Executive summary
 
-AegisTwin is a safe cyber-resilience digital-twin prototype for critical national infrastructure (CNI). It ingests only simulated identity, endpoint, network, and database telemetry; detects behavioural anomalies; correlates weak signals into an explainable incident; maps evidence to MITRE ATT&CK; visualises attack progression; predicts likely next actions; and compares simulated containment options. A human operator remains responsible for approving material response actions. Every transformation, recommendation, approval, and simulated action is recorded in an audit trail.
+AegisArena is a safe cyber-resilience digital-twin prototype for critical national infrastructure (CNI). It ingests only simulated identity, endpoint, network, and database telemetry; detects behavioural anomalies; correlates weak signals into an explainable incident; maps evidence to MITRE ATT&CK; visualises attack progression; predicts likely next actions; and compares simulated containment options. A human operator remains responsible for approving material response actions. Every transformation, recommendation, approval, and simulated action is recorded in an audit trail.
 
 The MVP proves one polished path: a compromised employee account progresses from unusual login and authentication failures through privilege escalation and lateral movement to attempted critical-database access, followed by credential revocation and endpoint isolation.
 
@@ -28,7 +28,7 @@ CNI security teams receive high-volume alerts from disconnected tools. Individua
 
 ## 5. Proposed solution
 
-AegisTwin combines schema-validated simulated telemetry, statistical anomaly scoring, explicit correlation rules, structured ATT&CK mappings, and graph analysis. A set of narrowly scoped logical agents shares incident state through typed service contracts. The dashboard presents evidence, topology, attack path, predicted next action, containment trade-offs, and audit history. Responses update only the simulated twin and require approval when policy says human review is necessary.
+AegisArena combines schema-validated simulated telemetry, statistical anomaly scoring, explicit correlation rules, structured ATT&CK mappings, and graph analysis. A set of narrowly scoped logical agents shares incident state through typed service contracts. The dashboard presents evidence, topology, attack path, predicted next action, containment trade-offs, and audit history. Responses update only the simulated twin and require approval when policy says human review is necessary.
 
 ## 6. MVP scope
 
@@ -61,7 +61,7 @@ AegisTwin combines schema-validated simulated telemetry, statistical anomaly sco
 3. The same identity obtains elevated privileges.
 4. A linked endpoint initiates simulated lateral movement to another host.
 5. The actor attempts access to a critical database.
-6. AegisTwin correlates the chain, maps techniques, updates the twin, and predicts likely database collection/access.
+6. AegisArena correlates the chain, maps techniques, updates the twin, and predicts likely database collection/access.
 7. The response evaluator compares no action, credential revocation, endpoint isolation, and the combined option.
 8. An operator approves the recommended combined containment.
 9. The simulator marks the account revoked and endpoint isolated; no external command is executed.
@@ -332,7 +332,7 @@ Allowed `event_type` values for the MVP include `authentication.success`, `authe
 ## 26. Repository folder structure
 
 ```text
-AegisTwin/
+AegisArena/
 |-- docs/
 |   |-- PROJECT_BLUEPRINT.md
 |   |-- BUILD_CHECKLIST.md

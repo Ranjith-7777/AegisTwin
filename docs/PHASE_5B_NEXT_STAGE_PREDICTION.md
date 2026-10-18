@@ -1,6 +1,6 @@
 # Phase 5B: Next-Stage Prediction
 
-AegisTwin now produces auditable, causal next-stage hypotheses for persisted synthetic simulation runs. The predictor uses only telemetry, anomaly assessments, technique observations, incident snapshots, and infrastructure relationships available at or before each sequence. It never consumes the scenario identifier, scenario name, future events, or evaluation truth as predictive features.
+AegisArena now produces auditable, causal next-stage hypotheses for persisted synthetic simulation runs. The predictor uses only telemetry, anomaly assessments, technique observations, incident snapshots, and infrastructure relationships available at or before each sequence. It never consumes the scenario identifier, scenario name, future events, or evaluation truth as predictive features.
 
 ## Pipeline
 

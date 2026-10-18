@@ -1,6 +1,6 @@
 # Phase 5A: Auditable Incident Correlation and MITRE Mapping
 
-Phase 5A adds deterministic, evidence-based correlation to AegisTwin's entirely synthetic pipeline. An incident candidate is a cautious grouping of related unusual exercise activity. It is not a confirmed attack or breach, and its correlation score measures evidence coherence rather than attack probability.
+Phase 5A adds deterministic, evidence-based correlation to AegisArena's entirely synthetic pipeline. An incident candidate is a cautious grouping of related unusual exercise activity. It is not a confirmed attack or breach, and its correlation score measures evidence coherence rather than attack probability.
 
 ## Scenario and benchmark protection
 

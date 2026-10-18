@@ -1,6 +1,6 @@
 # Phase 4A.1: Detection Quality and Evaluation Hardening
 
-Phase 4A.1 improves AegisTwin's offline synthetic behavioural detector without changing telemetry, simulation, playback, or WebSocket contracts. Every model input and evaluation event remains repository-generated and synthetic. An anomaly is evidence of deviation from a learned synthetic baseline, never proof of an attack.
+Phase 4A.1 improves AegisArena's offline synthetic behavioural detector without changing telemetry, simulation, playback, or WebSocket contracts. Every model input and evaluation event remains repository-generated and synthetic. An anomaly is evidence of deviation from a learned synthetic baseline, never proof of an attack.
 
 ## Root-cause diagnosis
 
