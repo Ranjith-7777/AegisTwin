@@ -1,8 +1,8 @@
 # Recorded Real-World Data (CIC-IDS2017)
 
-Status on 2026-10-13: **pipeline implemented and tested on fixtures; real-data
+Status on 2026-10-18: **pipeline implemented and tested on fixtures; real-data
 evaluation BLOCKED** until the dataset files are downloaded locally (the UNB
-download page is gated and must be fetched by a person). No real-data metric
+download page uses a request form and must be completed by a person). No real-data metric
 is reported anywhere in this repository until that run happens.
 
 ## Source kinds
@@ -20,7 +20,8 @@ Kubernetes or cloud change. The CLI refuses to run if `SIMULATION_ONLY` is off.
 ## Dataset and licence
 
 CIC-IDS2017, Canadian Institute for Cybersecurity, University of New Brunswick.
-Publicly available for research; cite:
+The official UNB terms permit redistribution, republication and mirroring, but
+require citation of the dataset and related paper. Cite:
 
 > Iman Sharafaldin, Arash Habibi Lashkari, Ali A. Ghorbani. *Toward Generating a
 > New Intrusion Detection Dataset and Intrusion Traffic Characterization.*
@@ -31,10 +32,12 @@ raw CSVs, the database and model artifacts (`*.joblib`) must never be committed.
 
 ## Getting the data (manual step)
 
-1. Open https://www.unb.ca/cic/datasets/ids-2017.html and request/download the
-   **labelled-flow** CSVs (`GeneratedLabelledFlows` / `TrafficLabelling`). The
+1. Open the official UNB page at
+   https://www.unb.ca/cic/datasets/ids-2017.html, use its **Download this
+   dataset** form, and obtain `GeneratedLabelledFlows.zip`. Extract the
+   **labelled-flow** CSVs (`TrafficLabelling`). The
    `MachineLearningCVE` CSVs drop IPs and timestamps and are rejected.
-2. Place these two files (about 0.5 GB together uncompressed):
+2. Place these two exact files required by AegisArena's acceptance test:
 
    ```
    datasets/raw/cicids2017/Monday-WorkingHours.pcap_ISCX.csv    (benign only)
@@ -153,3 +156,7 @@ They are not tuned.
 - No live collector exists. `live_readonly` is a declared, unimplemented kind.
 - Only CIC-IDS2017 has a testbed identity map. Canonical-format imports get
   only an Internet/unknown classification.
+- The recorded-data findings and optional twin projections are descriptive
+  analysis only. They are not converted into synthetic scenario telemetry or
+  accepted by the incident, prediction, Digital Twin state, response, or Blue
+  Agent workflow services.

@@ -117,15 +117,15 @@ runs both containers as sidecars in one Container App, with:
 
 | Check | Result |
 |---|---|
-| `pytest` (backend) | **374 passed, 1 skipped**, 3 dependency deprecation warnings; the skip is the absent local CICIDS2017 corpus |
-| `ruff check .` / `ruff format --check .` | All checks passed / 210 files already formatted |
+| `pytest` (backend) | **375 passed, 1 skipped**, 3 dependency deprecation warnings; the skip is the absent local CICIDS2017 corpus |
+| `ruff check app tests` / `ruff format --check app tests` | All checks passed / 202 files already formatted |
 | `mypy app` | Success: no issues found in 147 source files |
 | `alembic check` | No new upgrade operations detected |
 | `npm run lint` / `typecheck` | 0 problems / clean |
 | `vitest run` | **144 passed** (31 files) |
 | `prettier --check .` | All matched files use Prettier code style |
 | `npm run build` | built successfully |
-| `playwright test` | **7 passed** after correcting the empty-workflow-state HTTP contract |
+| `playwright test` | **8 passed**, including the Data Sources empty-corpus state without browser console errors |
 | Windows demo lifecycle | setup, start, health/status, `/app`, session role, and stop verified with isolated ports and storage |
 | Docker image build / run | **not run in Phase 2** |
 | Bicep compile / Azure deployment | **not run in Phase 2** |

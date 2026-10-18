@@ -45,8 +45,9 @@ from app.ingestion.validation import (
 ADAPTER_NAME = "cicids2017"
 DATASET_NAME = "CIC-IDS2017"
 LICENCE = (
-    "Canadian Institute for Cybersecurity (UNB) - publicly available for research; "
-    "cite the ICISSP 2018 paper. Not redistributed by AegisArena."
+    "Canadian Institute for Cybersecurity (UNB): redistribution, republication and "
+    "mirroring are permitted with citation to the dataset and ICISSP 2018 paper. "
+    "Not redistributed by AegisArena."
 )
 CITATION = (
     "Iman Sharafaldin, Arash Habibi Lashkari, Ali A. Ghorbani. Toward Generating a New "
