@@ -16,8 +16,10 @@ from app.schemas.system import SystemStatusResponse
 # Correlation states that represent an incident still demanding operator attention.
 OPEN_CORRELATION_STATES = ("correlated", "high_priority")
 
+
 def _count(session: Session, statement: Select[tuple[Any, ...]]) -> int:
     return int(session.scalar(statement) or 0)
+
 
 def _database_revision(session: Session | None) -> str:
     """The Alembic revision actually applied to the connected database
