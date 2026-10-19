@@ -16,7 +16,7 @@ if ($savedLogs) { Remove-Item $paths.Logs -Force; Move-Item $savedLogs $paths.Lo
 if ($savedReports) { Remove-Item $paths.Reports -Force; Move-Item $savedReports $paths.Reports }
 $requirements = Assert-DemoPrerequisites
 if (-not $SkipModelBootstrap) {
-    $bootstrap = Start-Process -FilePath $requirements.Python -ArgumentList @((Join-Path $PSScriptRoot "bootstrap_demo_model.py"), "--database", $paths.Database, "--artifacts", $paths.Artifacts) -WorkingDirectory $paths.Root -WindowStyle Hidden -RedirectStandardOutput (Join-Path $paths.Logs "bootstrap.log") -RedirectStandardError (Join-Path $paths.Logs "bootstrap-error.log") -Wait -PassThru
+    $bootstrap = Start-Process -FilePath $requirements.Python -ArgumentList (ConvertTo-ProcessArguments @((Join-Path $PSScriptRoot "bootstrap_demo_model.py"), "--database", $paths.Database, "--artifacts", $paths.Artifacts)) -WorkingDirectory $paths.Root -WindowStyle Hidden -RedirectStandardOutput (Join-Path $paths.Logs "bootstrap.log") -RedirectStandardError (Join-Path $paths.Logs "bootstrap-error.log") -Wait -PassThru
     if ($bootstrap.ExitCode -ne 0) { throw "Reset model bootstrap failed. See bootstrap-error.log." }
 } else {
     $env:DATABASE_URL = "sqlite:///$($paths.Database.Replace('\','/'))"

@@ -1,6 +1,6 @@
 # Phase 4A: Offline Synthetic Behavioural Anomaly Detection
 
-Phase 4A adds reproducible offline behavioural scoring to AegisTwin. Every dataset, artifact, score, assessment, and evaluation is synthetic. An anomaly means that an event differs from the learned synthetic normal baseline; it does not mean an attack, compromise, breach, or identified actor.
+Phase 4A adds reproducible offline behavioural scoring to AegisArena. Every dataset, artifact, score, assessment, and evaluation is synthetic. An anomaly means that an event differs from the learned synthetic normal baseline; it does not mean an attack, compromise, breach, or identified actor.
 
 ## Architecture flow
 

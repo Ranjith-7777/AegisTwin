@@ -176,6 +176,9 @@ export function ExperimentDetailPage() {
             <Badge className={experiment.status === 'completed' ? 'chip-healthy' : 'chip-muted'}>
               {experiment.status.replaceAll('_', ' ')}
             </Badge>
+            {experiment.evaluation_source === 'completed_workflow' ? (
+              <Badge className="chip-muted">existing workflow evidence</Badge>
+            ) : null}
           </div>
           {isControl ? (
             <p className="mt-2 text-sm text-slate-600">
@@ -188,9 +191,11 @@ export function ExperimentDetailPage() {
           <Link to={`/evaluation/experiments/${experiment.experiment_id}/report`}>
             <Button variant="outline">View report</Button>
           </Link>
-          <Button disabled={rerunning} onClick={handleRerun}>
-            {rerunning ? 'Re-running…' : 'Re-run experiment'}
-          </Button>
+          {experiment.evaluation_source === 'benchmark' ? (
+            <Button disabled={rerunning} onClick={handleRerun}>
+              {rerunning ? 'Re-running…' : 'Re-run experiment'}
+            </Button>
+          ) : null}
         </div>
       </header>
       {rerunError ? (
@@ -217,6 +222,8 @@ export function ExperimentDetailPage() {
             <dd>{metrics?.ars_version ?? 'N/A'}</dd>
             <dt>Experiment ID</dt>
             <dd>{experiment.experiment_id}</dd>
+            <dt>Evaluation source</dt>
+            <dd>{experiment.evaluation_source.replaceAll('_', ' ')}</dd>
           </dl>
         </CardContent>
       </Card>
@@ -282,10 +289,10 @@ export function ExperimentDetailPage() {
                       data={chartData}
                       margin={{ top: 8, right: 12, left: -12, bottom: 0 }}
                     >
-                      <CartesianGrid stroke="var(--color-slate-800, #e2e8f0)" vertical={false} />
+                      <CartesianGrid stroke="#eef1f6" vertical={false} />
                       <XAxis
                         dataKey="time"
-                        stroke="var(--color-slate-600, #64748b)"
+                        stroke="#94a3b8"
                         fontSize={11}
                         tickLine={false}
                         axisLine={false}
@@ -298,7 +305,7 @@ export function ExperimentDetailPage() {
                       />
                       <YAxis
                         domain={[0, 1]}
-                        stroke="var(--color-slate-600, #64748b)"
+                        stroke="#94a3b8"
                         fontSize={11}
                         tickLine={false}
                         axisLine={false}

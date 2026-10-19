@@ -1,12 +1,14 @@
 import { Route, Routes } from 'react-router-dom'
 import { lazy, Suspense, type ReactNode } from 'react'
 
-import { DashboardLayout } from '../components/layout/DashboardLayout'
 import { IncidentsPage } from '../pages/IncidentsPage'
+import { LandingPage } from '../pages/LandingPage'
+import { LoginPage } from '../pages/LoginPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { OverviewPage } from '../pages/OverviewPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { TelemetryPage } from '../pages/TelemetryPage'
+import { ProtectedConsole } from './ProtectedConsole'
 
 const MitrePage = lazy(() =>
   import('../pages/MitrePage').then((module) => ({ default: module.MitrePage })),
@@ -17,6 +19,9 @@ const AuditTrailPage = lazy(() =>
 
 const DigitalTwinPage = lazy(() =>
   import('../pages/DigitalTwinPage').then((module) => ({ default: module.DigitalTwinPage })),
+)
+const WorkflowPage = lazy(() =>
+  import('../pages/WorkflowPage').then((module) => ({ default: module.WorkflowPage })),
 )
 const RedAgentOverviewPage = lazy(() =>
   import('../pages/RedAgentOverviewPage').then((module) => ({
@@ -82,6 +87,9 @@ const AggregatePage = lazy(() =>
 const BatchesPage = lazy(() =>
   import('../pages/evaluation/BatchesPage').then((module) => ({ default: module.BatchesPage })),
 )
+const DataSourcesPage = lazy(() =>
+  import('../pages/DataSourcesPage').then((module) => ({ default: module.DataSourcesPage })),
+)
 const ExperimentReportPage = lazy(() =>
   import('../pages/evaluation/ExperimentReportPage').then((module) => ({
     default: module.ExperimentReportPage,
@@ -89,19 +97,63 @@ const ExperimentReportPage = lazy(() =>
 )
 
 function LazyPage({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<p role="status">Loading dashboard module…</p>}>{children}</Suspense>
+  return (
+    <Suspense
+      fallback={
+        <p role="status" className="flex items-center gap-2 text-[0.8rem] text-[var(--text-faint)]">
+          <span className="spinner" aria-hidden="true" /> Loading module…
+        </p>
+      }
+    >
+      {children}
+    </Suspense>
+  )
 }
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route element={<DashboardLayout />}>
-        <Route index element={<OverviewPage />} />
+      <Route index element={<LandingPage />} />
+      <Route path="login" element={<LoginPage />} />
+      <Route element={<ProtectedConsole />}>
+        <Route path="app" element={<OverviewPage />} />
+        <Route
+          path="workflow"
+          element={
+            <LazyPage>
+              <WorkflowPage />
+            </LazyPage>
+          }
+        />
         <Route
           path="digital-twin"
           element={
             <LazyPage>
-              <DigitalTwinPage />
+              <DigitalTwinPage key="topology" />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="digital-twin/attack-paths"
+          element={
+            <LazyPage>
+              <DigitalTwinPage key="attack-paths" initialTab="attack-paths" />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="digital-twin/blast-radius"
+          element={
+            <LazyPage>
+              <DigitalTwinPage key="blast-radius" initialTab="blast-radius" />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="digital-twin/purple-team"
+          element={
+            <LazyPage>
+              <DigitalTwinPage key="purple-team" initialTab="purple-team" />
             </LazyPage>
           }
         />
@@ -114,6 +166,14 @@ export function AppRoutes() {
           }
         />
         <Route path="telemetry" element={<TelemetryPage />} />
+        <Route
+          path="data-sources"
+          element={
+            <LazyPage>
+              <DataSourcesPage />
+            </LazyPage>
+          }
+        />
         <Route path="incidents" element={<IncidentsPage />} />
         <Route
           path="mitre"

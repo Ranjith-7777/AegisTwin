@@ -1,4 +1,4 @@
-# AegisTwin Build Checklist
+# AegisArena Build Checklist
 
 This checklist turns the blueprint into eight gated phases. Complete and verify one phase before starting work that depends on it. Phase 2 must not begin without explicit instruction.
 

@@ -29,6 +29,9 @@ def main() -> int:
         SIMULATION_ONLY="true",
         ENVIRONMENT="demo",
         DEMO_MODE="true",
+        # Explicit demo operator role; never inherited from a developer .env.
+        AUTH_DEV_BYPASS_ROLE="ADMIN",
+        AEGISARENA_DISABLE_DOTENV="1",
     )
     os.chdir(BACKEND)
     command.upgrade(Config(str(BACKEND / "alembic.ini")), "head")
@@ -36,7 +39,7 @@ def main() -> int:
     from app.core.config import Settings
     from app.main import create_app
 
-    with TestClient(create_app(Settings())) as client:
+    with TestClient(create_app(Settings(_env_file=None))) as client:
         models = client.get("/api/v1/detection/models").json()
         compatible = next(
             (
@@ -44,7 +47,7 @@ def main() -> int:
                 for model in models
                 if model["random_state"] == 17
                 and model["feature_schema_version"] == "synthetic-behaviour-v2"
-                and Path(model["artifact_path"]).is_file()
+                and model.get("artifact_available", Path(model["artifact_path"]).is_file())
             ),
             None,
         )

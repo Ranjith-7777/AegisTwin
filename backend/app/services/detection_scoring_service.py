@@ -6,6 +6,7 @@ from uuid import UUID, uuid5
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from app.core.artifacts import resolve_artifact_path
 from app.core.exceptions import ApplicationError
 from app.database.models import AnomalyAssessmentRecord, SimulationRunRecord
 from app.events.envelope import AnomalyDetectedPayload, DomainEvent
@@ -27,7 +28,7 @@ class DetectionScoringService:
     def load_artifact(self, session: Session, model_id: str) -> DetectionArtifact:
         record = detection_training_service.get_record(session, model_id)
         try:
-            return model_artifact_service.load(record.artifact_path)
+            return model_artifact_service.load(str(resolve_artifact_path(record.artifact_path)))
         except (OSError, ValueError) as exc:
             raise ApplicationError(
                 "MODEL_ARTIFACT_INVALID",

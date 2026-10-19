@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -315,11 +315,13 @@ describe('synthetic playback dashboard', () => {
     expect(socket.closeCalled).toBe(true)
   })
 
-  it('does not fabricate risk or availability values before a run', () => {
+  it('does not fabricate risk, exposure or containment values before a run', async () => {
     renderApp()
-    expect(screen.getByLabelText('Resilience')).toHaveTextContent('100%')
-    expect(screen.getByLabelText('Threats')).toHaveTextContent('None')
-    expect(screen.getByLabelText('Threats')).toHaveTextContent('No correlated incident')
+    const indicators = await screen.findByRole('group', { name: 'Key indicators' })
+    // Every indicator shows an explicit "no value" marker rather than a number.
+    expect(within(indicators).getAllByText('—')).toHaveLength(4)
+    expect(screen.getByText('Standby')).toBeInTheDocument()
+    expect(screen.getByText(/No scenario is running/)).toBeInTheDocument()
   })
 
   it('defaults detection off and loads selectable models from the API', async () => {

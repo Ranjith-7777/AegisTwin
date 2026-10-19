@@ -32,7 +32,10 @@ NUMERIC_COMPARISON_METRICS: tuple[str, ...] = (
     "ars_total",
     "mci",
     "detection_coverage",
+    "false_positive_rate",
     "time_to_first_detection",
+    "time_to_incident",
+    "time_to_response",
     "time_to_containment",
     "time_to_verified_recovery",
     "attack_path_reduction",
@@ -117,6 +120,7 @@ class ComparisonService:
                     ExperimentRecord.seed == seed,
                     ExperimentRecord.defence_mode == mode.value,
                     ExperimentRecord.status == "completed",
+                    ExperimentRecord.evaluation_source == "benchmark",
                 )
                 .order_by(ExperimentRecord.created_at.desc())
                 .limit(1)

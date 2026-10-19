@@ -93,7 +93,7 @@ export function ExperimentListPage() {
     <section className="viewport-page" aria-labelledby="experiment-list-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Reports</p>
+          <p className="eyebrow">Analysis · Experiments &amp; Reports</p>
           <h1 id="experiment-list-title">Reports</h1>
           <p>
             Every reproducible evaluation run: one scenario, one seed, one defence mode. Select a

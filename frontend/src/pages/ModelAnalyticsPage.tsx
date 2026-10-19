@@ -10,6 +10,11 @@ import type { DetectionModel, DetectionTrainingRequest, ModelEvaluation } from '
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
 import { AnomalyActivityChart } from '../components/dashboard/AnomalyActivityChart'
+import { AnomalyExplainer } from '../components/detection/AnomalyExplainer'
+import { Badge } from '../components/ui/badge'
+import { KeyValue, Panel } from '../components/ui/panel'
+import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
+import { Cpu } from 'lucide-react'
 
 const defaults: DetectionTrainingRequest = {
   training_seed_range: { start: 1, end: 20 },
@@ -24,6 +29,7 @@ function displayMetric(value: unknown): string {
 }
 
 export function ModelAnalyticsPage() {
+  const playback = useSimulationPlayback()
   const [models, setModels] = useState<DetectionModel[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [request, setRequest] = useState(defaults)
@@ -87,12 +93,64 @@ export function ModelAnalyticsPage() {
       setBusy(null)
     }
   }
+  const activeModel =
+    playback.selectedModel ??
+    models.find((model) => !('derived_from_model_id' in model.configuration_json)) ??
+    null
   return (
-    <div className="space-y-6">
+    <div className="page-stack">
       <header className="page-heading">
-        <h1>Detection Models</h1>
-        <p>Train and evaluate reproducible offline models using repository-generated telemetry.</p>
+        <div>
+          <p className="eyebrow">System · Detection</p>
+          <h1>Detection Models</h1>
+          <p>
+            Isolation Forest plus a calibrated hybrid behavioural score, trained only on synthetic
+            normal-operation telemetry. Reproducible from seeds; artifacts are rebuilt
+            deterministically if missing.
+          </p>
+        </div>
       </header>
+      <div className="split-2">
+        <Panel title="Active model" icon={<Cpu className="size-4" />}>
+          {activeModel ? (
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge tone="accent">{activeModel.model_type}</Badge>
+                <Badge tone={activeModel.artifact_available === false ? 'warn' : 'ok'}>
+                  {activeModel.artifact_available === false
+                    ? 'artifact rebuilds on first use'
+                    : 'artifact available'}
+                </Badge>
+                <Badge tone="neutral">
+                  {playback.selectedModel ? 'used by the live run' : 'latest trained'}
+                </Badge>
+              </div>
+              <KeyValue
+                rows={[
+                  ['Model', <span className="mono">{activeModel.model_id.slice(0, 13)}</span>],
+                  ['Feature schema', activeModel.feature_schema_version],
+                  ['Calibration', activeModel.calibration_method],
+                  [
+                    'Target false-positive rate',
+                    `${(activeModel.target_false_positive_rate * 100).toFixed(1)}%`,
+                  ],
+                  ['Calibrated threshold', activeModel.calibrated_threshold.toFixed(3)],
+                  [
+                    'Training / validation events',
+                    `${String(activeModel.training_event_count)} / ${String(activeModel.validation_event_count)}`,
+                  ],
+                  ['Random state', String(activeModel.random_state)],
+                ]}
+              />
+            </div>
+          ) : (
+            <p className="m-0 text-[0.8rem] text-[var(--text-faint)]">
+              No detection model yet - train one below or from the Red Agent lab.
+            </p>
+          )}
+        </Panel>
+        <AnomalyExplainer />
+      </div>
       <AnomalyActivityChart />
       <div ref={statusRef} tabIndex={-1} aria-live="polite">
         {error ? (
@@ -115,7 +173,7 @@ export function ModelAnalyticsPage() {
             <p>No synthetic detection model is available.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-600">
+              <table className="data-table">
                 <thead>
                   <tr>
                     {[
@@ -127,8 +185,8 @@ export function ModelAnalyticsPage() {
                       'Threshold',
                       'Train / validation',
                       'Fingerprint',
+                      'Artifact',
                       'Created',
-                      'Synthetic',
                     ].map((label) => (
                       <th className="p-2" key={label}>
                         {label}
@@ -162,8 +220,16 @@ export function ModelAnalyticsPage() {
                         {model.training_event_count} / {model.validation_event_count}
                       </td>
                       <td className="technical">{model.dataset_fingerprint.slice(0, 10)}</td>
+                      <td>
+                        {'derived_from_model_id' in model.configuration_json ? (
+                          <Badge tone="neutral">evaluation identity</Badge>
+                        ) : model.artifact_available === false ? (
+                          <Badge tone="warn">rebuilds on use</Badge>
+                        ) : (
+                          <Badge tone="ok">available</Badge>
+                        )}
+                      </td>
                       <td>{new Date(model.created_at).toLocaleString()}</td>
-                      <td>{model.synthetic ? 'Yes' : 'No'}</td>
                     </tr>
                   ))}
                 </tbody>

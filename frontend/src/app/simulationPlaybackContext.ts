@@ -24,6 +24,16 @@ export interface StartSimulationInput {
   topK: number
 }
 
+/** Minimal description of the last run started in this browser session. */
+export interface LastRunDescriptor {
+  runId: string
+  detectionEnabled: boolean
+  modelId: string | null
+  correlationEnabled: boolean
+  predictionEnabled: boolean
+  topK: number
+}
+
 export interface SimulationPlaybackContextValue {
   scenarios: SimulationScenario[]
   runs: SimulationRun[]
@@ -57,6 +67,9 @@ export interface SimulationPlaybackContextValue {
   predictionTimeline: PredictionSnapshot[]
   currentPrediction: PredictionSnapshot | null
   liveTopology: LiveTopologyOverlay
+  /** The last run of this browser session, resumable after a reload. */
+  lastRun: LastRunDescriptor | null
+  resumeLastRun: () => void
   startSimulation: (input: StartSimulationInput) => Promise<void>
   replayRun: (run: SimulationRun) => void
   pause: () => void

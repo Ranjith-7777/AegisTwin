@@ -8,7 +8,11 @@ import {
   type ReactNode,
 } from 'react'
 
-import { SimulationPlaybackContext, type StartSimulationInput } from './simulationPlaybackContext'
+import {
+  SimulationPlaybackContext,
+  type LastRunDescriptor,
+  type StartSimulationInput,
+} from './simulationPlaybackContext'
 import { toClientApiError } from '../services/apiClient'
 import { PlaybackWebSocketClient } from '../services/playbackWebSocketClient'
 import { createSimulationRun, getScenarios, getSimulationRuns } from '../services/simulationApi'
@@ -38,6 +42,26 @@ import { emptyLiveTopologyOverlay, liveTopologyReducer } from '../types/liveTopo
 import { getRunTopologyState, getTopology } from '../services/topologyApi'
 
 const MAX_RENDERED_EVENTS = 200
+const LAST_RUN_KEY = 'aegisarena.lastRun'
+
+function readLastRun(): LastRunDescriptor | null {
+  try {
+    const raw = window.sessionStorage.getItem(LAST_RUN_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<LastRunDescriptor>
+    return typeof parsed.runId === 'string' ? (parsed as LastRunDescriptor) : null
+  } catch {
+    return null
+  }
+}
+
+function writeLastRun(descriptor: LastRunDescriptor) {
+  try {
+    window.sessionStorage.setItem(LAST_RUN_KEY, JSON.stringify(descriptor))
+  } catch {
+    // Storage can be unavailable (private mode); resuming is a convenience only.
+  }
+}
 
 export function SimulationPlaybackProvider({ children }: { children: ReactNode }) {
   const [scenarios, setScenarios] = useState<SimulationScenario[]>([])
@@ -81,6 +105,7 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
     emptyLiveTopologyOverlay,
   )
   const pendingRunRef = useRef<SimulationRun | null>(null)
+  const [storedRun, setStoredRun] = useState<LastRunDescriptor | null>(readLastRun)
   const detectionStartRef = useRef<{
     enabled: boolean
     modelId?: string
@@ -331,6 +356,16 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
           modelId: model?.model_id ?? null,
         })
         pendingRunRef.current = run
+        const descriptor: LastRunDescriptor = {
+          runId: run.simulation_run_id,
+          detectionEnabled: input.detectionEnabled && model !== null,
+          modelId: model?.model_id ?? null,
+          correlationEnabled: input.correlationEnabled,
+          predictionEnabled: input.predictionEnabled,
+          topK: input.topK,
+        }
+        writeLastRun(descriptor)
+        setStoredRun(descriptor)
         if (input.detectionEnabled && model) {
           setScoringStatus('scoring')
           try {
@@ -395,6 +430,59 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
     },
     [openRun],
   )
+
+  // A previous run (from this browser session) can be resumed after a page
+  // reload: its persisted evidence is re-streamed through the normal replay.
+  const lastRun = useMemo(() => {
+    if (!storedRun || activeRun) return null
+    return runs.some((item) => item.simulation_run_id === storedRun.runId) ? storedRun : null
+  }, [activeRun, runs, storedRun])
+
+  const resumeLastRun = useCallback(() => {
+    if (!lastRun) return
+    const run = runs.find((item) => item.simulation_run_id === lastRun.runId)
+    if (!run) return
+    const model = lastRun.modelId
+      ? (models.find((item) => item.model_id === lastRun.modelId) ?? null)
+      : null
+    const detection = Boolean(lastRun.detectionEnabled && model)
+    setEvents([])
+    setAssessmentsByEventId({})
+    setAssessmentTimeline([])
+    setTechniqueTimeline([])
+    setCurrentIncidentCandidate(null)
+    setPredictionTimeline([])
+    setCurrentEventIndex(0)
+    setTotalEventCount(run.event_count)
+    setDetectionEnabled(detection)
+    setSelectedModel(detection ? model : null)
+    setCorrelationEnabled(detection && lastRun.correlationEnabled)
+    setPredictionEnabled(detection && lastRun.correlationEnabled && lastRun.predictionEnabled)
+    // Scoring, correlation and prediction were persisted when the run started.
+    setScoringStatus(detection ? 'ready' : 'idle')
+    setCorrelationStatus(detection && lastRun.correlationEnabled ? 'ready' : 'idle')
+    setPredictionStatus(
+      detection && lastRun.correlationEnabled && lastRun.predictionEnabled ? 'ready' : 'idle',
+    )
+    dispatchTopology({
+      type: 'start_run',
+      runId: run.simulation_run_id,
+      modelId: detection ? (model?.model_id ?? null) : null,
+    })
+    openRun(
+      run,
+      0,
+      detection && model
+        ? {
+            enabled: true,
+            modelId: model.model_id,
+            correlationEnabled: lastRun.correlationEnabled,
+            predictionEnabled: lastRun.correlationEnabled && lastRun.predictionEnabled,
+            topK: lastRun.topK,
+          }
+        : { enabled: false },
+    )
+  }, [lastRun, models, openRun, runs])
 
   const pause = useCallback(() => {
     clientRef.current?.sendControl('pause')
@@ -562,6 +650,8 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       predictionError,
       predictionTimeline,
       currentPrediction: predictionTimeline.at(-1) ?? null,
+      lastRun,
+      resumeLastRun,
       liveTopology,
       startSimulation,
       replayRun,
@@ -583,6 +673,8 @@ export function SimulationPlaybackProvider({ children }: { children: ReactNode }
       scenarios,
       runs,
       activeRun,
+      lastRun,
+      resumeLastRun,
       events,
       playbackState,
       connectionState,

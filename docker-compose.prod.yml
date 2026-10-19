@@ -37,6 +37,9 @@ services:
       CORS_ORIGINS: http://localhost:8080
       LOG_LEVEL: INFO
       SIMULATION_ONLY: "true"
+      MODEL_ARTIFACT_DIR: /data/models
+    volumes:
+      - aegisarena-model-artifacts:/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,3 +73,4 @@ services:
 
 volumes:
   aegisarena-postgres-data:
+  aegisarena-model-artifacts:

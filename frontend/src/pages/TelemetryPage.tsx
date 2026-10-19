@@ -7,8 +7,11 @@ export function TelemetryPage() {
   return (
     <div className="space-y-5">
       <header className="page-heading">
-        <h1>Live Telemetry</h1>
-        <p>Replay persisted deterministic events. No real infrastructure is contacted.</p>
+        <h1>Telemetry Replay</h1>
+        <p>
+          Replay persisted deterministic synthetic events. This is a replay, not live traffic, and
+          no real infrastructure is contacted.
+        </p>
       </header>
       <section className="dashboard-grid">
         <SimulationControlPanel />

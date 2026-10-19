@@ -1,8 +1,18 @@
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlalchemy import String
 
+from app.database.models import ResponsePlaybookRecord
+from app.services.response_playbook_service import CATALOGUE_VERSION
 from tests.test_prediction import prepare_prediction
+
+
+def test_response_catalogue_version_fits_persisted_schema() -> None:
+    column = ResponsePlaybookRecord.__table__.c.catalogue_version
+    assert isinstance(column.type, String)
+    assert column.type.length is not None
+    assert len(CATALOGUE_VERSION) <= column.type.length
 
 
 def prepare_response(client: TestClient) -> tuple[str, str]:

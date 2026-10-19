@@ -9,5 +9,7 @@ export interface WorkflowRunResult {
   auto_executed: boolean
   auto_verified: boolean
   stopped_reason: string
+  /** True when rebuilt from persisted records rather than produced by a run now. */
+  restored?: boolean
   synthetic: true
 }

@@ -1,4 +1,4 @@
-# AegisTwin Initial Architectural Decisions
+# AegisArena Initial Architectural Decisions
 
 Statuses use **Accepted**, **Proposed**, **Superseded**, or **Rejected**. These initial records may be split into numbered ADR files when implementation begins.
 

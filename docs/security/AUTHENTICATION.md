@@ -110,3 +110,31 @@ misconfiguration cannot silently ship:
 
 Both checks exist so the failure mode is "the application refuses to start"
 rather than "the bypass silently activates in production."
+
+### Where the bypass is set (and where it is not)
+
+- `backend/.env.example` documents `AUTH_DEV_BYPASS_ROLE=ADMIN` for a local
+  `backend/.env`. Without it, a local backend serves anonymous `VIEWER` only and
+  every Blue Agent action (approve, execute, verify, rollback, autonomy change)
+  returns `403`.
+- The one-click demo launcher (`scripts/demo/start_aegistwin_demo.ps1`),
+  `backend/launch.env` and the Playwright test backend set `ADMIN` explicitly
+  and run with `AEGISARENA_DISABLE_DOTENV=1`, so a developer's own `.env` can
+  never leak into them.
+- The bypass warning is logged once per role (not per request).
+- `docker-compose.prod.yml` and the Azure Bicep never set it;
+  `backend/tests/test_deployment_config.py` pins that for the production compose.
+
+## Session endpoint: `GET /api/v1/session`
+
+Returns the caller's resolved principal so the UI can show it and disable
+controls the caller may not use:
+
+```json
+{ "role": "ADMIN", "authenticated": true, "auth_mode": "development_bypass",
+  "environment": "development", "can_operate": true, "can_administer": true }
+```
+
+The header shows the role (with a "dev" marker in bypass mode). The UI only
+hides or disables controls for convenience. Authorisation is still enforced
+server-side on every route.

@@ -18,6 +18,10 @@ export interface DetectionModel {
   created_at: string
   synthetic: boolean
   configuration_json: Record<string, unknown>
+  /** Resolved under the backend's MODEL_ARTIFACT_DIR. */
+  artifact_path?: string
+  /** False when the file is missing; it is rebuilt deterministically on first use. */
+  artifact_available?: boolean
 }
 
 export interface SeedRange {

@@ -16,7 +16,12 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
 
-RUN chown -R aegis:aegis /app /home/aegis
+# /data holds the SQLite database (local compose) and the model artifacts.
+# It is created and owned by the non-root user here so a named volume
+# mounted over it inherits writable ownership on first use.
+RUN mkdir -p /data/models     && chown -R aegis:aegis /app /home/aegis /data
+ENV MODEL_ARTIFACT_DIR=/data/models
+VOLUME ["/data"]
 USER aegis
 
 EXPOSE 8000

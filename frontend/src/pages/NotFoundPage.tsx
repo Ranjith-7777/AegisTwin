@@ -8,11 +8,9 @@ export function NotFoundPage() {
       <SearchX className="size-10 text-slate-500" />
       <p className="eyebrow mt-5">Error 404</p>
       <h1 className="mt-2 text-3xl font-semibold text-slate-900">Route not found</h1>
-      <p className="mt-3 max-w-md text-slate-500">
-        The requested dashboard route does not exist in this foundation.
-      </p>
+      <p className="mt-3 max-w-md text-slate-500">The requested console route does not exist.</p>
       <Button asChild className="mt-6">
-        <Link to="/">Return to overview</Link>
+        <Link to="/app">Return to Command Centre</Link>
       </Button>
     </div>
   )

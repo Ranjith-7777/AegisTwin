@@ -17,5 +17,6 @@ class SystemStatusResponse(BaseModel):
     build_mode: str
     demo_mode: bool
     database_revision: str
+    environment: str
     synthetic_only: bool
     benchmark_report_timestamp: str | None

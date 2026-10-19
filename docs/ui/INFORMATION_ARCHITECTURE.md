@@ -14,7 +14,7 @@
 
 | Section | Sub-pages |
 |---|---|
-| Threat Analysis | Live Telemetry (`/telemetry`) · Incidents (`/incidents`) · MITRE ATT&CK (`/mitre`) · Attack Prediction (`/predictive-analytics`) |
+| Threat Analysis | Telemetry Replay (`/telemetry`) · Data Sources (`/data-sources`) · Incidents (`/incidents`) · MITRE ATT&CK (`/mitre`) · Attack Prediction (`/predictive-analytics`) |
 | Defense | Blue Agent (`/response-centre`) · Response Operations (`/response-operations`) |
 | Results | Detection Models (`/model-analytics`) · Audit Trail (`/audit-trail`) · Settings (`/settings`) |
 
@@ -78,7 +78,7 @@ speculatively here.
 | Global shell (sidebar, header, page container, tabs) | Fully redesigned |
 | Command Centre | Fully redesigned (content + layout) |
 | Digital Twin | Shell/token/card consistency only, plus the run-context URL fix; the topology canvas and its controls are visually retinted, not restructured |
-| Threat Analysis (Live Telemetry, Incidents, MITRE, Prediction) | Shell/token/card consistency only |
+| Threat Analysis (Telemetry Replay, Data Sources, Incidents, MITRE, Prediction) | Shell/token/card consistency only |
 | Defense (Blue Agent, Response Operations) | Shell/token/card consistency only |
 | Results (Detection Models, Audit Trail, Settings) | Shell/token/card consistency only |
 

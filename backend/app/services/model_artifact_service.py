@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
@@ -35,7 +37,13 @@ class ModelArtifactService:
     def save(self, directory: Path, model_id: str, artifact: DetectionArtifact) -> Path:
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{model_id}.joblib"
-        joblib.dump(artifact, path)
+        # Write to a temporary sibling and atomically replace, so a concurrent
+        # reader (or a concurrent deterministic rebuild) never observes a
+        # half-written artifact.
+        temporary = directory / f".{model_id}.{os.getpid()}.{threading.get_ident()}.tmp"
+        with self._lock:
+            joblib.dump(artifact, temporary)
+            os.replace(temporary, path)
         return path.resolve()
 
     def load(self, path: str) -> DetectionArtifact:

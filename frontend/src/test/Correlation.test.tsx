@@ -118,6 +118,7 @@ describe('synthetic correlation UI', () => {
   it('renders incident candidate listing and safely rejects malformed messages', async () => {
     renderApp('/incidents')
     expect(await screen.findByRole('heading', { name: 'Incidents', level: 1 })).toBeInTheDocument()
+    await screen.findByRole('option', { name: run.simulation_run_id })
     await userEvent.selectOptions(
       screen.getByLabelText('Incident candidate run'),
       run.simulation_run_id,

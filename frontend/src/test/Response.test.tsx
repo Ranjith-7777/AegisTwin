@@ -211,7 +211,8 @@ describe('Blue Agent response plan comparison', () => {
     await waitFor(() => {
       expect(bluePlanningApi.compareResponsePlans).toHaveBeenCalled()
     })
-    expect(await screen.findByText('Block the network route')).toBeInTheDocument()
+    expect((await screen.findAllByText(/Block the network route/)).length).toBeGreaterThan(0)
+    expect(screen.getByRole('table')).toHaveTextContent('Block the network route')
     expect(screen.getByText('Recommended plan')).toBeInTheDocument()
     expect(screen.getAllByText(/Response Utility Score/).length).toBeGreaterThan(0)
     expect(screen.getByText(/not a calibrated probability/)).toBeInTheDocument()

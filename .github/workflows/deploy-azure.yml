@@ -41,8 +41,26 @@ jobs:
     environment: production
     env:
       IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+      # These non-secret Environment variables preserve the operator-verified
+      # Easy Auth/RBAC state across every declarative Container App release.
+      # Secure defaults keep header trust disabled and grant no ADMIN users
+      # until the documented post-bootstrap verification is complete.
+      TRUST_EASYAUTH_HEADERS: ${{ vars.TRUST_EASYAUTH_HEADERS || 'false' }}
+      ADMIN_PRINCIPAL_IDS_JSON: ${{ vars.ADMIN_PRINCIPAL_IDS_JSON || '[]' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate authentication deployment variables
+        run: |
+          if [[ "$TRUST_EASYAUTH_HEADERS" != "true" && "$TRUST_EASYAUTH_HEADERS" != "false" ]]; then
+            echo "::error::TRUST_EASYAUTH_HEADERS must be exactly 'true' or 'false'."
+            exit 1
+          fi
+          if ! jq -e 'type == "array" and all(.[]; type == "string" and length > 0)' \
+            <<< "$ADMIN_PRINCIPAL_IDS_JSON" >/dev/null; then
+            echo "::error::ADMIN_PRINCIPAL_IDS_JSON must be a JSON array of non-empty strings."
+            exit 1
+          fi
 
       # OIDC login: exchanges the job's short-lived GitHub OIDC token for an
       # Azure AD token, scoped to the `id-aegisarena-github` user-assigned
@@ -146,11 +164,10 @@ jobs:
       # the manual bootstrap that runs main.bicep. There is deliberately no
       # PGADMIN_PASSWORD (or any secret) required by this step.
       #
-      # trustEasyAuthHeaders is left at its default `false` here. Only pass
-      # `--parameters trustEasyAuthHeaders=true` on a manual invocation of
-      # this same command AFTER Easy Auth has been configured and verified
-      # per docs/deployment/AZURE_DEPLOYMENT.md — never make it the default
-      # in this workflow.
+      # Authentication configuration comes from validated GitHub Environment
+      # variables. Their secure fallbacks are false/[], but once an operator
+      # has verified Easy Auth and stored the real values, every normal release
+      # preserves that state instead of silently disabling sign-in or ADMIN.
       - name: Deploy application release (Bicep)
         id: deploy
         run: |
@@ -160,6 +177,8 @@ jobs:
             --template-file infra/azure/app.bicep \
             --parameters acrName="${{ vars.ACR_NAME }}" \
             --parameters imageTag="${{ env.IMAGE_TAG }}" \
+            --parameters trustEasyAuthHeaders="$TRUST_EASYAUTH_HEADERS" \
+            --parameters adminPrincipalIds="$ADMIN_PRINCIPAL_IDS_JSON" \
             --query "properties.outputs" -o json > deployment-outputs.json
           cat deployment-outputs.json
 

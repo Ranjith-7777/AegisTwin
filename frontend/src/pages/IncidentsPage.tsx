@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import { ThreatActivity } from '../components/command/ThreatActivity'
+import { ActiveIncidentPanel } from '../components/workflow/ActiveIncidentPanel'
+import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
 import { getIncidentEvidence, getRunIncidents } from '../services/correlationApi'
 import { getSimulationRuns } from '../services/simulationApi'
 import type { IncidentCandidate, IncidentEvidence } from '../types/correlation'
@@ -14,8 +17,10 @@ import { listOrchestrations } from '../services/orchestrationApi'
 import type { Orchestration } from '../types/orchestration'
 
 export function IncidentsPage() {
+  const playback = useSimulationPlayback()
   const [runs, setRuns] = useState<SimulationRun[]>([])
-  const [runId, setRunId] = useState('')
+  // Default to the live run so the page opens on the current incident.
+  const [runId, setRunId] = useState(playback.activeRun?.simulation_run_id ?? '')
   const [candidates, setCandidates] = useState<IncidentCandidate[]>([])
   const [selected, setSelected] = useState<IncidentCandidate | null>(null)
   const [evidence, setEvidence] = useState<IncidentEvidence[]>([])
@@ -68,12 +73,22 @@ export function IncidentsPage() {
       (!priorityFilter || item.priority === priorityFilter),
   )
   return (
-    <div className="space-y-6">
+    <div className="page-stack">
       <header className="page-heading">
-        <h1>Incidents</h1>
-        <p>Cautious correlation candidates, never confirmed incidents.</p>
+        <div>
+          <p className="eyebrow">Cyber range · Incident intelligence</p>
+          <h1>Incidents</h1>
+          <p>
+            Correlated incident candidates with their MITRE ATT&amp;CK mapping, evidence and likely
+            progression - cautious correlation, never a confirmed real-world incident.
+          </p>
+        </div>
       </header>
-      <LiveCorrelationDashboard />
+      <ThreatActivity />
+      <div className="split-main">
+        <LiveCorrelationDashboard />
+        <ActiveIncidentPanel />
+      </div>
       <Card>
         <CardHeader>
           <h2 className="panel-title">Candidate Listing</h2>

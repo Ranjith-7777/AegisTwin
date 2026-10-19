@@ -24,6 +24,16 @@ export async function createExperiment(
   return (await apiClient.post<ExperimentDetail>(`${BASE}/experiments`, request)).data
 }
 
+export async function evaluateCompletedWorkflow(
+  orchestrationId: string,
+): Promise<ExperimentDetail> {
+  return (
+    await apiClient.post<ExperimentDetail>(
+      `${BASE}/workflows/${encodeURIComponent(orchestrationId)}/evaluate`,
+    )
+  ).data
+}
+
 export async function listExperiments(
   filters: ExperimentListFilters = {},
 ): Promise<ExperimentView[]> {

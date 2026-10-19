@@ -1,18 +1,37 @@
-# AegisArena Backend and Synthetic Telemetry Foundation
+# AegisArena Backend
 
-The Windows judge launcher runs this API in non-debug simulation-only mode against `.aegistwin-demo/data/aegistwin-demo.db`; it never reuses the developer database.
+FastAPI service for the AegisArena cyber range. It includes:
 
-Phase 8A validates artifact-directory availability at startup, defaults debug mode off, and supplies isolated bootstrap, benchmark, migration, and release-validation tooling. SQLite remains a documented single-worker prototype constraint.
+- the seeded Red Agent scenarios;
+- the detection pipeline (IsolationForest with a hybrid score);
+- correlation, MITRE mapping and prediction;
+- the digital twin (topology, attack graph, blast radius);
+- the policy-governed Blue Agent workflow, with synthetic execution, verification and rollback;
+- evaluation (MCI and ARS);
+- the SHA-256 hash-chained audit trail.
 
-Phase 7B adds deterministic simulation agents, approval gates, persisted synthetic execution, verification, rollback, and SHA-256 audit-chain verification. It performs no real action.
+Persistence uses SQLAlchemy 2 with Alembic migrations (head: `20261013_0019`).
+It runs on SQLite in development and the demo, and on PostgreSQL in production.
 
-Phase 6A exposes the repository-defined infrastructure as a versioned directed topology under `/api/v1/topology`, including sequence-bounded path and run-state queries.
+Python 3.11+ is required. **The service refuses to start unless
+`SIMULATION_ONLY` is true. It refuses `AUTH_DEV_BYPASS_ROLE` when
+`ENVIRONMENT=production`.** Run all commands from the `backend` directory.
 
-Phase 5B exposes versioned prediction snapshots, ranked hypotheses, staged-demo evaluation, and causally ordered playback under `/api/v1/prediction`.
+Key settings (see `.env.example`):
 
-Python 3.11+ is required. The service refuses to start unless simulation-only mode is enabled. Run commands from the `backend` directory.
+- `DATABASE_URL`
+- `MODEL_ARTIFACT_DIR`: relative paths are anchored to `backend/`. Artifacts are saved atomically, and a missing artifact is rebuilt deterministically.
+- `CORS_ORIGINS`: an explicit list. Loopback aliases are expanded outside production.
+- `AUTH_DEV_BYPASS_ROLE`: local only.
+- `TRUST_EASYAUTH_HEADERS`
+- `AEGISARENA_DISABLE_DOTENV=1`: ignore `.env`. The launcher and the e2e backend use it.
 
-Phase 4A.1 hardens offline IsolationForest detection with causal context features, a separate synthetic benchmark manifest, three normal-only calibration methods, auditable hybrid scoring, and run-level diagnostics. Anomalous means unusual relative to synthetic normal training; it never means a confirmed attack. Live anomaly streaming, incident correlation, ATT&CK mapping, commands, device contact, scanning, and response actions are absent.
+Observability endpoints:
+
+- `GET /api/health`
+- `GET /api/system/status`: includes the applied Alembic revision.
+- `GET /api/metrics`: Prometheus text.
+- `GET /api/v1/session`
 
 ## Windows CMD
 
@@ -127,7 +146,7 @@ Phase 6B extends run topology recovery with causal event mappings and observed, 
 ### Windows CMD example
 
 ```bat
-cd /d D:\Ranjith\ET_2.0\AegisTwin\backend
+cd /d <path-to-repo>\backend
 .venv\Scripts\activate.bat
 python -m alembic upgrade head
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
@@ -137,7 +156,7 @@ curl.exe -X POST http://127.0.0.1:8000/api/v1/simulation/runs -H "Content-Type: 
 ### PowerShell example
 
 ```powershell
-Set-Location 'D:\Ranjith\ET_2.0\AegisTwin\backend'
+Set-Location '<path-to-repo>\backend'
 .\.venv\Scripts\Activate.ps1
 python -m alembic upgrade head
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000

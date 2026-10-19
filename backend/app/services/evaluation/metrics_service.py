@@ -573,7 +573,13 @@ class EvaluationMetricsService:
             # computed identically for every defence mode, including
             # `no_active_defence` (whose changed-node/edge sets are empty,
             # so before == after honestly).
-            evidence = what_if_evidence_service.security_gain_evidence(
+            # Same edge-aware evaluator the Blue planner and the
+            # Verification Agent use (`best_security_gain_evidence`), so one
+            # executed action is never scored differently by evaluation than
+            # by verification. A single-anchor traversal reports a false zero
+            # for an edge cut upstream of anchors[0] (e.g. quarantining the
+            # attacker's ingress route) - see what_if_evidence_service.
+            evidence = what_if_evidence_service.best_security_gain_evidence(
                 session,
                 experiment.run_id,
                 experiment.detection_model_id,
@@ -582,6 +588,7 @@ class EvaluationMetricsService:
                 has_evidence,
                 frozenset(experiment.changed_node_ids_json),
                 frozenset(experiment.changed_edge_ids_json),
+                self._edge_source_asset_id(session, experiment),
             )
         else:
             evidence = what_if_evidence_service.ZERO_EVIDENCE
@@ -622,6 +629,32 @@ class EvaluationMetricsService:
             "security_improved": what_if_evidence_service.security_improved(evidence),
             "_evaluation_what_if_latency_ms": latency_ms,
         }
+
+    @staticmethod
+    def _edge_source_asset_id(session: Session, experiment: ExperimentRecord) -> str | None:
+        """Source asset of the experiment's edge-restriction action, if any -
+        derived exactly as `blue_planning_service.compare()` derives it from a
+        relationship target id (`source--destination`)."""
+
+        target: tuple[str | None, str | None] | None = None
+        if experiment.evaluation_action_id is not None:
+            action = session.get(EvaluationSyntheticActionRecord, experiment.evaluation_action_id)
+            if action is not None:
+                target = (action.target_type, action.target_id)
+        elif experiment.orchestration_id is not None:
+            execution = session.scalar(
+                select(SyntheticExecutionRecord).where(
+                    SyntheticExecutionRecord.orchestration_id == experiment.orchestration_id
+                )
+            )
+            if execution is not None:
+                target = (execution.target_type, execution.target_id)
+        if target is None:
+            return None
+        target_type, target_id = target
+        if target_type != "relationship" or target_id is None or "--" not in target_id:
+            return None
+        return target_id.split("--", 1)[0]
 
     @staticmethod
     def _action_executed(session: Session, evaluation_action_id: str) -> bool:
@@ -765,23 +798,22 @@ class EvaluationMetricsService:
             "verification_success": verification_success,
         }
 
-        # rollback_required/rollback_success: only meaningful once
-        # verification actually failed - otherwise rollback was never
-        # eligible to happen (a genuine N/A, never conflated with False).
+        # rollback_required records whether failed verification required a
+        # rollback. rollback_success records a persisted rollback outcome,
+        # including an operator-requested rollback after successful
+        # verification. With no verification and no rollback both remain
+        # honestly N/A (for example, failed synthetic execution).
         verification_failed = (
             verification_record is not None
             and verification_record.verification_status != "successful_simulation"
         )
-        if not verification_failed:
-            rollback_required = None
-            rollback_success = None
+        rollback_required = verification_failed if verification_record is not None else None
+        if rollback_record is not None:
+            rollback_success = rollback_record.state == "synthetic_rollback_completed"
+        elif verification_failed:
+            rollback_success = False
         else:
-            rollback_required = rollback_record is not None
-            rollback_success = (
-                rollback_record.state == "synthetic_rollback_completed"
-                if rollback_record is not None
-                else False
-            )
+            rollback_success = None
 
         rollback = {
             "rollback_required": rollback_required,

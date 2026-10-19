@@ -1,359 +1,311 @@
-import { Boxes, FileBarChart, ShieldAlert, Swords } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import {
+  ArrowRight,
+  Boxes,
+  Play,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+  Swords,
+  TriangleAlert,
+} from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
-import { CommandKpiRow } from '../components/dashboard/CommandKpiRow'
-import { SecurityPostureWidget } from '../components/dashboard/SecurityPostureWidget'
-import type { ActivityItem } from '../components/dashboard/RecentActivity'
-import { Button } from '../components/ui/button'
+import { KpiCard, MiniColumns, Spark } from '../components/command/KpiCard'
+import { RecentIncidents } from '../components/command/RecentIncidents'
+import { RedAgentActivity } from '../components/command/RedAgentActivity'
+import { ResponseStatus } from '../components/command/ResponseStatus'
 import { CyberDigitalTwin } from '../components/topology/CyberDigitalTwin'
+import { LayersMenu } from '../components/topology/LayersMenu'
+import { DEFAULT_VIEW_OPTIONS } from '../components/topology/twinView'
+import { TwinStateBanner } from '../components/topology/TwinLegend'
+import { Button } from '../components/ui/button'
+import { useAutonomyWorkflow } from '../hooks/useAutonomyWorkflow'
+import { useRangeActivity } from '../hooks/useRangeActivity'
 import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
 import { useTopology } from '../hooks/useTopology'
-import { deriveCommandCentreState } from '../lib/commandCentre'
-import { createOrchestration, listOrchestrations } from '../services/orchestrationApi'
-import { analyzeResponses, getResponseSummary } from '../services/responseApi'
-import type { ResponseRecommendation } from '../types/response'
+import { bucketActivity } from '../lib/activity'
+import { derivePosture } from '../lib/posture'
+import type { InfrastructureNode } from '../types/topology'
 
+const SINK_TYPE = 'synthetic_external_sink'
+
+const CRITICALITY_COLORS: Record<string, string> = {
+  critical: '#ef4444',
+  high: '#f59e0b',
+  medium: '#3b82f6',
+  low: '#94a3b8',
+}
+
+const PREVIEW_LEGEND = [
+  { label: 'Nominal', color: '#22c55e' },
+  { label: 'Anomalous', color: '#f59e0b' },
+  { label: 'Incident evidence', color: '#ef4444' },
+  { label: 'Mitigated', color: '#2563eb' },
+  { label: 'Proposed', color: '#7c3aed' },
+]
+
+/**
+ * Command Centre: the at-a-glance overview. Four indicators, the live twin as
+ * the dominant view, what the agents are doing now, and recent activity.
+ * Analytics, evidence and detailed controls live on their own pages. Every
+ * value is derived from persisted records; absent data is shown as "—".
+ */
 export function OverviewPage() {
   const playback = useSimulationPlayback()
-  const navigate = useNavigate()
-  const stagedScenario = playback.activeRun?.scenario_id === 'staged-compromise-demo'
-  const { topology } = useTopology(stagedScenario)
-  // Held with the run/model key it belongs to so a stale result is never shown.
-  const [analysed, setAnalysed] = useState<{ key: string; item: ResponseRecommendation | null }>({
-    key: '',
-    item: null,
-  })
-  const [recovered, setRecovered] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const runId = playback.activeRun?.simulation_run_id ?? ''
-  const modelId = playback.selectedModel?.model_id ?? ''
-  const sequence = playback.currentEventIndex
-  const ready = Boolean(runId && modelId && sequence > 0)
-  const analysisKey = `${runId}:${modelId}`
-  const recommendation = analysed.key === analysisKey && runId ? analysed.item : null
-
-  useEffect(() => {
-    if (!runId || !modelId) return
-    let cancelled = false
-    void getResponseSummary(runId, modelId)
-      .then((summary) => {
-        if (!cancelled)
-          setAnalysed({ key: `${runId}:${modelId}`, item: summary.top_recommendation })
-      })
-      .catch(() => {
-        if (!cancelled) setAnalysed({ key: `${runId}:${modelId}`, item: null })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [runId, modelId, playback.playbackState])
-
-  // "Recover" completes once a synthetic execution for this run has been rolled back.
-  useEffect(() => {
-    if (!runId) return
-    let cancelled = false
-    void listOrchestrations()
-      .then((items) => {
-        if (cancelled) return
-        setRecovered(
-          items.some(
-            (item) =>
-              item.simulation_run_id === runId &&
-              (item.rollback !== null ||
-                item.executions.some(
-                  (execution) => execution.execution_state === 'rolled_back_simulated',
-                )),
-          ),
-        )
-      })
-      .catch(() => {
-        if (!cancelled) setRecovered(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [runId, recommendation])
-
-  const analyze = useCallback(() => {
-    if (!ready) return
-    setBusy(true)
-    setError(null)
-    void analyzeResponses({ runId, modelId, throughSequence: sequence, predictionEnabled: true })
-      .then((result) => {
-        setAnalysed({ key: `${runId}:${modelId}`, item: result.recommendations[0] ?? null })
-      })
-      .catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : 'Blue Agent ranking is unavailable.')
-      })
-      .finally(() => {
-        setBusy(false)
-      })
-  }, [modelId, ready, runId, sequence])
-
-  const approve = useCallback(() => {
-    if (!recommendation) return
-    setBusy(true)
-    setError(null)
-    void createOrchestration(recommendation.run_id, {
-      model_id: recommendation.model_id,
-      incident_candidate_id: recommendation.incident_candidate_id,
-      selected_recommendation_id: recommendation.recommendation_id,
-      through_sequence_number: recommendation.through_sequence_number,
-    })
-      .then(() => navigate('/blue-agent/verification'))
-      .catch(() => {
-        setError('Synthetic orchestration creation failed.')
-      })
-      .finally(() => {
-        setBusy(false)
-      })
-  }, [navigate, recommendation])
-
-  const state = useMemo(
-    () =>
-      deriveCommandCentreState({
-        topology,
-        live: playback.liveTopology,
-        playbackState: playback.playbackState,
-        hasActiveRun: playback.activeRun !== null,
-        incident: playback.currentIncidentCandidate,
-        prediction: playback.currentPrediction,
-        mitigatedNodeIds: recommendation?.simulation?.changed_node_ids ?? [],
-        hasRecommendation: recommendation !== null,
-      }),
-    [
-      playback.activeRun,
-      playback.currentIncidentCandidate,
-      playback.currentPrediction,
-      playback.liveTopology,
-      playback.playbackState,
-      recommendation,
-      topology,
-    ],
+  const workflow = useAutonomyWorkflow()
+  const { topology } = useTopology(playback.activeRun?.scenario_id === 'staged-compromise-demo')
+  const { orchestration, result } = workflow
+  const [view, setView] = useState(DEFAULT_VIEW_OPTIONS)
+  const activity = useRangeActivity(
+    playback.runs,
+    `${orchestration?.orchestration_id ?? ''}:${orchestration?.updated_at ?? ''}:${playback.currentIncidentCandidate?.incident_candidate_id ?? ''}`,
   )
 
-  const activityItems: ActivityItem[] = [
-    {
-      label: 'Scenario started',
-      detail: playback.activeRun
-        ? `${playback.activeRun.scenario_id} · seed ${String(playback.activeRun.seed)}`
-        : 'No scenario has been started in this session.',
-      done: playback.activeRun !== null,
-    },
-    {
-      label: 'Anomaly detected',
-      detail:
-        playback.assessmentTimeline.length > 0
-          ? `${String(playback.assessmentTimeline.length)} events assessed`
-          : 'Awaiting scored telemetry.',
-      done: playback.assessmentTimeline.some((item) => item.classification === 'anomalous'),
-    },
-    {
-      label: 'Incident created',
-      detail: playback.currentIncidentCandidate
-        ? `${playback.currentIncidentCandidate.priority} priority · ${String(playback.currentIncidentCandidate.evidence_count)} evidence items`
-        : 'No incident has been correlated yet.',
-      done: playback.currentIncidentCandidate !== null,
-    },
-    {
-      label: 'Response proposed',
-      detail: recommendation
-        ? `${recommendation.playbook_name} · defense score ${recommendation.defense_score.toFixed(2)}`
-        : 'No mitigation has been ranked yet.',
-      done: recommendation !== null,
-    },
-    {
-      label: 'Verification completed',
-      detail: recovered
-        ? 'Synthetic execution verified and rolled back.'
-        : 'Awaiting synthetic execution and verification.',
-      done: recovered,
-    },
-  ]
+  const posture = derivePosture({
+    run: playback.activeRun,
+    playbackState: playback.playbackState,
+    assessments: playback.assessmentTimeline,
+    incident: playback.currentIncidentCandidate,
+    orchestration,
+    result,
+  })
+  const selected = result?.comparison?.candidates.find((item) => item.recommended) ?? null
+  const execution = orchestration?.executions[0] ?? null
+  const proposal = useMemo(
+    () =>
+      view.showProposed && selected && !execution
+        ? {
+            changed_node_ids: selected.changed_node_ids,
+            changed_edge_ids: selected.changed_edge_ids,
+          }
+        : null,
+    [execution, selected, view.showProposed],
+  )
+  const assets: InfrastructureNode[] = useMemo(
+    () => topology?.nodes.filter((node) => node.asset_type !== SINK_TYPE) ?? [],
+    [topology],
+  )
+  const relationships =
+    topology?.edges.filter(
+      (edge) =>
+        assets.some((node) => node.asset_id === edge.source_asset_id) &&
+        assets.some((node) => node.asset_id === edge.destination_asset_id),
+    ).length ?? 0
+  const anomalies = playback.assessmentTimeline.filter(
+    (item) => item.classification === 'anomalous',
+  ).length
+  const buckets = useMemo(
+    () => bucketActivity(playback.events, playback.assessmentsByEventId, 8),
+    [playback.assessmentsByEventId, playback.events],
+  )
 
-  const incident = playback.currentIncidentCandidate
-  const components = recommendation?.defense_components
-  const slaImpact = components ? components.sla_penalty + components.service_disruption : 0
+  // Incidents still open: correlated, not closed, and not yet contained or restored.
+  const open = activity.incidents.filter(
+    (item) =>
+      item.incident.correlation_state !== 'closed' &&
+      !['verified', 'synthetic_rollback_completed'].includes(
+        item.orchestration?.current_state ?? '',
+      ),
+  )
+  const priorityCount = (priority: string) =>
+    open.filter((item) => item.incident.priority === priority).length
+  const executions = activity.orchestrations.flatMap((item) => item.executions)
+  const verified = activity.orchestrations.filter((item) =>
+    item.verifications.some((check) => check.verification_status === 'successful_simulation'),
+  ).length
+  const rolledBack = activity.orchestrations.filter((item) => item.rollback !== null).length
+  const failed = executions.filter((item) => item.execution_state === 'failed_simulated').length
+
+  // One primary action, chosen by what the range needs next.
+  const primary = !playback.activeRun ? (
+    <Button asChild variant="brand">
+      <Link to="/red-agent">
+        <Swords /> Launch simulation
+      </Link>
+    </Button>
+  ) : workflow.canRun && !result && workflow.status !== 'running' && !orchestration ? (
+    <Button
+      variant="brand"
+      onClick={() => void workflow.runWorkflow()}
+      disabled={!(workflow.session?.can_operate ?? false)}
+    >
+      <Play /> Run Blue workflow
+    </Button>
+  ) : null
 
   return (
-    <div className="viewport-page">
-      <div className="command-header">
-        <div>
-          <h1>Command Centre</h1>
-          <p>Autonomous cloud security overview</p>
+    <div className="page-stack cc-page">
+      <div className="cc-head">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1>Command Centre</h1>
+            <span className={`posture-hero posture-chip tone-${posture.tone}`}>
+              <span className={`posture-orb${posture.live ? ' is-live' : ''}`} aria-hidden="true" />
+              {posture.label}
+            </span>
+          </div>
+          <p>{posture.summary}</p>
         </div>
-        <span className="command-header-status">
-          <span className="chip-dot" aria-hidden="true" />
-          Demo · Operational
-        </span>
+        <div className="btn-row">
+          {!playback.activeRun && playback.lastRun ? (
+            <Button
+              variant="outline"
+              onClick={playback.resumeLastRun}
+              title="Re-stream the persisted evidence of the last run in this browser session"
+            >
+              <RotateCcw /> Resume last run
+            </Button>
+          ) : null}
+          {primary}
+        </div>
       </div>
 
-      <CommandKpiRow state={state} />
+      <div className="kpi-row" role="group" aria-label="Key indicators">
+        <KpiCard
+          icon={<Boxes />}
+          tone="lavender"
+          label="Digital Twin Assets"
+          value={assets.length || '—'}
+          sub={
+            assets.length
+              ? `${String(relationships)} relationships · ${String(new Set(assets.map((node) => node.zone)).size)} zones`
+              : 'topology unavailable'
+          }
+          visual={
+            <MiniColumns
+              label="Assets by criticality"
+              parts={['critical', 'high', 'medium', 'low'].map((level) => ({
+                key: level.charAt(0).toUpperCase(),
+                label: `${level} criticality`,
+                value: assets.filter((node) => node.criticality === level).length,
+                color: CRITICALITY_COLORS[level] ?? '#94a3b8',
+              }))}
+            />
+          }
+        />
+        <KpiCard
+          icon={<TriangleAlert />}
+          tone="red"
+          label="Active Incidents"
+          value={activity.loading && open.length === 0 ? '—' : open.length}
+          title="Correlated incidents in the 6 most recent runs that are not yet contained"
+          sub={
+            open.length
+              ? `${String(priorityCount('critical'))} critical · ${String(priorityCount('high'))} high · ${String(priorityCount('medium'))} medium`
+              : 'none open in recent runs'
+          }
+        />
+        <KpiCard
+          icon={<Search />}
+          tone="lavender"
+          label="Anomalies Detected"
+          value={playback.activeRun ? anomalies : '—'}
+          sub={
+            playback.activeRun
+              ? `of ${String(playback.assessmentTimeline.length)} assessed · current run`
+              : 'no run in progress'
+          }
+          visual={
+            playback.activeRun ? (
+              <Spark
+                tone="violet"
+                label="Anomalous events across the run timeline"
+                values={buckets.map((bucket) => bucket.anomalous)}
+              />
+            ) : undefined
+          }
+        />
+        <KpiCard
+          icon={<ShieldCheck />}
+          tone="green"
+          label="Mitigations Executed"
+          value={activity.loading && executions.length === 0 ? '—' : executions.length}
+          unit="synthetic"
+          title="Synthetic executions recorded across every orchestration"
+          sub={
+            executions.length
+              ? `Verified ${String(verified)} · Rolled back ${String(rolledBack)}`
+              : 'none recorded yet'
+          }
+          visual={
+            <MiniColumns
+              label="Executions by outcome"
+              parts={[
+                { key: 'V', label: 'verified', value: verified, color: '#22c55e' },
+                { key: 'R', label: 'rolled back', value: rolledBack, color: '#3b82f6' },
+                { key: 'F', label: 'failed', value: failed, color: '#ef4444' },
+              ]}
+            />
+          }
+        />
+      </div>
 
-      <div className="command-main">
-        <div className="command-left">
-          <section className="command-twin" aria-label="Cloud Digital Twin">
-            <div className="command-twin-head">
-              <h2 className="panel-title">Digital Twin</h2>
+      <div className="cc-main">
+        <section className="panel cc-twin-card" aria-label="Cloud Digital Twin">
+          <header className="panel-head">
+            <div className="min-w-0">
+              <h2 className="panel-title">Infrastructure twin</h2>
+              <p className="panel-subtitle">
+                {assets.length} synthetic assets
+                {playback.activeRun
+                  ? ` · replay ${String(playback.currentEventIndex)}/${String(playback.totalEventCount)}`
+                  : ' · no replay running'}
+              </p>
+            </div>
+            <div className="btn-row">
+              <LayersMenu value={view} onChange={setView} label="View options" showMotion={false} />
               <Link className="card-link" to="/digital-twin">
-                Open Digital Twin
+                Open twin <ArrowRight className="size-3.5" />
               </Link>
             </div>
-            <div className="twin-canvas-wrap">
-              {topology ? (
-                <CyberDigitalTwin
-                  topology={topology}
-                  runState={null}
-                  liveOverlay={playback.liveTopology}
-                  animationPaused={playback.playbackState === 'paused'}
-                  variant="workspace"
-                />
-              ) : (
-                <p className="twin-loading">Loading synthetic cloud topology…</p>
-              )}
-            </div>
+          </header>
+          <div className="cc-canvas">
             {topology ? (
-              <p className="command-twin-foot">
-                {topology.nodes.length} synthetic assets · {topology.edges.length} relationships
-              </p>
-            ) : null}
-          </section>
-
-          <section className="command-activity" aria-label="Recent activity">
-            <div className="command-activity-head">
-              <h2>Recent Activity</h2>
-            </div>
-            <div className="activity-table-scroll">
-              <table className="activity-table">
-                <thead>
-                  <tr>
-                    <th>Stage</th>
-                    <th>Detail</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activityItems.map((item) => (
-                    <tr key={item.label}>
-                      <td className="is-primary">{item.label}</td>
-                      <td>{item.detail}</td>
-                      <td>
-                        <span
-                          className={
-                            item.done ? 'activity-status is-done' : 'activity-status is-pending'
-                          }
-                        >
-                          <span className="chip-dot" aria-hidden="true" />
-                          {item.done ? 'Done' : 'Pending'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-
-        <div className="command-right">
-          <SecurityPostureWidget state={state} totalAssets={topology?.nodes.length ?? 0} />
-
-          <aside className="command-panel" aria-label="Active incident">
-            <div className="command-panel-section">
-              <p className="command-panel-label">
-                <ShieldAlert className="size-3.5" aria-hidden="true" />
-                Active Incident
-              </p>
-              {incident ? (
-                <>
-                  <p className="text-sm font-semibold capitalize text-slate-900">
-                    {incident.priority} priority
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {incident.evidence_count} evidence items ·{' '}
-                    {incident.observed_technique_ids.length} MITRE techniques
-                  </p>
-                  <Link className="card-link text-xs" to="/incidents">
-                    View incident →
-                  </Link>
-                </>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  No active incidents. Correlated evidence will appear here once detected.
-                </p>
-              )}
-            </div>
-            <div className="command-panel-section">
-              <p className="command-panel-label">Blue Agent Response</p>
-              {recommendation && components ? (
-                <>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {recommendation.playbook_name}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Defense score {recommendation.defense_score.toFixed(2)} · +
-                    {components.security_improvement.toFixed(2)} security · −
-                    {slaImpact.toFixed(2)} SLA impact
-                  </p>
-                  <Button size="sm" disabled={busy} onClick={approve}>
-                    Approve
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-slate-500">
-                    {error ??
-                      (ready
-                        ? 'No mitigation has been ranked for the current sequence.'
-                        : 'Start a scenario with a detection model to rank mitigations.')}
-                  </p>
-                  <Button size="sm" variant="outline" disabled={!ready || busy} onClick={analyze}>
-                    {busy ? 'Ranking…' : 'Rank mitigations'}
-                  </Button>
-                </>
-              )}
-            </div>
-          </aside>
-
-          <div className="quick-actions-row" aria-label="Quick actions">
-            <Button
-              variant="outline"
-              size="sm"
-              className="quick-action-btn"
-              onClick={() => {
-                void navigate('/red-agent')
-              }}
-            >
-              <Swords className="size-3.5" />
-              Run Scenario
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="quick-action-btn"
-              onClick={() => {
-                void navigate('/digital-twin')
-              }}
-            >
-              <Boxes className="size-3.5" />
-              Open Twin
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="quick-action-btn"
-              onClick={() => {
-                void navigate('/evaluation')
-              }}
-            >
-              <FileBarChart className="size-3.5" />
-              Report
-            </Button>
+              <CyberDigitalTwin
+                topology={topology}
+                runState={null}
+                liveOverlay={playback.liveTopology}
+                animationPaused={playback.playbackState === 'paused'}
+                responseImpact={proposal}
+                syntheticExecution={execution}
+                layers={view.layers}
+                variant="preview"
+                focusActive={
+                  playback.playbackState === 'playing' || playback.playbackState === 'paused'
+                }
+              />
+            ) : (
+              <p className="empty-state h-full">Loading synthetic cloud topology…</p>
+            )}
+            <TwinStateBanner
+              execution={execution}
+              proposedCount={
+                proposal ? proposal.changed_node_ids.length + proposal.changed_edge_ids.length : 0
+              }
+              attackActive={playback.playbackState === 'playing'}
+            />
           </div>
-        </div>
+          <footer className="legend-inline cc-legend" aria-label="Twin legend">
+            {PREVIEW_LEGEND.map((item) => (
+              <span key={item.label}>
+                <i style={{ background: item.color }} />
+                {item.label}
+              </span>
+            ))}
+          </footer>
+        </section>
+        <ResponseStatus />
+      </div>
+
+      <div className="cc-lower">
+        <RedAgentActivity limit={5} />
+        <RecentIncidents
+          items={activity.incidents}
+          loading={activity.loading}
+          scenarios={playback.scenarios}
+          compact
+        />
       </div>
     </div>
   )

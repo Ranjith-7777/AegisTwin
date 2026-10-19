@@ -2,6 +2,62 @@ import { expect, type APIRequestContext, type Page, test } from '@playwright/tes
 
 const api = 'http://127.0.0.1:8010/api/v1'
 
+const consoleRoutes = [
+  '/app',
+  '/workflow',
+  '/digital-twin',
+  '/digital-twin/attack-paths',
+  '/digital-twin/blast-radius',
+  '/digital-twin/purple-team',
+  '/red-agent',
+  '/telemetry',
+  '/data-sources',
+  '/incidents',
+  '/mitre',
+  '/audit-trail',
+  '/blue-agent/overview',
+  '/blue-agent/agent-workflow',
+  '/blue-agent/response-plans',
+  '/blue-agent/policies',
+  '/blue-agent/verification',
+  '/evaluation',
+  '/evaluation/experiments',
+  '/evaluation/compare',
+  '/evaluation/aggregate',
+  '/evaluation/batches',
+  '/model-analytics',
+  '/predictive-analytics',
+  '/settings',
+] as const
+
+async function expectConsoleRouteHealthy(page: Page, path: string) {
+  const errors: string[] = []
+  const onConsole = (message: { type(): string; text(): string }) => {
+    if (message.type() === 'error') errors.push(`console: ${message.text()}`)
+  }
+  const onPageError = (error: Error) => {
+    errors.push(`page: ${error.message}`)
+  }
+  page.on('console', onConsole)
+  page.on('pageerror', onPageError)
+  try {
+    await page.goto(path)
+    await expect(
+      page.locator('main h1').first(),
+      `${path} should render its page heading`,
+    ).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Route not found' })).toHaveCount(0)
+    const widths = await page.evaluate<{ scroll: number; client: number }>(
+      '({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth })',
+    )
+    expect(widths.scroll, `${path} should not overflow the viewport`).toBe(widths.client)
+    expect(errors, `${path} should not emit browser errors`).toEqual([])
+  } finally {
+    page.off('console', onConsole)
+    page.off('pageerror', onPageError)
+  }
+}
+
 async function prepare(request: APIRequestContext) {
   const topologyBefore = await (
     await request.get(`${api}/topology?include_synthetic_sink=true`)
@@ -59,10 +115,103 @@ async function prepare(request: APIRequestContext) {
 }
 
 async function expectSafety(page: Page) {
-  await expect(
-    page.getByRole('status', { name: 'Simulation environment safety notice' }),
-  ).toBeVisible()
+  await expect(page.getByRole('status', { name: 'Simulation-only safety' })).toBeVisible()
 }
+
+test('public landing and Easy Auth entry remain connected', async ({ page }) => {
+  await page.route('**/api/v1/session', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        role: 'VIEWER',
+        authenticated: false,
+        auth_mode: 'anonymous',
+        environment: 'test',
+        can_operate: false,
+        can_administer: false,
+      }),
+    })
+  })
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: /Simulate Threats/i })).toBeVisible()
+  await expect(
+    page.getByLabel('Simulated Digital Twin product demonstration').first(),
+  ).toBeVisible()
+  await page.getByRole('button', { name: /Launch AegisArena/i }).click()
+  await expect(page).toHaveURL(/\/login\?next=%2Fapp$/)
+  await expect(page.getByRole('heading', { name: 'Welcome to AegisArena' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Sign in with Microsoft/i })).toHaveAttribute(
+    'href',
+    '/.auth/login/aad?post_login_redirect_uri=%2Fapp',
+  )
+})
+
+test('local Development Mode enters the backend-authorized Command Centre', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: /Launch AegisArena/i }).click()
+
+  await expect(page).toHaveURL(/\/login\?next=%2Fapp$/)
+  await expect(page.getByLabel('Development Mode')).toContainText('Backend-verified admin access')
+  await page.getByRole('button', { name: /Enter development console/i }).click()
+
+  await expect(page).toHaveURL(/\/app$/)
+  await expect(page.getByRole('heading', { name: 'Command Centre' })).toBeVisible()
+  await expect(page.getByLabel('Role ADMIN')).toContainText('Admin · dev role')
+})
+
+test('public and login pages stay within a mobile viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.route('**/api/v1/session', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        role: 'VIEWER',
+        authenticated: false,
+        auth_mode: 'anonymous',
+        environment: 'test',
+        can_operate: false,
+        can_administer: false,
+      }),
+    })
+  })
+  for (const path of ['/', '/login?next=https://example.com']) {
+    await page.goto(path)
+    const widths = await page.evaluate<{ scroll: number; client: number }>(
+      '({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth })',
+    )
+    expect(widths.scroll).toBe(widths.client)
+  }
+  await expect(page.getByRole('link', { name: /Sign in with Microsoft/i })).not.toHaveAttribute(
+    'href',
+    /example\.com/,
+  )
+})
+
+test('recorded-data page reports the absent corpus without console errors', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+  await page.goto('/data-sources')
+  await expect(page.getByRole('heading', { name: 'Data Sources' })).toBeVisible()
+  await expect(page.getByText('No recorded dataset imported')).toBeVisible()
+  await expect(page.getByText('No recorded-dataset evaluation yet')).toBeVisible()
+  await expect(page.getByText('Live · read-only')).toBeVisible()
+  await expect(page.getByText(/Not implemented\./)).toBeVisible()
+  expect(consoleErrors).toEqual([])
+})
+
+test('every console route renders cleanly with a fresh database', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  for (const path of consoleRoutes) await expectConsoleRouteHealthy(page, path)
+
+  await page.goto('/route-that-does-not-exist')
+  await expect(page.getByRole('heading', { name: 'Route not found' })).toBeVisible()
+  await page.getByRole('link', { name: 'Return to Command Centre' }).click()
+  await expect(page).toHaveURL(/\/app$/)
+})
 
 test('complete deterministic synthetic demonstration workflow', async ({ page, request }) => {
   const consoleErrors: string[] = []
@@ -133,26 +282,22 @@ test('complete deterministic synthetic demonstration workflow', async ({ page, r
   expect(topologyAfter.nodes).toEqual(prepared.topologyBefore.nodes)
   expect(topologyAfter.edges).toEqual(prepared.topologyBefore.edges)
 
-  await page.goto('/')
+  await page.goto('/app')
   await expectSafety(page)
-  await expect(page.getByText(/Backend: Connected/i)).toBeVisible()
+  await expect(page.getByRole('status', { name: /^Backend healthy/ })).toBeVisible()
   await page.goto('/incidents')
   await expectSafety(page)
+  await expect(page.getByRole('heading', { name: 'Incidents' })).toBeVisible()
   await page.goto('/predictive-analytics')
   await expect(page.getByRole('heading', { name: /Predictive Analytics/i })).toBeVisible()
   await page.goto('/digital-twin')
   await expect(page.getByRole('heading', { name: /Cloud Digital Twin/i })).toBeVisible()
-  await page.goto('/response-centre')
-  await expect(page.getByRole('heading', { name: /Blue Agent/i })).toBeVisible()
-  await page.goto('/response-operations')
-  const orchestrationState = page.locator('p').filter({
-    has: page.locator('strong').filter({ hasText: /^State:$/ }),
-  })
-  await expect(orchestrationState).toContainText('synthetic rollback completed')
-  await expect(page.getByText(/Simulation agent workflow/i)).toBeVisible()
-  await page.goto('/audit-trail')
+  await page.goto(`/blue-agent/verification?orchestration=${orchestration.orchestration_id}`)
+  await expect(page.getByLabel('Execution lifecycle')).toContainText('Rolled back')
+  await expect(page.getByText(/No real defensive action is performed/)).toBeVisible()
+  await page.goto(`/audit-trail?orchestration=${orchestration.orchestration_id}`)
   await page.getByRole('button', { name: 'Verify Audit Chain' }).click()
-  await expect(page.getByText(/Chain integrity:/i)).toContainText('valid')
+  await expect(page.getByRole('status', { name: 'Chain integrity' })).toContainText('valid')
   expect(consoleErrors).toEqual([])
 })
 
@@ -228,4 +373,56 @@ test('rejection, administrator enforcement, and deterministic failure remain gat
       })
     ).status(),
   ).toBe(409)
+})
+
+test('autonomous Blue workflow runs end to end from the UI', async ({ page, request }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+  // The demo detection model the attack lab selects by default.
+  await prepare(request)
+  await page.goto('/workflow')
+  await page.getByRole('button', { name: / mode$/ }).click()
+  await page.getByRole('radio', { name: /^Autonomous/ }).click()
+  await page.getByRole('button', { name: 'Enable autonomous mode' }).click()
+  await expect(page.getByRole('radio', { name: /^Autonomous/ })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+  await page
+    .getByRole('navigation', { name: 'Primary navigation' })
+    .getByRole('link', { name: 'Red Agent', exact: true })
+    .click()
+  await page.getByRole('radio', { name: /DDoS-like Traffic Spike/ }).click()
+  await page.getByLabel('Playback speed').selectOption('50')
+  await page.getByLabel('Random seed').fill('61')
+  await page.getByRole('button', { name: 'Launch scenario' }).click()
+  await page
+    .getByRole('navigation', { name: 'Primary navigation' })
+    .getByRole('link', { name: 'Command Centre', exact: true })
+    .click()
+  // Replay completes, the Workflow Coordinator runs, executes and verifies.
+  await expect(page.locator('.posture-hero')).toContainText('Contained', { timeout: 60_000 })
+  await expect(page.getByRole('group', { name: 'Key indicators' })).toContainText('Verified')
+  await expect(page.getByText(/Mitigation executed in the twin/)).toBeVisible()
+  await expect(page.getByText('audit chain valid')).toBeVisible()
+  await page
+    .getByRole('navigation', { name: 'Primary navigation' })
+    .getByRole('link', { name: 'Workflow & Agents', exact: true })
+    .click()
+  await page.getByRole('tab', { name: /^All \d+ stages$/ }).click()
+  await expect(page.getByRole('list', { name: 'AegisArena lifecycle stages' })).toContainText(
+    'Synthetic execution',
+  )
+  await page.getByRole('button', { name: 'Evaluate completed run' }).click()
+  await expect(page).toHaveURL(/\/evaluation\/experiments\/[^/]+\/report$/)
+  await expect(page.getByText('Faculty report')).toBeVisible()
+  await expect(page.getByText(/without replaying the attack/)).toBeVisible()
+  expect(consoleErrors).toEqual([])
+})
+
+test('every console route renders cleanly with persisted workflow data', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  for (const path of consoleRoutes) await expectConsoleRouteHealthy(page, path)
 })

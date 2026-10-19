@@ -11,6 +11,7 @@ vi.mock('../services/evaluationApi')
 const experiments: ExperimentView[] = [
   {
     experiment_id: 'exp-1',
+    evaluation_source: 'benchmark',
     scenario_id: 'scenario-a',
     scenario_name: 'Scenario A',
     seed: 1,
@@ -37,6 +38,7 @@ const experiments: ExperimentView[] = [
   },
   {
     experiment_id: 'exp-2',
+    evaluation_source: 'benchmark',
     scenario_id: 'scenario-a',
     scenario_name: 'Scenario A',
     seed: 2,

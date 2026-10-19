@@ -1,162 +1,298 @@
-# AegisArena — Cloud Cyber Defense Range
+# AegisArena — Cloud Cyber Defence Range
 
-## Run the Local Judge Demo
+AegisArena is a **simulation-only cyber range** for a small synthetic cloud estate.
+A deterministic Red Agent replays seeded attack scenarios as synthetic telemetry.
+An anomaly detector scores that telemetry. A correlation and prediction pipeline
+turns the anomalies into incidents. A policy-governed Blue Agent then plans,
+simulates, executes, verifies and (if needed) rolls back a mitigation, **only
+against the digital twin**. An evaluation framework compares four defence
+strategies on the same scenario and seed.
 
-1. Run `SETUP_AEGISTWIN_DEMO.bat` once.
-2. Run `START_AEGISTWIN_DEMO.bat` for the production-mode local demo.
-3. The browser opens at `http://127.0.0.1:5173` after readiness checks.
-4. Run `STOP_AEGISTWIN_DEMO.bat` when finished.
+> **Safety boundary.** Every asset, identity, IP address, event, action and
+> metric is synthetic. AegisArena never scans, connects to, or changes a real
+> system. "Execution" means changing the state of the digital twin. The backend
+> refuses to start with `SIMULATION_ONLY=false`.
 
-The launcher uses only localhost and `.aegistwin-demo`. See the [Local Demo Guide](docs/LOCAL_DEMO_GUIDE.md).
+![Command Centre after a contained attack](docs/ui/screenshots/final/06-command-centre-contained.png)
 
-Phase 8A provides deterministic demo bootstrap, Playwright end-to-end validation, consolidated synthetic benchmarks, release checks, and deployment/runbook documentation. Start with [the demo runbook](docs/DEMO_RUNBOOK.md).
+## The problem
 
-Phase 7B adds deterministic simulation-agent orchestration, human demonstration approvals, synthetic execution, verification, rollback, and tamper-evident audit. See [the Phase 7B guide](docs/PHASE_7B_AGENTIC_RESPONSE_ORCHESTRATION.md).
+Security teams rarely get to rehearse "detect → decide → act → verify" end to
+end. Doing that on real infrastructure is unsafe, and the result can't be
+reproduced. AegisArena gives you:
 
-Phase 6A adds a versioned interactive synthetic infrastructure topology with causal observed, correlated, and hypothetical predicted path inspection. See [the Phase 6A guide](docs/PHASE_6A_DIGITAL_TWIN_TOPOLOGY.md).
+- a fixed synthetic estate;
+- replayable, seeded attacks;
+- the whole autonomous-defence loop, with every decision explained and audited;
+- a fair, reproducible comparison against simpler defences.
 
-Phase 5B adds causal, auditable next-stage prediction over the synthetic detection and correlation pipeline. See [the Phase 5B guide](docs/PHASE_5B_NEXT_STAGE_PREDICTION.md) for contracts and limits.
+## What it is, and what it is not
 
-**AegisArena — Cloud Cyber Defense Range** is a hackathon prototype in which a deterministic Red Agent replays synthetic attack scenarios against a simulated cloud estate and a Blue Agent ranks mitigations by Defense Score = Security Improvement − Service Disruption − Resource Cost − SLA Penalty.
+| It is | It is not |
+|---|---|
+| Deterministic, seeded scenario replay | Real attack tooling or traffic generation |
+| scikit-learn IsolationForest plus a transparent hybrid score | A deep-learning or LLM detector |
+| Rule and policy-driven agents with explicit scoring formulas | An LLM agent or a reinforcement-learning policy |
+| Synthetic execution against a digital twin, with verification and rollback | Real containment of any system |
+| Logical (simulated) time for timing metrics | Wall-clock incident-response benchmarks |
 
-> **Safety boundary:** AegisArena operates exclusively on synthetic telemetry, simulated identities, simulated assets, and simulated response state. Real-world actions and external targets are prohibited. The backend refuses to start when `SIMULATION_ONLY=false`.
-
-## Current phase
-
-Phase 4A.1 hardens offline detection with causal behavioural context, separate evaluation-only benchmark truth, calibration comparison, auditable hybrid components, and event-level plus run-level diagnostics. IsolationForest remains the primary detector. Live anomaly streaming and frontend assessment integration remain deferred to Phase 4B; incident correlation, ATT&CK mapping, prediction, agents, and response orchestration remain later-phase work.
-
-## Repository structure
+## Architecture
 
 ```text
-backend/       FastAPI, SQLAlchemy, Alembic, tests, and container files
-datasets/      Synthetic/licensed dataset policy placeholder
-docs/          Architecture and delivery planning
-frontend/      React and TypeScript dashboard foundation
-simulator/     Reserved fixtures and simulator-boundary guidance
-scripts/       Reserved for safe developer helpers
-.github/       Backend and frontend continuous integration
+ Browser (React 19 + Vite, nginx in containers)
+   │  REST /api/v1/*  ·  WebSocket /api/v1/ws/simulation/runs/{id}
+   ▼
+ FastAPI backend (single process)
+   ├─ Red Agent / Scenario Engine ── synthetic telemetry (seeded)
+   ├─ Detection ── feature pipeline → IsolationForest + hybrid score (joblib artifacts)
+   ├─ Incident intelligence ── correlation → MITRE ATT&CK subset → next-stage prediction
+   ├─ Digital twin ── topology, attack graph, blast radius, what-if evidence
+   ├─ Blue Agent (Workflow Coordinator)
+   │     Response Planner → Impact Simulation → Safety Governor → Approval Router
+   │     → Synthetic Execution → Verification   (+ rollback)
+   ├─ Evaluation ── experiments, metrics, MCI, Aegis Resilience Score, comparison
+   └─ Audit ── SHA-256 hash-chained events
+   ▼
+ SQLAlchemy 2 + Alembic ── SQLite (dev/demo) · PostgreSQL (production)
 ```
 
-## Backend setup
+There is more detail in [docs/architecture/SYSTEM_OVERVIEW.md](docs/architecture/SYSTEM_OVERVIEW.md),
+[AGENT_ARCHITECTURE.md](docs/architecture/AGENT_ARCHITECTURE.md) and
+[DATA_FLOW.md](docs/architecture/DATA_FLOW.md).
 
-Use Python 3.11 or newer. Detailed Windows CMD and PowerShell instructions are in [backend/README.md](backend/README.md).
+### Red Agent
+`backend/app/services/scenario_service.py` defines six seeded scenarios:
 
+- `normal-operations`
+- `credential-compromise`
+- `staged-compromise-demo`
+- `leaked-api-credential`
+- `suspicious-kubernetes-pod`
+- `ddos-traffic-spike`
+
+The same scenario with the same seed always produces the same events. Events
+stream to the UI over a run-scoped WebSocket, with exact-prefix REST recovery
+if the connection drops.
+
+### Detection
+A feature pipeline builds causal behavioural features. An **IsolationForest**
+plus a weighted hybrid score classifies each event. An *anomaly* means unusual
+synthetic behaviour, not a confirmed attack. Model artifacts are saved
+atomically to `MODEL_ARTIFACT_DIR`. If an artifact is missing (for example
+after a container restart), it is rebuilt deterministically from its
+persisted training configuration.
+
+### Incident intelligence
+Anomalies are correlated into **incident candidates**. Each candidate is mapped
+to a curated local MITRE ATT&CK subset. A causal next-stage prediction then
+proposes likely next techniques and target assets, which are clearly labelled
+as hypotheses.
+
+### Blue Agent and the autonomous workflow
+The Workflow Coordinator chains six deterministic agents:
+
+1. The **Response Planner** ranks the candidate playbooks.
+2. The **Impact Simulation** agent runs a what-if on a clone of the twin.
+3. The **Safety Governor** enforces policy.
+4. The **Approval Router** applies the autonomy mode.
+5. **Synthetic Execution** applies the chosen action to the twin.
+6. **Verification** compares the expected and observed objectives.
+
+Candidates are ranked by a published Response Utility Score:
+security gain, critical-asset protection, blast-radius reduction, evidence
+quality and reversibility, minus an operational-impact penalty
+([formula](docs/architecture/BLUE_RESPONSE_PLANNING.md)). The UI's
+"why this action" panel is derived only from those persisted numbers. No
+generated text is involved.
+
+There are four autonomy modes:
+
+| Mode | Behaviour |
+|---|---|
+| `observe` | Detection and evidence only. No plan is created. |
+| `recommend` | A plan is created. Nothing is executed. |
+| `approval_required` | Waits for an operator to approve, then executes and verifies |
+| `autonomous` | Executes and verifies automatically within policy; turning it on requires explicit confirmation |
+
+Every state change is written to the hash-chained audit trail. An
+administrator can roll back any synthetic execution.
+
+### Digital twin
+The interactive topology (`@xyflow/react`) shows three layers, kept visually
+distinct:
+
+- **evidence:** observed, anomalous, correlated, predicted;
+- **proposed** mitigation: dashed, "fix proposed";
+- **executed or restored** state: a cut edge `×`, "mitigated" or "restored".
+
+A proposed action is never drawn as if it had been applied.
+
+### Evaluation
+An experiment replays one scenario and seed under one of four strategies:
+
+- `no_active_defence`
+- `rule_based`
+- `ml_assisted`
+- `agentic`
+
+The metrics cover detection coverage and timeliness, attack-path,
+blast-radius and critical-exposure reduction, operational disruption, false
+positive rate, verification, recovery, the **Mission Continuity Index (MCI)**,
+and the **Aegis Resilience Score**:
+`ARS = 100 × (0.20·Awareness + 0.35·Containment + 0.25·Mission + 0.20·Recovery)`.
+ARS is a deterministic evaluation score, not a probability. Timing metrics use
+logical (simulated) time. See [docs/evaluation/](docs/evaluation/).
+
+## Safety model
+
+- `SIMULATION_ONLY` is enforced at startup. No module makes outbound network calls to targets.
+- **Authentication.** In production, identity comes from Azure Container Apps Easy Auth (Entra ID) headers, which are trusted only when `TRUST_EASYAUTH_HEADERS=true` (set after Easy Auth is configured; otherwise callers are at most anonymous `VIEWER`), with role mapping (`VIEWER` / `ANALYST` / `ADMIN`; analysts approve, execute and verify, admins roll back). The development role bypass (`AUTH_DEV_BYPASS_ROLE`) is **rejected at startup** when `ENVIRONMENT=production`. See [docs/security/AUTHENTICATION.md](docs/security/AUTHENTICATION.md).
+- **CORS** uses an explicit origin list (no wildcard) and the methods GET, POST, PUT and OPTIONS.
+- **Autonomous mode** needs an explicit confirmation. Rollback needs the `ADMIN` role.
+- **Audit.** Every agent decision, approval, execution, verification and rollback is hash-chained and verifiable from the UI (**Audit Trail → Verify Audit Chain**).
+
+## Technology stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.11–3.14, FastAPI, SQLAlchemy 2, Alembic, Pydantic Settings, scikit-learn, joblib |
+| Frontend | React 19, TypeScript, Vite 7, Tailwind CSS v4, React Router 7, Axios, @xyflow/react, Recharts |
+| Tests | pytest, ruff, mypy, Vitest + Testing Library, Playwright |
+| Containers | Docker (non-root backend; nginx frontend on 8080 with `/api` and WebSocket proxy) |
+| Cloud | Azure Container Apps, ACR, Key Vault, PostgreSQL Flexible Server, Azure Files, Log Analytics (Bicep) |
+
+## Running locally
+
+### One-click demo (Windows)
+1. Run `SETUP_AEGISTWIN_DEMO.bat` once. It creates `backend/.venv` and installs dependencies.
+2. Run `START_AEGISTWIN_DEMO.bat`. It:
+   - migrates an isolated database in `.aegistwin-demo/`;
+   - bootstraps the deterministic demo model;
+   - builds the frontend;
+   - opens `http://127.0.0.1:5173`.
+3. When you're done, run `STOP_AEGISTWIN_DEMO.bat`. `RESET_AEGISTWIN_DEMO.bat -Force` returns the demo to a clean state.
+
+The launcher binds only to `127.0.0.1`, and it runs with the local development
+role `ADMIN` (shown in the header as a dev indicator). See
+[docs/LOCAL_DEMO_GUIDE.md](docs/LOCAL_DEMO_GUIDE.md).
+
+### Manual development setup
 ```powershell
 cd backend
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
 python -m pip install -r requirements-dev.txt
-Copy-Item .env.example .env
+Copy-Item .env.example .env        # set AUTH_DEV_BYPASS_ROLE=ADMIN for local use
 python -m alembic upgrade head
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
-
-## Environment configuration
-
-Copy `backend/.env.example` to `backend/.env`. Configuration uses environment variables: `APP_NAME`, `ENVIRONMENT`, `DEBUG`, `API_PREFIX`, `BACKEND_HOST`, `BACKEND_PORT`, `DATABASE_URL`, `CORS_ORIGINS`, `LOG_LEVEL`, and `SIMULATION_ONLY`. Do not place secrets in either example file. Simulation-only mode cannot be disabled.
-
-The frontend uses `VITE_API_BASE_URL=http://localhost:8000` and `VITE_WS_BASE_URL=ws://localhost:8000`. These are public browser endpoints, not credentials. Detailed frontend setup is in [frontend/README.md](frontend/README.md).
-
-## Frontend setup
-
-The UI uses React, TypeScript, Vite, Tailwind CSS, shadcn/ui-style source components, React Router, Axios, Lucide icons, and Recharts.
-
 ```powershell
-Set-Location frontend
+cd frontend
 npm.cmd install
 Copy-Item .env.example .env
-npm.cmd run dev
+npm.cmd run dev                     # http://localhost:5173
 ```
 
-Run the backend separately on `http://127.0.0.1:8000`. The frontend remains usable and clearly reports `Backend: Disconnected` when it is unavailable.
-
-## Development commands
-
-Run these from `backend/` with the virtual environment active:
-
+### Docker
 ```powershell
-python -m alembic upgrade head
-python -m pytest
-python -m ruff check .
-python -m ruff format --check .
-python -m ruff format .
-python -m mypy app tests
+docker compose up --build           # frontend http://localhost:5173, backend http://localhost:8000
+```
+The frontend container's nginx proxies `/api/` and the playback WebSocket
+(`/api/v1/ws/`) to the backend, so the browser uses same-origin URLs. The
+SQLite database and model artifacts are kept on the `/data` volume.
+`docker-compose.prod.yml` runs the same images with `ENVIRONMENT=production`
+and no development bypass.
+
+### Azure
+`infra/azure/main.bicep` handles the one-time bootstrap, and `app.bicep`
+handles each release. Together they provision:
+
+- a Container App with the frontend and backend as sidecars;
+- ACR;
+- Key Vault, for the database URL secret;
+- PostgreSQL Flexible Server;
+- Log Analytics;
+- an Azure Files share mounted at `/data`, for model artifacts.
+
+The prerequisites are an Azure subscription with permission to create
+resource groups and role assignments, Azure CLI with Bicep, an Entra ID app
+registration for Easy Auth, and a GitHub OIDC federated credential for CI
+releases. Nothing is deployed automatically. See
+[docs/deployment/AZURE_DEPLOYMENT.md](docs/deployment/AZURE_DEPLOYMENT.md).
+
+## Observability
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/health` | Liveness and database connectivity |
+| `GET /api/system/status` | Environment, applied Alembic revision, counts |
+| `GET /api/metrics` | Prometheus text: database-derived gauges (runs, anomalies, incidents, orchestrations, executions, verifications, rollbacks, audit events, experiments) and uptime |
+| `GET /api/v1/session` | The caller's resolved role and auth mode |
+
+Logs are structured. Every request is logged with its duration, and the
+Workflow Coordinator logs `workflow_started` and `workflow_finished`. On Azure,
+logs flow to Log Analytics.
+
+## Tests
+
+| Suite | Command | Last result |
+|---|---|---|
+| Backend unit/integration | `cd backend; python -m pytest` | 387 passed, 1 skipped (official CICIDS2017 corpus absent) |
+| Backend lint / format / types | `ruff check .` · `ruff format --check .` · `mypy app` | clean |
+| Migrations | `alembic upgrade head` · `alembic check` | head `20261019_0022`, no drift |
+| Frontend | `npm run lint` · `npm run typecheck` · `npm run test:run` · `npm run build` | 146 passed, build OK |
+| End-to-end | `npm run test:e2e` (starts an isolated test backend) | 10 passed |
+
+## Professor demo (about 10 minutes)
+
+The screenshots are in [docs/ui/screenshots/final/](docs/ui/screenshots/final/).
+
+1. **Command Centre** (`01`). Posture is *Standby*, and the stage rail is idle.
+2. **Autonomous Workflow** → choose **Autonomous** → confirm (`02`).
+3. **Red Agent**. Keep the defaults, `staged-compromise-demo` with seed 84, and select **Launch scenario** (`03`).
+4. **Command Centre** (`04`) and **Digital Twin** (`05`). Watch the anomalies and the incident build on the twin as the replay plays.
+5. When the replay finishes, the Blue workflow runs by itself. Posture moves to **Contained** (`06`), and the stage rail completes (`07`).
+6. **Response Plans** (`08`) shows the candidates, the selected action and why it was chosen. **Digital Twin** (`09`) shows the executed edge cut.
+7. **Verification** (`10`) shows expected vs observed. **Audit Trail → Verify Audit Chain** (`11`).
+8. **Detection Models** (`12`) and **Incidents** (`13`) show the explainability.
+9. **Workflow & Agents → Evaluate completed run** opens a traceable MCI/ARS
+   report without replaying the attack. Optionally show **Evaluation → Strategy
+   Comparison** (`14`) and **Experiments & Reports** (`15`) for the separate
+   independent benchmark path.
+10. **Command Centre → Roll back → Confirm**. Posture becomes **Restored** (`16`).
+
+## Repository structure
+
+```text
+backend/    FastAPI app, services, Alembic migrations, tests
+frontend/   React app, Vitest tests, Playwright e2e, nginx template
+infra/      Azure Bicep (main.bicep bootstrap, app.bicep release, modules/)
+scripts/    Demo launcher (PowerShell), bootstrap and benchmark helpers
+docs/       Architecture, evaluation, security, deployment, UI, screenshots
+simulator/  Simulator boundary notes and fixtures
 ```
 
-Alembic revisions can later be generated with `python -m alembic revision --autogenerate -m "description"`. Downgrades are intentionally not part of routine setup.
+## Limitations
 
-## Docker
+- **The Mission Continuity Index is 0 for every strategy in the built-in scenarios.**
+  - Exposure saturates the small estate before any response lands at the end of the replay.
+  - This is documented and pinned by a test. The UI shows a caveat next to MCI.
+  - ARS and the containment metrics are what differ between the strategies.
+- **Execution is synthetic.** A "mitigated" asset is a state in the twin, not a changed system.
+- **Agents are deterministic rules and formulas,** not learned policies or LLMs. Prediction is a causal hypothesis over a curated ATT&CK subset.
+- **Timing metrics are in logical (simulated) time.**
+- **The estate is small and fixed (eight assets).** Results don't generalise to real networks.
+- **The backend is single-process.** Playback state and the model cache are per-process.
+- **The Bicep templates haven't been compiled or deployed in this workspace,** because the Azure CLI and Bicep CLI are not installed here.
 
-```powershell
-docker compose build
-docker compose up
-docker compose config
-```
+## Further documentation
 
-Compose starts the backend on port 8000 and the frontend on port 5173. The frontend waits for backend health; SQLite uses a disposable named volume.
-
-## Current interfaces
-
-Phase 3B adds `GET /api/v1/simulation/runs/{run_id}/playback` and `WS /api/v1/ws/simulation/runs/{run_id}?after_sequence=0` alongside the existing health, safety, simulation, and telemetry interfaces.
-
-Phase 4A adds versioned `/api/v1/detection` model training, model metadata, offline run scoring, paginated assessments, and evaluation endpoints. See [docs/PHASE_4A_ANOMALY_DETECTION.md](docs/PHASE_4A_ANOMALY_DETECTION.md). An anomaly is unusual synthetic behaviour, not a confirmed attack.
-
-Phase 4A.1 keeps those endpoints backward-compatible while enriching model artifacts, assessments, and evaluations. See [docs/PHASE_4A1_DETECTION_HARDENING.md](docs/PHASE_4A1_DETECTION_HARDENING.md) and the frozen [v1 diagnostic](docs/PHASE_4A1_V1_DIAGNOSTIC.json).
-
-- `GET /api/health` — application and real database connectivity.
-- `GET /api/system/status` — static foundation status; incident and agent counts remain zero.
-- `GET /api/safety` — explicit simulation-only safety posture.
-- `WS /ws/events` — connection acknowledgement and `ping`/`pong` only.
-- OpenAPI UI: `GET /docs`.
-- `GET /api/v1/simulation/infrastructure` — eight synthetic infrastructure assets and relationships.
-- `GET /api/v1/simulation/scenarios` — deterministic scenario definitions.
-- `POST /api/v1/simulation/runs` — generate and persist a complete seeded run.
-- `GET /api/v1/simulation/runs` and `GET /api/v1/simulation/runs/{run_id}` — persisted runs.
-- `GET /api/v1/telemetry/events` and `GET /api/v1/telemetry/events/{event_id}` — paginated synthetic telemetry.
-
-## Phase 3B quick start
-
-Start the migrated backend using the existing backend setup, then create a deterministic run:
-
-```powershell
-$request = @{
-  scenario_id = 'credential-compromise'
-  seed = 42
-  start_time = '2026-07-21T01:30:00Z'
-  playback_speed = 1.0
-} | ConvertTo-Json
-
-$run = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/api/v1/simulation/runs' -ContentType 'application/json' -Body $request
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/telemetry/events?simulation_run_id=$($run.simulation_run_id)"
-```
-
-Open the dashboard and choose a scenario, seed, UTC start time, and speed. The browser creates the run over REST and opens the run-scoped WebSocket only after the user presses **Start Synthetic Simulation**. Protocol and test details are in [docs/PHASE_3B_REALTIME_PLAYBACK.md](docs/PHASE_3B_REALTIME_PLAYBACK.md).
-
-All returned identities, assets, IP addresses, relationships, and events are synthetic. IP addresses use documentation-only ranges. The simulator never executes commands, scans networks, connects to devices, or performs containment.
-
-## Current frontend routes
-
-- `/` — implemented operational overview.
-- `/digital-twin`, `/telemetry`, `/incidents`, `/mitre` — capability placeholders for Phases 3–5.
-- `/response-centre`, `/audit-trail` — safe orchestration and audit placeholders for Phase 6.
-- `/model-analytics` — synthetic model listing, training and benchmark evaluation; `/settings` remains a placeholder.
-
-The UI integrates the three current REST endpoints. Its WebSocket client is a disconnected-by-default foundation supporting only acknowledgement and ping/pong.
-
-> **Simulation-only UI:** A non-dismissible safety banner is visible on every route. Static fallback wording remains in place if the backend safety endpoint cannot be reached.
-
-## Git workflow
-
-Create focused feature branches, review `git status` before and after work, run all backend quality checks, and commit intentionally. Do not commit `.env`, virtual environments, SQLite files, generated logs, or test output.
-
-## Current limitations
-
-Phase 7A adds evidence-grounded synthetic defensive recommendations and clone-only digital-twin impact simulation. It calculates approval tiers but never approves or executes an action, and simulation scores are not containment probabilities. See [docs/PHASE_7A_RESPONSE_RECOMMENDATION_SIMULATION.md](docs/PHASE_7A_RESPONSE_RECOMMENDATION_SIMULATION.md).
-
-Phase 6B animates the curated synthetic topology from ordered playback envelopes and provides exact-prefix REST recovery before WebSocket resume. Observed, anomalous, correlated, and predicted layers remain distinct evidence qualifications; none means confirmed compromise. See [docs/PHASE_6B_LIVE_DIGITAL_TWIN.md](docs/PHASE_6B_LIVE_DIGITAL_TWIN.md).
-
-Phase 5A adds optional, causal incident-candidate correlation and a curated local MITRE ATT&CK subset. The two detection benchmark scenarios remain frozen; `staged-compromise-demo` is independent. Correlation streams only persisted synthetic evidence and never confirms an attack. See [docs/PHASE_5A_INCIDENT_CORRELATION_MITRE.md](docs/PHASE_5A_INCIDENT_CORRELATION_MITRE.md).
-
-The backend remains synchronous, single-process, and SQLite-backed; model artifacts and their cache are process-local. Phase 4B optionally streams persisted synthetic assessments immediately after matching telemetry without changing telemetry-only clients. See [docs/PHASE_4B_LIVE_ANOMALY_INTEGRATION.md](docs/PHASE_4B_LIVE_ANOMALY_INTEGRATION.md). Authentication, production observability, incident correlation, MITRE mapping, interactive topology, prediction, agents, and response orchestration remain out of scope.
-
+- [docs/final/PROJECT_OVERVIEW.md](docs/final/PROJECT_OVERVIEW.md)
+- [docs/final/FACULTY_DEMO.md](docs/final/FACULTY_DEMO.md)
+- [docs/architecture/AUTONOMY_MODEL.md](docs/architecture/AUTONOMY_MODEL.md)
+- [docs/architecture/VERIFICATION_AND_ROLLBACK.md](docs/architecture/VERIFICATION_AND_ROLLBACK.md)
+- [docs/evaluation/AEGIS_RESILIENCE_SCORE.md](docs/evaluation/AEGIS_RESILIENCE_SCORE.md)
+- [docs/evaluation/MISSION_CONTINUITY_INDEX.md](docs/evaluation/MISSION_CONTINUITY_INDEX.md)
+- [docs/evaluation/EVALUATION_CONSISTENCY_FIX.md](docs/evaluation/EVALUATION_CONSISTENCY_FIX.md)
+- [docs/ui/DESIGN_SYSTEM.md](docs/ui/DESIGN_SYSTEM.md)
+- Historical phase notes: `docs/PHASE_*.md`. These are kept as project history and may describe earlier states.

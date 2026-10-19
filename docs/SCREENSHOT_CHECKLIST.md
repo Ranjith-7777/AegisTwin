@@ -3,7 +3,8 @@
 Capture only genuine rendered states:
 
 - Overview during staged playback
-- Live Telemetry
+- Telemetry Replay (synthetic replay, not live)
+- Data Sources
 - Current Anomaly Assessment
 - Incident Candidate
 - Observed MITRE timeline

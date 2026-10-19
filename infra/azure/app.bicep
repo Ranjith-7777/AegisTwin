@@ -35,7 +35,7 @@ param acrName string
 param appIdentityName string = 'id-aegisarena-app'
 
 @description('Name of the existing Key Vault created by the bootstrap.')
-param keyVaultName string = 'kv-aegisarena-dev'
+param keyVaultName string = 'kv-aegis-${uniqueString(resourceGroup().id)}'
 
 @description('Immutable image tag (e.g. a git SHA) applied to both containers. "latest" is a placeholder for local iteration only — real releases MUST override this with an immutable tag.')
 param imageTag string = 'latest'

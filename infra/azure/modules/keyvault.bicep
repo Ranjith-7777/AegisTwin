@@ -6,8 +6,8 @@
 @description('Azure region for the vault.')
 param location string
 
-@description('Key Vault name. "kv-aegisarena-dev" is 17 characters, well within the 3-24 character global-uniqueness limit, so — per the PM-approved naming — it is used as-is with no generated suffix.')
-param keyVaultName string = 'kv-aegisarena-dev'
+@description('Key Vault name. Vault names are globally unique and a soft-deleted vault keeps its name reserved for the retention period, so a fixed name collides across subscriptions and redeployments. The default derives a stable suffix from the resource group (22 characters, within the 3-24 limit).')
+param keyVaultName string = 'kv-aegis-${uniqueString(resourceGroup().id)}'
 
 @description('principalId of id-aegisarena-app — granted Key Vault Secrets User, scoped to this vault only.')
 param appIdentityPrincipalId string

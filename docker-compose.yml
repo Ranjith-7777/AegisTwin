@@ -10,7 +10,12 @@ services:
       BACKEND_HOST: 0.0.0.0
       BACKEND_PORT: "8000"
       DATABASE_URL: sqlite:////data/aegistwin.db
-      CORS_ORIGINS: http://localhost:5173
+      # Model artifacts live on the same persistent volume as the database, so
+      # a recreated container never loses the files its DB records point to.
+      MODEL_ARTIFACT_DIR: /data/models
+      # The UI is served same-origin through nginx (below); these origins only
+      # matter for a Vite dev server pointed at this backend.
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
       LOG_LEVEL: INFO
       SIMULATION_ONLY: "true"
       # Local/dev convenience only: grants every request ADMIN without a real
@@ -36,13 +41,17 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: http://localhost:8000
-        VITE_WS_BASE_URL: ws://localhost:8000
+        # Empty = same-origin: nginx proxies /api and /ws to the backend.
+        VITE_API_BASE_URL: ""
+        VITE_WS_BASE_URL: ""
+    environment:
+      BACKEND_UPSTREAM: backend:8000
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "5173:5173"
+      # nginx listens on 8080 inside the (non-root) frontend image.
+      - "5173:8080"
 
 volumes:
   aegistwin-data:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from math import ceil
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ApplicationError
@@ -58,7 +58,7 @@ class TelemetryService:
             ]
             filters.append(TelemetryEventRecord.severity.in_(accepted))
 
-        base: Select[tuple[TelemetryEventRecord]] = select(TelemetryEventRecord).where(*filters)
+        base = select(TelemetryEventRecord).where(*filters)
         total = session.scalar(
             select(func.count()).select_from(TelemetryEventRecord).where(*filters)
         )

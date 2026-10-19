@@ -163,7 +163,7 @@ export function BatchesPage() {
     <section className="space-y-6" aria-labelledby="batches-title">
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Evaluation · Batches</p>
+          <p className="eyebrow">Analysis · Evaluation</p>
           <h1 id="batches-title">Run a batch</h1>
           <p>
             Runs the scenario × seed × defence-mode matrix sequentially, server-side. This request

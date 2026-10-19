@@ -26,4 +26,7 @@ class WorkflowRunResult(BaseModel):
     auto_executed: bool
     auto_verified: bool
     stopped_reason: str
+    # True when rebuilt from persisted records (GET .../state) rather than
+    # produced by running the coordinator now.
+    restored: bool = False
     synthetic: Literal[True] = True

@@ -7,15 +7,6 @@ import type {
 import type { LiveTopologyOverlay } from '../../types/liveTopology'
 import { Card, CardContent, CardHeader } from '../ui/card'
 
-export function ZoneGroup() {
-  return (
-    <p className="text-xs text-slate-500">
-      Zones: Edge → Cluster → Workload → Data · Identity, Management and Operations adjacent ·
-      Synthetic External isolated
-    </p>
-  )
-}
-
 export function PathLegend() {
   return (
     <div className="topology-legend" aria-label="Topology path legend">
@@ -162,8 +153,7 @@ export function PathInspection({
   path: TopologyPath | null
   bare?: boolean
 }) {
-  if (!path)
-    return bare ? <p className="text-slate-500">No path has been queried yet.</p> : null
+  if (!path) return bare ? <p className="text-slate-500">No path has been queried yet.</p> : null
   const body = (
     <>
       <p>{path.ordered_node_ids.join(' → ')}</p>
@@ -201,7 +191,9 @@ export function RelationshipInspector({
   bare?: boolean
 }) {
   if (!edge)
-    return bare ? <p className="text-slate-500">Select a synthetic relationship to inspect it.</p> : null
+    return bare ? (
+      <p className="text-slate-500">Select a synthetic relationship to inspect it.</p>
+    ) : null
   const liveEdge = live?.edges[edge.edge_id]
   const body = (
     <>

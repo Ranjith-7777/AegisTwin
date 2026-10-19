@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+# backend/ - relative MODEL_ARTIFACT_DIR values are anchored here so the
+# artifact location never depends on the directory the server was launched from.
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -27,7 +32,8 @@ class Settings(BaseSettings):
     backend_port: int = Field(default=8000, ge=1, le=65535, validation_alias="BACKEND_PORT")
     database_url: str = Field(default="sqlite:///./aegistwin.db", validation_alias="DATABASE_URL")
     cors_origins: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:5173"], validation_alias="CORS_ORIGINS"
+        default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"],
+        validation_alias="CORS_ORIGINS",
     )
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     simulation_only: bool = Field(default=True, validation_alias="SIMULATION_ONLY")
@@ -97,6 +103,11 @@ class Settings(BaseSettings):
             return parsed
         return [entry.strip() for entry in candidate.split(",") if entry.strip()]
 
+    @field_validator("model_artifact_dir")
+    @classmethod
+    def anchor_model_artifact_dir(cls, value: Path) -> Path:
+        return value if value.is_absolute() else BACKEND_ROOT / value
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, value: str) -> str:
@@ -130,8 +141,40 @@ class Settings(BaseSettings):
     def model_post_init(self, __context: Any) -> None:
         if self.environment == "production" and self.auth_dev_bypass_role:
             raise ValueError("AUTH_DEV_BYPASS_ROLE must not be set when ENVIRONMENT=production")
+        if self.environment != "production":
+            self.cors_origins = expand_loopback_origins(self.cors_origins)
+
+
+_LOOPBACK_TWINS = {"localhost": "127.0.0.1", "127.0.0.1": "localhost"}
+
+
+def expand_loopback_origins(origins: list[str]) -> list[str]:
+    """Outside production, treat `localhost` and `127.0.0.1` as the same origin.
+
+    Vite and the demo launcher bind 127.0.0.1 while documentation and older
+    .env files use localhost; a browser on either spelling is the same local
+    developer, but CORS compares origins textually. Only exact loopback hosts
+    are mirrored - no wildcard, and never in production.
+    """
+
+    expanded = list(origins)
+    for origin in origins:
+        scheme, _, rest = origin.partition("://")
+        host, colon, port = rest.partition(":")
+        twin = _LOOPBACK_TWINS.get(host)
+        if twin is not None:
+            candidate = f"{scheme}://{twin}{colon}{port}"
+            if candidate not in expanded:
+                expanded.append(candidate)
+    return expanded
 
 
 @lru_cache
 def get_settings() -> Settings:
+    # Supported launchers (demo, E2E, IDE launch config) set every value they
+    # need explicitly and export AEGISARENA_DISABLE_DOTENV=1, so their
+    # behaviour - including the development RBAC role - never silently
+    # depends on an untracked developer backend/.env file.
+    if os.environ.get("AEGISARENA_DISABLE_DOTENV") == "1":
+        return Settings(_env_file=None)
     return Settings()

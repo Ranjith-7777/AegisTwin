@@ -22,7 +22,7 @@ for evaluation and viva, not defects to silently patch.
    of the current seed set's coverage, not of the scoring formulas
    themselves.
 
-## Additional limitations (Phase 6/7)
+## Runtime and deployment limitations
 
 3. **Synthetic rather than live cloud mutation.** Every Red Agent action and
    every Blue Agent execution is a synthetic mutation against an in-memory
