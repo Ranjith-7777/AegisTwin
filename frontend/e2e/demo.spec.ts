@@ -2,6 +2,62 @@ import { expect, type APIRequestContext, type Page, test } from '@playwright/tes
 
 const api = 'http://127.0.0.1:8010/api/v1'
 
+const consoleRoutes = [
+  '/app',
+  '/workflow',
+  '/digital-twin',
+  '/digital-twin/attack-paths',
+  '/digital-twin/blast-radius',
+  '/digital-twin/purple-team',
+  '/red-agent',
+  '/telemetry',
+  '/data-sources',
+  '/incidents',
+  '/mitre',
+  '/audit-trail',
+  '/blue-agent/overview',
+  '/blue-agent/agent-workflow',
+  '/blue-agent/response-plans',
+  '/blue-agent/policies',
+  '/blue-agent/verification',
+  '/evaluation',
+  '/evaluation/experiments',
+  '/evaluation/compare',
+  '/evaluation/aggregate',
+  '/evaluation/batches',
+  '/model-analytics',
+  '/predictive-analytics',
+  '/settings',
+] as const
+
+async function expectConsoleRouteHealthy(page: Page, path: string) {
+  const errors: string[] = []
+  const onConsole = (message: { type(): string; text(): string }) => {
+    if (message.type() === 'error') errors.push(`console: ${message.text()}`)
+  }
+  const onPageError = (error: Error) => {
+    errors.push(`page: ${error.message}`)
+  }
+  page.on('console', onConsole)
+  page.on('pageerror', onPageError)
+  try {
+    await page.goto(path)
+    await expect(
+      page.locator('main h1').first(),
+      `${path} should render its page heading`,
+    ).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Route not found' })).toHaveCount(0)
+    const widths = await page.evaluate<{ scroll: number; client: number }>(
+      '({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth })',
+    )
+    expect(widths.scroll, `${path} should not overflow the viewport`).toBe(widths.client)
+    expect(errors, `${path} should not emit browser errors`).toEqual([])
+  } finally {
+    page.off('console', onConsole)
+    page.off('pageerror', onPageError)
+  }
+}
+
 async function prepare(request: APIRequestContext) {
   const topologyBefore = await (
     await request.get(`${api}/topology?include_synthetic_sink=true`)
@@ -145,6 +201,16 @@ test('recorded-data page reports the absent corpus without console errors', asyn
   await expect(page.getByText('Live · read-only')).toBeVisible()
   await expect(page.getByText(/Not implemented\./)).toBeVisible()
   expect(consoleErrors).toEqual([])
+})
+
+test('every console route renders cleanly with a fresh database', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  for (const path of consoleRoutes) await expectConsoleRouteHealthy(page, path)
+
+  await page.goto('/route-that-does-not-exist')
+  await expect(page.getByRole('heading', { name: 'Route not found' })).toBeVisible()
+  await page.getByRole('link', { name: 'Return to Command Centre' }).click()
+  await expect(page).toHaveURL(/\/app$/)
 })
 
 test('complete deterministic synthetic demonstration workflow', async ({ page, request }) => {
@@ -354,4 +420,9 @@ test('autonomous Blue workflow runs end to end from the UI', async ({ page, requ
   await expect(page.getByText('Faculty report')).toBeVisible()
   await expect(page.getByText(/without replaying the attack/)).toBeVisible()
   expect(consoleErrors).toEqual([])
+})
+
+test('every console route renders cleanly with persisted workflow data', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  for (const path of consoleRoutes) await expectConsoleRouteHealthy(page, path)
 })

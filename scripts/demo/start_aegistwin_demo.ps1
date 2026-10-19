@@ -75,6 +75,5 @@ try {
 } catch {
     foreach ($process in $launched) { if (-not $process.HasExited) { Stop-RecordedProcessTree $process.Id } }
     Write-DemoLog "STARTUP FAILED: $($_.Exception.Message)"
-    Write-Error "Startup failed: $($_.Exception.Message) Recovery: STOP_AEGISTWIN_DEMO.bat, then retry."
-    exit 1
+    throw "Startup failed: $($_.Exception.Message) Recovery: STOP_AEGISTWIN_DEMO.bat, then retry."
 }
