@@ -237,11 +237,11 @@ logs flow to Log Analytics.
 
 | Suite | Command | Last result |
 |---|---|---|
-| Backend unit/integration | `cd backend; python -m pytest` | 354 passed |
+| Backend unit/integration | `cd backend; python -m pytest` | 387 passed, 1 skipped (official CICIDS2017 corpus absent) |
 | Backend lint / format / types | `ruff check .` · `ruff format --check .` · `mypy app` | clean |
-| Migrations | `alembic upgrade head` · `alembic check` | head `20261013_0019`, no drift |
-| Frontend | `npm run lint` · `npm run typecheck` · `npx vitest run` · `npm run build` | 125 passed, build OK |
-| End-to-end | `npx playwright test` (starts an isolated test backend) | 4 passed |
+| Migrations | `alembic upgrade head` · `alembic check` | head `20261019_0022`, no drift |
+| Frontend | `npm run lint` · `npm run typecheck` · `npm run test:run` · `npm run build` | 146 passed, build OK |
+| End-to-end | `npm run test:e2e` (starts an isolated test backend) | 10 passed |
 
 ## Professor demo (about 10 minutes)
 
@@ -255,7 +255,10 @@ The screenshots are in [docs/ui/screenshots/final/](docs/ui/screenshots/final/).
 6. **Response Plans** (`08`) shows the candidates, the selected action and why it was chosen. **Digital Twin** (`09`) shows the executed edge cut.
 7. **Verification** (`10`) shows expected vs observed. **Audit Trail → Verify Audit Chain** (`11`).
 8. **Detection Models** (`12`) and **Incidents** (`13`) show the explainability.
-9. **Evaluation → Strategy Comparison → Run all four strategies** (`14`), then **Experiments & Reports** (`15`).
+9. **Workflow & Agents → Evaluate completed run** opens a traceable MCI/ARS
+   report without replaying the attack. Optionally show **Evaluation → Strategy
+   Comparison** (`14`) and **Experiments & Reports** (`15`) for the separate
+   independent benchmark path.
 10. **Command Centre → Roll back → Confirm**. Posture becomes **Restored** (`16`).
 
 ## Repository structure

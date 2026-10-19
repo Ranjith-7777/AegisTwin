@@ -3,7 +3,11 @@
 The implementation described here is tracked on `develop`. Phase 1 established
 three local baseline commits for the backend/data path, release configuration,
 and maintained documentation. Phase 2 verified the browser workflow and the
-isolated Windows demo lifecycle. Nothing has been pushed during these phases.
+isolated Windows demo lifecycle. Phases 3–5 validated the recorded-data
+boundary, completed-workflow evaluation and deployable configuration as far as
+the available local environment permitted. Phase 6 re-verified every routed UI
+page, the complete synthetic workflow, evidence-backed reports and the Windows
+production launcher. Nothing has been pushed during these phases.
 
 ## 1. Architecture
 
@@ -134,18 +138,34 @@ runs both containers as sidecars in one Container App, with:
 
 | Check | Result |
 |---|---|
-| `pytest` (backend) | **382 passed, 1 skipped**, 3 dependency deprecation warnings; the skip is the absent local CICIDS2017 corpus |
+| `pytest` (backend) | **387 passed, 1 skipped**, 3 dependency deprecation warnings; the skip is the absent local CICIDS2017 corpus |
 | `ruff check app tests alembic` / `ruff format --check app tests alembic` | All checks passed / 205 files already formatted |
 | `mypy app` | Success: no issues found in 148 source files |
-| `alembic check` | No new upgrade operations detected |
+| SQLite migrations | Fresh isolated database upgraded through `20261019_0022` |
+| PostgreSQL 18.6 migrations and persistence | Fresh isolated database upgraded through `20261019_0022`; ORM drift check, restart persistence and graceful shutdown passed in Phase 5 |
 | `npm run lint` / `typecheck` | 0 problems / clean |
 | `vitest run` | **146 passed** (32 files) |
 | `prettier --check .` | All matched files use Prettier code style |
 | `npm run build` | built successfully |
-| `playwright test` | **8 passed**, including completed-workflow evaluation → report navigation and the Data Sources empty-corpus state without browser console errors |
-| Windows demo lifecycle | setup, start, health/status, `/app`, session role, and stop verified with isolated ports and storage |
-| Docker image build / run | **not run in Phase 2** |
-| Bicep compile / Azure deployment | **not run in Phase 2** |
+| `playwright test` | **10 passed**; all 25 static protected routes rendered in fresh and populated states without console/page errors or desktop overflow, plus completed-workflow report navigation |
+| Final synthetic report | Regenerated from one isolated persisted workflow: MCI **0.0**, ARS **45.0**, versioned formulas and run/incident/orchestration/execution/verification/rollback IDs recorded |
+| Windows demo lifecycle | Production build, isolated database/model bootstrap, health/safety, `/app`, offline audit and stop passed on dedicated ports |
+| Docker image build / run | **Blocked locally:** Docker Desktop cannot start because WSL is not installed; no container-runtime pass is claimed |
+| Bicep compile / Azure deployment | **Not executed:** Azure CLI/Bicep are unavailable and no Azure resources were created |
+
+### UI and integration coverage
+
+| Area | Final status | Evidence |
+|---|---|---|
+| Public landing, login and session/RBAC | Verified locally | Anonymous Easy Auth entry and backend-authorized ADMIN development entry are browser-tested; production bypass rejection is backend-tested |
+| Command Centre, Red Agent and telemetry | Verified | Empty state plus seeded replay and persisted existing-data state exercised |
+| Detection, correlation, MITRE and prediction | Verified synthetic | Model training/scoring, incident evidence, ATT&CK observations and prediction evaluation run in API and browser flows |
+| Digital Twin | Verified synthetic | Topology, attack paths, blast radius, purple-team and executed/rollback overlays render from backend evidence |
+| Blue Agent and response orchestration | Verified synthetic | Planning, policy, approvals, execution, verification, audit integrity and rollback are exercised; no real action path exists |
+| Evaluation and reporting | Verified synthetic | Completed workflow evaluates idempotently without replay; report values come from persisted source IDs and current MCI/ARS services |
+| Independent benchmarks | Verified | Existing experiment, comparison, aggregate and batch APIs/UI remain separate from completed-workflow reports |
+| Recorded CICIDS2017 analysis | Implemented, corpus-unverified | Fixture tests pass; official labelled-flow CSVs are absent, so no real-data metric is claimed |
+| Deployment configuration | Partially verified | Local PostgreSQL and static Compose/Bicep/security configuration passed; Docker and Azure runtimes remain external blockers |
 
 ## 8. Limitations
 
@@ -159,8 +179,9 @@ runs both containers as sidecars in one Container App, with:
 - The full CICIDS2017 labelled-flow corpus is not stored in Git. Its real-data
   acceptance test remains skipped until a user downloads it under
   `datasets/raw/cicids2017/`; fixture-based ingestion tests pass.
-- Docker image execution, Bicep compilation, and a live Azure deployment remain
-  environment-dependent and were not claimed as verified in Phase 2.
+- Docker image execution, Bicep compilation, Easy Auth against a real Entra
+  tenant and a live Azure deployment remain environment-dependent and are not
+  claimed as verified.
 - **Internal identifiers keep the old `aegistwin` naming deliberately:**
   - catalogue versions;
   - the UUID namespace;
@@ -179,7 +200,18 @@ runs both containers as sidecars in one Container App, with:
 - A PostgreSQL admin password supplied at deploy time.
 - Before the first `create`, run `az bicep build` and `az deployment sub what-if`.
 
-## 10. Professor demo procedure
+## 10. Readiness verdict
+
+- **Faculty demonstration:** ready for the verified local Windows workflow.
+- **Academic submission:** ready with the stated synthetic-only, fixed-topology,
+  single-process and absent-CICIDS-corpus limitations disclosed.
+- **Cloud deployment:** configuration-ready, but not runtime-verified until a
+  Docker-capable host, Azure CLI/Bicep, an Azure subscription and an Entra app
+  registration are available.
+- **Production security system:** not claimed; AegisArena is a research and
+  teaching simulation and must remain simulation-only.
+
+## 11. Professor demo procedure
 
 1. Run `RESET_AEGISTWIN_DEMO.bat -Force`, then `START_AEGISTWIN_DEMO.bat`.
 2. Follow the ten steps in the [README](../../README.md#professor-demo-about-10-minutes):
@@ -193,7 +225,7 @@ simulation-only health. The browser E2E suite separately verified the complete
 autonomous workflow, verification, audit integrity, rollback, authentication
 entry, and mobile viewport with no console errors.
 
-## 11. Screenshot list (`docs/ui/screenshots/final/`)
+## 12. Screenshot list (`docs/ui/screenshots/final/`)
 
 These captures are generated local demonstration artifacts and are ignored by
 Git. They remain on disk and can be regenerated without affecting source state.
@@ -215,12 +247,12 @@ Git. They remain on disk and can be regenerated without affecting source state.
 15. `15-experiments-reports`
 16. `16-command-centre-rolled-back`
 
-## 12. Git baseline
+## 13. Git baseline
 
 Phase 1 committed all reviewed source, configuration, tests, and maintained
 documentation in three logical commits. Raw datasets, databases, logs, caches,
 model artifacts, Playwright output, and generated UI captures are excluded.
-Phase 2 adds only the launcher-route correction, generated-artifact ignore
-rules, the empty-workflow-state contract fix and regression test, and current
-documentation. No branch was switched, no history was rewritten, and no commit
-was pushed or deployed.
+Subsequent phases add recorded-data ingestion, evidence-bound workflow
+evaluation, deployment corrections and final-readiness validation in logical
+local commits. No branch was switched, no history was rewritten, and no commit
+was pushed or Azure resource deployed.
