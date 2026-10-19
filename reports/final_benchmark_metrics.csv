@@ -4,6 +4,7 @@ metadata,scenario,staged-compromise-demo
 metadata,seed,84
 metadata,benchmark_runs,1
 metadata,model_random_state,17
+metadata,evaluated_from_persisted_workflow,True
 detection,precision,1.0
 detection,recall,0.9047619047619048
 detection,f1_score,0.9500000000000001
@@ -18,14 +19,14 @@ mitre,conservative_mapping_check,True
 correlation,candidate_creation_coverage,1.0
 correlation,first_correlated_sequence,1
 correlation,first_high_priority_sequence,11
-correlation,evidence_count,11
+correlation,evidence_count,9
 correlation,causal_sequence_compliance,True
 prediction,top_1_technique_accuracy,1.0
 prediction,top_3_technique_accuracy,1.0
 prediction,mean_reciprocal_rank,1.0
 prediction,next_tactic_accuracy,1.0
 prediction,next_asset_top_1_accuracy,0.0
-prediction,next_asset_top_3_accuracy,0.25
+prediction,next_asset_top_3_accuracy,0.0
 prediction,objective_ranking_accuracy,0.5
 prediction,prediction_coverage,1.0
 prediction,insufficient_evidence_rate,0.0
@@ -34,12 +35,12 @@ prediction,predictions_before_observation,4
 prediction,predictions_after_observation,0
 prediction,baseline_comparison,"{""limitations"": ""Tiny synthetic manifest; not production performance."", ""name"": ""most-common-valid-transition"", ""next_asset_top_1_accuracy"": 0.0, ""top_1_technique_accuracy"": 0.25}"
 response,playbook_applicability_coverage,1.0
-response,correlated_paths_interrupted,5
+response,correlated_paths_interrupted,6
 response,predicted_paths_interrupted,0
-response,sensitive_reachability_before,4
-response,sensitive_reachability_after,4
-response,mean_operational_disruption,0.075
-response,approval_tier_distribution,"{""administrator_approval"": 2, ""analyst_approval"": 5, ""automatic_candidate"": 3}"
+response,sensitive_reachability_before,8
+response,sensitive_reachability_after,8
+response,mean_operational_disruption,0.050000100000000006
+response,approval_tier_distribution,"{""administrator_approval"": 2, ""analyst_approval"": 6, ""automatic_candidate"": 2}"
 orchestration,successful_synthetic_workflow_count,1
 orchestration,policy_block_count,0
 orchestration,approval_count,1
@@ -47,12 +48,25 @@ orchestration,rejected_plan_count,0
 orchestration,verification_status,successful_simulation
 orchestration,rollback_count,1
 orchestration,audit_chain_integrity,True
-timings_seconds,simulation_start_to_first_anomaly,0.6627022000029683
-timings_seconds,first_anomaly_to_first_mitre_observation,0.05100560002028942
-timings_seconds,first_anomaly_to_correlated_candidate,0.03558929997961968
-timings_seconds,candidate_to_first_prediction,0.05840029998216778
-timings_seconds,playback_completion_to_response_recommendation,0.36546160001307726
-timings_seconds,orchestration_creation_to_approval,0.012416900019161403
-timings_seconds,approval_to_synthetic_execution_completion,0.017433600034564734
-timings_seconds,verification_duration,0.011892099981196225
-timings_seconds,rollback_duration,0.014034199994057417
+evaluation,experiment_id,19c72c9c-ae40-58ea-8ee4-ac392aa5d045
+evaluation,evaluation_source,completed_workflow
+evaluation,source_run_id,29d9cd0b-9137-5ba2-8b09-b33041c1ba66
+evaluation,source_incident_candidate_id,87625ce2-fffb-5e1e-954b-47586128f847
+evaluation,source_orchestration_id,4d48f116-e6e7-54e9-a960-455a94ff4adc
+evaluation,workflow_terminal_state,synthetic_rollback_completed
+evaluation,metrics_version,aegis-evaluation-metrics-v1
+evaluation,mci,0.0
+evaluation,mci_version,aegis-mci-v1
+evaluation,ars_total,44.999995
+evaluation,ars_pillars,"{""A"": {""applicable"": true, ""components"": {""detection_coverage"": {""applicable"": true, ""effective_weight"": 0.6, ""raw_value"": 1.0, ""weight"": 0.6}, ""detection_timeliness"": {""applicable"": true, ""effective_weight"": 0.4, ""raw_value"": 1.0, ""weight"": 0.4}}, ""value"": 1.0}, ""M"": {""applicable"": true, ""components"": {""critical_mission_health"": {""applicable"": true, ""effective_weight"": 0.6, ""raw_value"": 0.0, ""weight"": 0.6}, ""operational_disruption_inverse"": {""applicable"": true, ""effective_weight"": 0.4, ""raw_value"": 1.0, ""weight"": 0.4}}, ""value"": 0.4}, ""R"": {""applicable"": true, ""components"": {""recovery_timeliness"": {""applicable"": true, ""effective_weight"": 0.4, ""raw_value"": 0.1875, ""weight"": 0.4}, ""verified_recovery_reached"": {""applicable"": true, ""effective_weight"": 0.6, ""raw_value"": 1.0, ""weight"": 0.6}}, ""value"": 0.675}, ""W"": {""applicable"": true, ""components"": {""attack_path_reduction"": {""applicable"": true, ""effective_weight"": 0.4, ""raw_value"": 0.0, ""weight"": 0.4}, ""blast_radius_reduction"": {""applicable"": true, ""effective_weight"": 0.3, ""raw_value"": 0.142857, ""weight"": 0.3}, ""critical_exposure_reduction"": {""applicable"": true, ""effective_weight"": 0.3, ""raw_value"": 0.0, ""weight"": 0.3}}, ""value"": 0.042857}, ""effective_pillar_weights"": {""A"": 0.2, ""M"": 0.25, ""R"": 0.2, ""W"": 0.35}}"
+evaluation,ars_version,aegis-resilience-score-v1
+evaluation,source_evidence,"{""execution_id"": ""5ee560eb-9af1-5475-8cfc-37e87281f9af"", ""incident_candidate_id"": ""87625ce2-fffb-5e1e-954b-47586128f847"", ""orchestration_id"": ""4d48f116-e6e7-54e9-a960-455a94ff4adc"", ""rollback_id"": ""a0151420-db30-521f-a34b-92d4c406427b"", ""simulation_run_id"": ""29d9cd0b-9137-5ba2-8b09-b33041c1ba66"", ""verification_id"": ""dd213696-16ed-5c80-8a9a-7b4d81dd2002""}"
+timings_seconds,simulation_start_to_first_anomaly,0.21230070001911372
+timings_seconds,first_anomaly_to_first_mitre_observation,0.02681529999244958
+timings_seconds,first_anomaly_to_correlated_candidate,0.020110699988435954
+timings_seconds,candidate_to_first_prediction,0.027394000004278496
+timings_seconds,playback_completion_to_response_recommendation,0.05062449999968521
+timings_seconds,orchestration_creation_to_approval,0.0067663999798242
+timings_seconds,approval_to_synthetic_execution_completion,0.009852999995928258
+timings_seconds,verification_duration,0.02766160000464879
+timings_seconds,rollback_duration,0.007807400019373745

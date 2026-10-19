@@ -16,7 +16,9 @@ REPORTS = ROOT / "reports"
 sys.path.insert(0, str(BACKEND))
 
 
-def post(client: TestClient, path: str, payload: dict[str, object] | None = None) -> dict[str, Any]:
+def post(
+    client: TestClient, path: str, payload: dict[str, object] | None = None
+) -> dict[str, Any]:
     response = client.post(path, json=payload)
     response.raise_for_status()
     return response.json()
@@ -30,86 +32,275 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="aegistwin-benchmark-") as temporary:
         root = Path(temporary)
         settings = Settings(
+            _env_file=None,
             DATABASE_URL=f"sqlite:///{(root / 'benchmark.db').as_posix()}",
             MODEL_ARTIFACT_DIR=root / "artifacts",
             SIMULATION_ONLY=True,
+            ENVIRONMENT="test",
+            AUTH_DEV_BYPASS_ROLE="ADMIN",
             DEBUG=False,
         )
         application = create_app(settings)
         with TestClient(application) as client:
             Base.metadata.create_all(application.state.database.engine)
             started = time.perf_counter()
-            model = post(client, "/api/v1/detection/models/train", {
-                "training_seed_range": {"start": 1, "end": 5},
-                "validation_seed_range": {"start": 6, "end": 10},
-                "evaluation_seed_range": {"start": 11, "end": 13},
-                "random_state": 17, "target_false_positive_rate": 0.1, "n_estimators": 100,
-            })
-            detection = post(client, f"/api/v1/detection/models/{model['model_id']}/evaluate")
-            run = post(client, "/api/v1/simulation/runs", {
-                "scenario_id": "staged-compromise-demo", "seed": 84,
-                "start_time": "2026-07-21T01:30:00Z", "playback_speed": 50,
-            })
+            model = post(
+                client,
+                "/api/v1/detection/models/train",
+                {
+                    "training_seed_range": {"start": 1, "end": 5},
+                    "validation_seed_range": {"start": 6, "end": 10},
+                    "evaluation_seed_range": {"start": 11, "end": 13},
+                    "random_state": 17,
+                    "target_false_positive_rate": 0.1,
+                    "n_estimators": 100,
+                },
+            )
+            detection = post(
+                client, f"/api/v1/detection/models/{model['model_id']}/evaluate"
+            )
+            run = post(
+                client,
+                "/api/v1/simulation/runs",
+                {
+                    "scenario_id": "staged-compromise-demo",
+                    "seed": 84,
+                    "start_time": "2026-07-21T01:30:00Z",
+                    "playback_speed": 50,
+                },
+            )
             run_id, model_id = run["simulation_run_id"], model["model_id"]
-            post(client, f"/api/v1/detection/runs/{run_id}/score", {"model_id": model_id})
+            post(
+                client, f"/api/v1/detection/runs/{run_id}/score", {"model_id": model_id}
+            )
             anomaly_at = time.perf_counter()
-            correlation = post(client, f"/api/v1/correlation/runs/{run_id}/analyze", {"model_id": model_id})
+            correlation = post(
+                client,
+                f"/api/v1/correlation/runs/{run_id}/analyze",
+                {"model_id": model_id},
+            )
             correlation_at = time.perf_counter()
-            candidate = client.get(f"/api/v1/correlation/runs/{run_id}/incidents").json()["items"][0]
-            techniques = client.get(f"/api/v1/correlation/runs/{run_id}/techniques").json()["items"]
+            candidate = client.get(
+                f"/api/v1/correlation/runs/{run_id}/incidents"
+            ).json()["items"][0]
+            techniques = client.get(
+                f"/api/v1/correlation/runs/{run_id}/techniques"
+            ).json()["items"]
             mitre_at = time.perf_counter()
-            predictions = post(client, f"/api/v1/prediction/runs/{run_id}/analyze", {"model_id": model_id, "top_k": 3})
+            predictions = post(
+                client,
+                f"/api/v1/prediction/runs/{run_id}/analyze",
+                {"model_id": model_id, "top_k": 3},
+            )
             prediction_at = time.perf_counter()
-            prediction_eval = post(client, f"/api/v1/prediction/runs/{run_id}/evaluate", {"model_id": model_id})
-            response = post(client, f"/api/v1/response/runs/{run_id}/analyze", {
-                "model_id": model_id, "through_sequence_number": 10, "prediction_enabled": True, "top_k": 10,
-            })
+            prediction_eval = post(
+                client,
+                f"/api/v1/prediction/runs/{run_id}/evaluate",
+                {"model_id": model_id},
+            )
+            response = post(
+                client,
+                f"/api/v1/response/runs/{run_id}/analyze",
+                {
+                    "model_id": model_id,
+                    "through_sequence_number": 10,
+                    "prediction_enabled": True,
+                    "top_k": 10,
+                },
+            )
+            playbook_response = client.get("/api/v1/response/playbooks")
+            playbook_response.raise_for_status()
+            playbooks = playbook_response.json()
             response_at = time.perf_counter()
-            recommendation = next(item for item in response["recommendations"] if item["required_approval_tier"] == "analyst_approval")
-            orchestration = post(client, f"/api/v1/orchestration/runs/{run_id}/create", {
-                "model_id": model_id, "incident_candidate_id": recommendation["incident_candidate_id"],
-                "selected_recommendation_id": recommendation["recommendation_id"], "through_sequence_number": 10,
-            })
+            recommendation = next(
+                item
+                for item in response["recommendations"]
+                if item["required_approval_tier"] == "analyst_approval"
+            )
+            orchestration = post(
+                client,
+                f"/api/v1/orchestration/runs/{run_id}/create",
+                {
+                    "model_id": model_id,
+                    "incident_candidate_id": recommendation["incident_candidate_id"],
+                    "selected_recommendation_id": recommendation["recommendation_id"],
+                    "through_sequence_number": 10,
+                },
+            )
             orchestration_at = time.perf_counter()
             approval = orchestration["approvals"][0]
-            approved = post(client, f"/api/v1/orchestration/{orchestration['orchestration_id']}/approvals/{approval['approval_request_id']}/decide", {
-                "actor_role": "analyst", "actor_display_name": "Demo SOC Analyst", "decision": "approve",
-                "reason": "Frozen synthetic benchmark approval.",
-            })
+            approved = post(
+                client,
+                f"/api/v1/orchestration/{orchestration['orchestration_id']}/approvals/{approval['approval_request_id']}/decide",
+                {
+                    "actor_role": "analyst",
+                    "actor_display_name": "Demo SOC Analyst",
+                    "decision": "approve",
+                    "reason": "Frozen synthetic benchmark approval.",
+                },
+            )
             approval_at = time.perf_counter()
-            execution = post(client, f"/api/v1/orchestration/{orchestration['orchestration_id']}/execute", {})
+            execution = post(
+                client,
+                f"/api/v1/orchestration/{orchestration['orchestration_id']}/execute",
+                {},
+            )
             execution_at = time.perf_counter()
-            verification = post(client, f"/api/v1/orchestration/{orchestration['orchestration_id']}/verify")
+            verification = post(
+                client,
+                f"/api/v1/orchestration/{orchestration['orchestration_id']}/verify",
+            )
             verification_at = time.perf_counter()
-            rollback = post(client, f"/api/v1/orchestration/{orchestration['orchestration_id']}/rollback", {
-                "reason": "Frozen benchmark restoration.", "requested_by": "Demo SOC Analyst",
-            })
+            rollback = post(
+                client,
+                f"/api/v1/orchestration/{orchestration['orchestration_id']}/rollback",
+                {
+                    "reason": "Frozen benchmark restoration.",
+                    "requested_by": "Demo SOC Analyst",
+                },
+            )
             rollback_at = time.perf_counter()
-            integrity = client.get(f"/api/v1/orchestration/{orchestration['orchestration_id']}/audit/verify").json()
+            integrity = client.get(
+                f"/api/v1/orchestration/{orchestration['orchestration_id']}/audit/verify"
+            ).json()
+            evaluation = post(
+                client,
+                f"/api/v1/evaluation/workflows/{orchestration['orchestration_id']}/evaluate",
+            )
+            report_response = client.get(
+                f"/api/v1/evaluation/experiments/{evaluation['experiment_id']}/report"
+            )
+            report_response.raise_for_status()
+            evaluation_report = report_response.json()
 
-    simulations = [item["simulation"] for item in response["recommendations"] if item["simulation"]]
+            if (
+                evaluation["run_id"] != run_id
+                or evaluation["incident_candidate_id"]
+                != candidate["incident_candidate_id"]
+                or evaluation["orchestration_id"] != orchestration["orchestration_id"]
+            ):
+                raise RuntimeError(
+                    "Completed-workflow evaluation evidence association failed."
+                )
+
+    simulations = [
+        item["simulation"] for item in response["recommendations"] if item["simulation"]
+    ]
+    catalogue_playbook_ids = {item["playbook_id"] for item in playbooks}
+    recommended_playbook_ids = {
+        item["playbook_id"] for item in response["recommendations"]
+    }
+    unknown_playbook_ids = recommended_playbook_ids - catalogue_playbook_ids
+    if unknown_playbook_ids or not catalogue_playbook_ids:
+        raise RuntimeError(
+            "Response recommendations do not match the current playbook catalogue: "
+            f"{sorted(unknown_playbook_ids)}"
+        )
     metrics: dict[str, Any] = {
-        "metadata": {"synthetic": True, "scenario": "staged-compromise-demo", "seed": 84, "benchmark_runs": 1, "model_random_state": 17},
-        "detection": {"precision": detection["precision"], "recall": detection["recall"], "f1_score": detection["f1_score"], "roc_auc": detection["roc_auc"], "average_precision": detection["average_precision"], "held_out_normal_false_positive_rate": detection["false_positive_rate"], "suspicious_run_detection_rate": 1.0 if detection["suspicious_scenario_events_flagged"] > 0 else 0.0},
-        "mitre": {"supported_observation_count": len(techniques), "mapping_coverage_on_benchmark_positive_steps": len(techniques) / 6, "unsupported_mapping_count": 0, "conservative_mapping_check": all(item["synthetic"] for item in techniques)},
-        "correlation": {"candidate_creation_coverage": 1.0, "first_correlated_sequence": candidate["first_sequence_number"], "first_high_priority_sequence": candidate["latest_sequence_number"] if candidate["correlation_state"] == "high_priority" else None, "evidence_count": correlation["evidence_count"], "causal_sequence_compliance": True},
-        "prediction": {**prediction_eval["metrics"], "baseline_comparison": prediction_eval["baseline_metrics"]},
-        "response": {
-            "playbook_applicability_coverage": len({item["playbook_id"] for item in response["recommendations"]}) / 8,
-            "correlated_paths_interrupted": sum(item["correlated_paths_interrupted"] for item in simulations),
-            "predicted_paths_interrupted": sum(item["predicted_paths_interrupted"] for item in simulations),
-            "sensitive_reachability_before": max(item["sensitive_assets_reachable_before"] for item in simulations),
-            "sensitive_reachability_after": min(item["sensitive_assets_reachable_after"] for item in simulations),
-            "mean_operational_disruption": sum(item["operational_disruption_score"] for item in simulations) / len(simulations),
-            "approval_tier_distribution": {tier: sum(item["required_approval_tier"] == tier for item in response["recommendations"]) for tier in ["automatic_candidate", "analyst_approval", "administrator_approval"]},
+        "metadata": {
+            "synthetic": True,
+            "scenario": "staged-compromise-demo",
+            "seed": 84,
+            "benchmark_runs": 1,
+            "model_random_state": 17,
+            "evaluated_from_persisted_workflow": True,
         },
-        "orchestration": {"successful_synthetic_workflow_count": 1, "policy_block_count": 0, "approval_count": len(approved["approvals"]), "rejected_plan_count": 0, "verification_status": verification["verifications"][0]["verification_status"], "rollback_count": 1 if rollback["rollback"] else 0, "audit_chain_integrity": integrity["valid"]},
+        "detection": {
+            "precision": detection["precision"],
+            "recall": detection["recall"],
+            "f1_score": detection["f1_score"],
+            "roc_auc": detection["roc_auc"],
+            "average_precision": detection["average_precision"],
+            "held_out_normal_false_positive_rate": detection["false_positive_rate"],
+            "suspicious_run_detection_rate": 1.0
+            if detection["suspicious_scenario_events_flagged"] > 0
+            else 0.0,
+        },
+        "mitre": {
+            "supported_observation_count": len(techniques),
+            "mapping_coverage_on_benchmark_positive_steps": len(techniques) / 6,
+            "unsupported_mapping_count": 0,
+            "conservative_mapping_check": all(item["synthetic"] for item in techniques),
+        },
+        "correlation": {
+            "candidate_creation_coverage": 1.0,
+            "first_correlated_sequence": candidate["first_sequence_number"],
+            "first_high_priority_sequence": candidate["latest_sequence_number"]
+            if candidate["correlation_state"] == "high_priority"
+            else None,
+            "evidence_count": correlation["evidence_count"],
+            "causal_sequence_compliance": True,
+        },
+        "prediction": {
+            **prediction_eval["metrics"],
+            "baseline_comparison": prediction_eval["baseline_metrics"],
+        },
+        "response": {
+            "playbook_applicability_coverage": len(recommended_playbook_ids)
+            / len(catalogue_playbook_ids),
+            "correlated_paths_interrupted": sum(
+                item["correlated_paths_interrupted"] for item in simulations
+            ),
+            "predicted_paths_interrupted": sum(
+                item["predicted_paths_interrupted"] for item in simulations
+            ),
+            "sensitive_reachability_before": max(
+                item["sensitive_assets_reachable_before"] for item in simulations
+            ),
+            "sensitive_reachability_after": min(
+                item["sensitive_assets_reachable_after"] for item in simulations
+            ),
+            "mean_operational_disruption": sum(
+                item["operational_disruption_score"] for item in simulations
+            )
+            / len(simulations),
+            "approval_tier_distribution": {
+                tier: sum(
+                    item["required_approval_tier"] == tier
+                    for item in response["recommendations"]
+                )
+                for tier in [
+                    "automatic_candidate",
+                    "analyst_approval",
+                    "administrator_approval",
+                ]
+            },
+        },
+        "orchestration": {
+            "successful_synthetic_workflow_count": 1,
+            "policy_block_count": 0,
+            "approval_count": len(approved["approvals"]),
+            "rejected_plan_count": 0,
+            "verification_status": verification["verifications"][0][
+                "verification_status"
+            ],
+            "rollback_count": 1 if rollback["rollback"] else 0,
+            "audit_chain_integrity": integrity["valid"],
+        },
+        "evaluation": {
+            "experiment_id": evaluation["experiment_id"],
+            "evaluation_source": evaluation["evaluation_source"],
+            "source_run_id": evaluation["run_id"],
+            "source_incident_candidate_id": evaluation["incident_candidate_id"],
+            "source_orchestration_id": evaluation["orchestration_id"],
+            "workflow_terminal_state": evaluation["configuration_json"][
+                "workflow_terminal_state"
+            ],
+            "metrics_version": evaluation_report["reproduction"]["metrics_version"],
+            "mci": evaluation_report["mission_continuity_index"],
+            "mci_version": evaluation_report["reproduction"]["mci_version"],
+            "ars_total": evaluation_report["metrics"]["ars_total"],
+            "ars_pillars": evaluation_report["ars_decomposition"],
+            "ars_version": evaluation_report["reproduction"]["ars_version"],
+            "source_evidence": evaluation_report["configuration"]["source_evidence"],
+        },
         "timings_seconds": {
             "simulation_start_to_first_anomaly": anomaly_at - started,
             "first_anomaly_to_first_mitre_observation": mitre_at - anomaly_at,
             "first_anomaly_to_correlated_candidate": correlation_at - anomaly_at,
             "candidate_to_first_prediction": prediction_at - correlation_at,
-            "playback_completion_to_response_recommendation": response_at - prediction_at,
+            "playback_completion_to_response_recommendation": response_at
+            - prediction_at,
             "orchestration_creation_to_approval": approval_at - orchestration_at,
             "approval_to_synthetic_execution_completion": execution_at - approval_at,
             "verification_duration": verification_at - execution_at,
@@ -117,26 +308,65 @@ def main() -> int:
         },
     }
     REPORTS.mkdir(exist_ok=True)
-    (REPORTS / "final_benchmark_metrics.json").write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
-    with (REPORTS / "final_benchmark_metrics.csv").open("w", newline="", encoding="utf-8") as handle:
+    (REPORTS / "final_benchmark_metrics.json").write_text(
+        json.dumps(metrics, indent=2) + "\n", encoding="utf-8"
+    )
+    with (REPORTS / "final_benchmark_metrics.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
         writer = csv.writer(handle)
         writer.writerow(["section", "metric", "value"])
         for section, values in metrics.items():
             if isinstance(values, dict):
                 for name, value in values.items():
-                    writer.writerow([section, name, json.dumps(value, sort_keys=True) if isinstance(value, dict) else value])
+                    writer.writerow(
+                        [
+                            section,
+                            name,
+                            json.dumps(value, sort_keys=True)
+                            if isinstance(value, dict)
+                            else value,
+                        ]
+                    )
     markdown = [
-        "# Final Synthetic Benchmark Report", "",
-        "> All measurements are synthetic. They do not establish production security effectiveness.", "",
-        "## Configuration", "", "- Benchmark size: one frozen staged-compromise demonstration run", "- Seed: 84", "- Model random state: 17", "- Algorithms: deterministic scenario generator, Isolation Forest detection, conservative catalogue mapping, heuristic correlation/prediction/response orchestration", "",
+        "# Final Synthetic Benchmark Report",
+        "",
+        "> All measurements are synthetic. They do not establish production security effectiveness.",
+        "",
+        "## Configuration",
+        "",
+        "- Benchmark size: one frozen staged-compromise demonstration run",
+        "- Seed: 84",
+        "- Model random state: 17",
+        "- Algorithms: deterministic scenario generator, Isolation Forest detection, conservative catalogue mapping, heuristic correlation/prediction/response orchestration",
+        "",
     ]
     for section, values in metrics.items():
-        markdown.extend([f"## {section.replace('_', ' ').title()}", "", "| Metric | Value |", "|---|---|"])
+        markdown.extend(
+            [
+                f"## {section.replace('_', ' ').title()}",
+                "",
+                "| Metric | Value |",
+                "|---|---|",
+            ]
+        )
         if isinstance(values, dict):
-            markdown.extend(f"| {name} | {json.dumps(value, sort_keys=True) if isinstance(value, dict) else value} |" for name, value in values.items())
+            markdown.extend(
+                f"| {name} | {json.dumps(value, sort_keys=True) if isinstance(value, dict) else value} |"
+                for name, value in values.items()
+            )
         markdown.append("")
-    markdown.extend(["## Limitations", "", "This small frozen benchmark is intended for deterministic demonstration regression only. Timings depend on the local machine and are synthetic demonstration workflow timings, not MTTD or MTTR. No final-benchmark tuning was performed.", ""])
-    (REPORTS / "final_benchmark_report.md").write_text("\n".join(markdown), encoding="utf-8")
+    markdown.extend(
+        [
+            "## Limitations",
+            "",
+            "This small frozen benchmark is intended for deterministic demonstration regression only. Timings depend on the local machine and are synthetic demonstration workflow timings, not MTTD or MTTR. No final-benchmark tuning was performed.",
+            "",
+        ]
+    )
+    (REPORTS / "final_benchmark_report.md").write_text(
+        "\n".join(markdown), encoding="utf-8"
+    )
     print(f"Generated synthetic benchmark reports in {REPORTS}")
     return 0
 
