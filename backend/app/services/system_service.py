@@ -1,6 +1,4 @@
-from typing import Any
-
-from sqlalchemy import Select, func, select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -15,10 +13,6 @@ from app.schemas.system import SystemStatusResponse
 
 # Correlation states that represent an incident still demanding operator attention.
 OPEN_CORRELATION_STATES = ("correlated", "high_priority")
-
-
-def _count(session: Session, statement: Select[tuple[Any, ...]]) -> int:
-    return int(session.scalar(statement) or 0)
 
 
 def _database_revision(session: Session | None) -> str:
@@ -44,15 +38,19 @@ def get_system_status(
     red_agent_runs = 0
     blue_agent_orchestrations = 0
     if session is not None:
-        active_incidents = _count(
-            session,
-            select(func.count())
-            .select_from(IncidentCandidateRecord)
-            .where(IncidentCandidateRecord.correlation_state.in_(OPEN_CORRELATION_STATES)),
+        active_incidents = int(
+            session.scalar(
+                select(func.count())
+                .select_from(IncidentCandidateRecord)
+                .where(IncidentCandidateRecord.correlation_state.in_(OPEN_CORRELATION_STATES))
+            )
+            or 0
         )
-        red_agent_runs = _count(session, select(func.count()).select_from(SimulationRunRecord))
-        blue_agent_orchestrations = _count(
-            session, select(func.count()).select_from(ResponseOrchestrationRecord)
+        red_agent_runs = int(
+            session.scalar(select(func.count()).select_from(SimulationRunRecord)) or 0
+        )
+        blue_agent_orchestrations = int(
+            session.scalar(select(func.count()).select_from(ResponseOrchestrationRecord)) or 0
         )
     return SystemStatusResponse(
         system_name=SYSTEM_NAME,
