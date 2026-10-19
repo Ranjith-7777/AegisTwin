@@ -798,23 +798,22 @@ class EvaluationMetricsService:
             "verification_success": verification_success,
         }
 
-        # rollback_required/rollback_success: only meaningful once
-        # verification actually failed - otherwise rollback was never
-        # eligible to happen (a genuine N/A, never conflated with False).
+        # rollback_required records whether failed verification required a
+        # rollback. rollback_success records a persisted rollback outcome,
+        # including an operator-requested rollback after successful
+        # verification. With no verification and no rollback both remain
+        # honestly N/A (for example, failed synthetic execution).
         verification_failed = (
             verification_record is not None
             and verification_record.verification_status != "successful_simulation"
         )
-        if not verification_failed:
-            rollback_required = None
-            rollback_success = None
+        rollback_required = verification_failed if verification_record is not None else None
+        if rollback_record is not None:
+            rollback_success = rollback_record.state == "synthetic_rollback_completed"
+        elif verification_failed:
+            rollback_success = False
         else:
-            rollback_required = rollback_record is not None
-            rollback_success = (
-                rollback_record.state == "synthetic_rollback_completed"
-                if rollback_record is not None
-                else False
-            )
+            rollback_success = None
 
         rollback = {
             "rollback_required": rollback_required,

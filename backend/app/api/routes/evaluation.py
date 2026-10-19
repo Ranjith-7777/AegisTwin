@@ -64,6 +64,9 @@ from app.schemas.evaluation import (
 from app.services.evaluation.aggregation_service import aggregation_service
 from app.services.evaluation.batch_service import batch_service
 from app.services.evaluation.comparison_service import comparison_service
+from app.services.evaluation.completed_workflow_service import (
+    completed_workflow_evaluation_service,
+)
 from app.services.evaluation.evaluation_pipeline import evaluate_experiment
 from app.services.evaluation.experiment_service import experiment_service
 from app.services.evaluation.mission_continuity_service import mission_continuity_service
@@ -197,6 +200,18 @@ def create_experiment(request: ExperimentCreate, session: Db) -> ExperimentDetai
     experiment = experiment_service.create_and_run(session, request)
     if experiment.status == ExperimentStatus.COMPLETED.value:
         evaluate_experiment(session, experiment.experiment_id)
+    return _experiment_detail(session, experiment)
+
+
+@router.post(
+    "/workflows/{orchestration_id}/evaluate",
+    response_model=ExperimentDetail,
+    dependencies=[RequireAnalyst],
+)
+def evaluate_completed_workflow(orchestration_id: str, session: Db) -> ExperimentDetail:
+    """Evaluate terminal, persisted workflow evidence without replaying its attack."""
+
+    experiment = completed_workflow_evaluation_service.evaluate(session, orchestration_id)
     return _experiment_detail(session, experiment)
 
 
@@ -371,6 +386,13 @@ def rerun_experiment(experiment_id: str, session: Db) -> ExperimentDetail:
     experiment is never touched."""
 
     original = experiment_service.get(session, experiment_id)
+    if original.evaluation_source != "benchmark":
+        raise ApplicationError(
+            "WORKFLOW_EVALUATION_CANNOT_RERUN",
+            "A completed-workflow evaluation is evidence-bound and cannot replay the attack. "
+            "Evaluate the original orchestration again to retrieve its existing report.",
+            409,
+        )
     configuration = original.configuration_json
     raw_top_k = configuration.get("top_k", 5)
     top_k = int(raw_top_k) if isinstance(raw_top_k, (int, float, str)) else 5
@@ -438,11 +460,21 @@ def get_experiment_report(experiment_id: str, session: Db) -> ExperimentReport:
         else "N/A"
     )
     verification_text = experiment.verification_status or "not reached"
-    executive_summary = (
-        f"Experiment {experiment.experiment_id} ran '{scenario.name}' (seed={experiment.seed}) "
-        f"under '{experiment.defence_mode}' defence. Verification status: {verification_text}. "
-        f"Aegis Resilience Score: {ars_total_text}/100."
-    )
+    if experiment.evaluation_source == "completed_workflow":
+        workflow_state = experiment.configuration_json.get("workflow_terminal_state", "unknown")
+        executive_summary = (
+            f"Persisted workflow {experiment.orchestration_id} for '{scenario.name}' "
+            f"(seed={experiment.seed}) was evaluated without replaying the attack. Terminal "
+            f"state: {workflow_state}. Verification status: {verification_text}. "
+            f"Aegis Resilience Score: {ars_total_text}/100."
+        )
+    else:
+        executive_summary = (
+            f"Experiment {experiment.experiment_id} ran '{scenario.name}' "
+            f"(seed={experiment.seed}) under '{experiment.defence_mode}' defence. "
+            f"Verification status: {verification_text}. "
+            f"Aegis Resilience Score: {ars_total_text}/100."
+        )
 
     incident = (
         session.get(IncidentCandidateRecord, experiment.incident_candidate_id)
@@ -497,20 +529,27 @@ def get_experiment_report(experiment_id: str, session: Db) -> ExperimentReport:
     }
 
     paired_comparison: ModeComparisonResult | None = None
-    try:
-        candidate = comparison_service.compare_modes(
-            session, experiment.scenario_id, experiment.seed
-        )
-        if len(candidate.available_modes) > 1:
-            paired_comparison = candidate
-    except Exception:
-        paired_comparison = None
+    if experiment.evaluation_source == "benchmark":
+        try:
+            candidate = comparison_service.compare_modes(
+                session, experiment.scenario_id, experiment.seed
+            )
+            if len(candidate.available_modes) > 1:
+                paired_comparison = candidate
+        except Exception:
+            paired_comparison = None
 
     limitations = [
         "Sample size of one experiment; no statistical significance implied.",
         "Attack Graph/Blast Radius figures are ephemeral what-if recomputations at "
         "measurement time, not persisted per-call audit rows.",
     ]
+    if experiment.evaluation_source == "completed_workflow":
+        limitations.append(
+            "This report evaluates one existing workflow's persisted evidence. It is excluded "
+            "from benchmark aggregates and paired defence-mode comparisons. Workflow wall-clock "
+            "latency is unavailable because it was not measured during the original execution."
+        )
     if experiment.defence_mode == DefenceMode.NO_ACTIVE_DEFENCE.value:
         limitations.append(
             "no_active_defence never dispatches a response, so response/verification/"
@@ -519,6 +558,7 @@ def get_experiment_report(experiment_id: str, session: Db) -> ExperimentReport:
 
     reproduction = {
         "experiment_id": experiment.experiment_id,
+        "evaluation_source": experiment.evaluation_source,
         "scenario_id": experiment.scenario_id,
         "seed": experiment.seed,
         "defence_mode": experiment.defence_mode,

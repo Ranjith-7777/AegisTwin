@@ -756,6 +756,9 @@ class ExperimentRecord(Base):
     )
 
     experiment_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    evaluation_source: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="benchmark", server_default="benchmark", index=True
+    )
     scenario_id: Mapped[str] = mapped_column(String(80), nullable=False)
     scenario_name: Mapped[str] = mapped_column(String(120), nullable=False)
     seed: Mapped[int] = mapped_column(Integer, nullable=False)

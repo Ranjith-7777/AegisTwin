@@ -120,6 +120,7 @@ class ComparisonService:
                     ExperimentRecord.seed == seed,
                     ExperimentRecord.defence_mode == mode.value,
                     ExperimentRecord.status == "completed",
+                    ExperimentRecord.evaluation_source == "benchmark",
                 )
                 .order_by(ExperimentRecord.created_at.desc())
                 .limit(1)

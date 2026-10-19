@@ -90,6 +90,7 @@ class ExperimentService:
         now = datetime.now(UTC)
         record = ExperimentRecord(
             experiment_id=str(uuid4()),
+            evaluation_source="benchmark",
             scenario_id=request.scenario_id,
             scenario_name=scenario.name,
             seed=request.seed,
@@ -365,7 +366,9 @@ class ExperimentService:
         status: ExperimentStatus | None = None,
         batch_id: str | None = None,
     ) -> list[ExperimentRecord]:
-        statement = select(ExperimentRecord)
+        statement = select(ExperimentRecord).where(
+            ExperimentRecord.evaluation_source == "benchmark"
+        )
         if scenario_id is not None:
             statement = statement.where(ExperimentRecord.scenario_id == scenario_id)
         if defence_mode is not None:

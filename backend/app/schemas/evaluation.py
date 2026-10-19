@@ -61,6 +61,7 @@ class ExperimentView(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     experiment_id: str
+    evaluation_source: Literal["benchmark", "completed_workflow"]
     scenario_id: str
     scenario_name: str
     seed: int

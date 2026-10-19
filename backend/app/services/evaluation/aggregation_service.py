@@ -161,7 +161,9 @@ class AggregationService:
         include_failed: bool = False,
         group_label: str | None = None,
     ) -> AggregateResult:
-        statement = select(ExperimentRecord)
+        statement = select(ExperimentRecord).where(
+            ExperimentRecord.evaluation_source == "benchmark"
+        )
         if experiment_ids is not None:
             statement = statement.where(ExperimentRecord.experiment_id.in_(experiment_ids))
         if scenario_id is not None:
