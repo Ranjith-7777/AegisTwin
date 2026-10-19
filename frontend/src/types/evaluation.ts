@@ -56,6 +56,7 @@ export interface ExperimentCreateRequest {
 
 export interface ExperimentView {
   experiment_id: string
+  evaluation_source: 'benchmark' | 'completed_workflow'
   scenario_id: string
   scenario_name: string
   seed: number

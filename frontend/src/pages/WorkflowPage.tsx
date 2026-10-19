@@ -14,6 +14,7 @@ import { StageEvidence } from '../components/agents/StageEvidence'
 import { MitreMapping, ScenarioTimeline } from '../components/agents/ThreatIntel'
 import { Button } from '../components/ui/button'
 import { AutonomyModeSwitch } from '../components/workflow/AutonomyModeSwitch'
+import { CompletedRunEvaluation } from '../components/workflow/CompletedRunEvaluation'
 import { StageList } from '../components/workflow/StageList'
 import { useDecisionActions } from '../components/workflow/useDecisionActions'
 import { useAutonomyWorkflow } from '../hooks/useAutonomyWorkflow'
@@ -273,6 +274,11 @@ export function WorkflowPage() {
           >
             <Play /> {workflow.result ? 'Re-run Blue workflow' : 'Run Blue workflow'}
           </Button>
+          <CompletedRunEvaluation
+            orchestrationId={orchestration?.orchestration_id ?? null}
+            state={orchestration?.current_state ?? null}
+            canOperate={workflow.session?.can_operate ?? false}
+          />
         </div>
       </div>
 

@@ -349,5 +349,9 @@ test('autonomous Blue workflow runs end to end from the UI', async ({ page, requ
   await expect(page.getByRole('list', { name: 'AegisArena lifecycle stages' })).toContainText(
     'Synthetic execution',
   )
+  await page.getByRole('button', { name: 'Evaluate completed run' }).click()
+  await expect(page).toHaveURL(/\/evaluation\/experiments\/[^/]+\/report$/)
+  await expect(page.getByText('Faculty report')).toBeVisible()
+  await expect(page.getByText(/without replaying the attack/)).toBeVisible()
   expect(consoleErrors).toEqual([])
 })

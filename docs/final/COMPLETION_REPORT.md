@@ -1,4 +1,4 @@
-# AegisArena — Completion Report (2026-10-18)
+# AegisArena — Completion Report (2026-10-19)
 
 The implementation described here is tracked on `develop`. Phase 1 established
 three local baseline commits for the backend/data path, release configuration,
@@ -19,7 +19,7 @@ There is a single FastAPI process that holds:
 - evaluation (MCI and ARS);
 - the SHA-256 hash-chained audit trail.
 
-Persistence uses SQLAlchemy 2 with Alembic (head `20261013_0019`), on SQLite
+Persistence uses SQLAlchemy 2 with Alembic (head `20261018_0020`), on SQLite
 or PostgreSQL. The React 19 SPA talks REST and a run-scoped WebSocket. In
 containers, nginx serves the SPA and proxies `/api/` and `/api/v1/ws/`. Azure
 runs both containers as sidecars in one Container App, with:
@@ -43,6 +43,8 @@ runs both containers as sidecars in one Container App, with:
    the audit chain.
 6. Compare the four strategies under Evaluation.
 7. Roll back (ADMIN).
+8. Evaluate a terminal workflow from its persisted evidence and open its
+   traceable report without replaying the attack.
 
 ## 3. UI summary
 
@@ -55,6 +57,9 @@ runs both containers as sidecars in one Container App, with:
 - The Blue decision panel shows the "why" (derived from the persisted scores), with approve, reject and rollback dialogs.
 - The Strategy Comparison page has "Run all four strategies" and logical-time labels.
 - The Verification nav item shows a badge while an approval is pending.
+- Terminal Workflow pages expose **Evaluate completed run**, which opens the
+  evidence-bound evaluation report. Workflow-derived reports cannot be rerun
+  as benchmark experiments.
 
 ## 4. Backend changes
 
@@ -73,6 +78,14 @@ runs both containers as sidecars in one Container App, with:
 - **Migration** `20261007_0018` adds 32 ORM-declared indexes and drops one redundant index, so `alembic check` is clean.
 - **Migration** `20261013_0019` adds recorded-data sources, normalized network
   flows, import diagnostics, and evaluation records.
+- **Migration** `20261018_0020` distinguishes independent benchmark
+  experiments from completed-workflow evaluations. Workflow-derived reports
+  are excluded from benchmark lists, exports, aggregates and paired comparisons.
+- **Completed-workflow evaluation:**
+  `POST /api/v1/evaluation/workflows/{orchestration_id}/evaluate` validates the
+  persisted run/incident/model/orchestration/execution evidence, reuses the
+  existing MCI, ARS, timeline and report pipeline, and is idempotent. It does
+  not create or replay a simulation run.
 - **Recorded-data analysis:** CICIDS2017 and canonical CSV adapters, validation,
   asset mapping, feature extraction, correlation, evaluation, and read-only API
   routes are implemented. This path never performs response execution.
@@ -117,15 +130,15 @@ runs both containers as sidecars in one Container App, with:
 
 | Check | Result |
 |---|---|
-| `pytest` (backend) | **375 passed, 1 skipped**, 3 dependency deprecation warnings; the skip is the absent local CICIDS2017 corpus |
-| `ruff check app tests` / `ruff format --check app tests` | All checks passed / 202 files already formatted |
-| `mypy app` | Success: no issues found in 147 source files |
+| `pytest` (backend) | **382 passed, 1 skipped**, 3 dependency deprecation warnings; the skip is the absent local CICIDS2017 corpus |
+| `ruff check app tests alembic` / `ruff format --check app tests alembic` | All checks passed / 205 files already formatted |
+| `mypy app` | Success: no issues found in 148 source files |
 | `alembic check` | No new upgrade operations detected |
 | `npm run lint` / `typecheck` | 0 problems / clean |
-| `vitest run` | **144 passed** (31 files) |
+| `vitest run` | **146 passed** (32 files) |
 | `prettier --check .` | All matched files use Prettier code style |
 | `npm run build` | built successfully |
-| `playwright test` | **8 passed**, including the Data Sources empty-corpus state without browser console errors |
+| `playwright test` | **8 passed**, including completed-workflow evaluation → report navigation and the Data Sources empty-corpus state without browser console errors |
 | Windows demo lifecycle | setup, start, health/status, `/app`, session role, and stop verified with isolated ports and storage |
 | Docker image build / run | **not run in Phase 2** |
 | Bicep compile / Azure deployment | **not run in Phase 2** |

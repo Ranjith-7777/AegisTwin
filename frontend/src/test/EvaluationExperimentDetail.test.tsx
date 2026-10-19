@@ -11,6 +11,7 @@ vi.mock('../services/evaluationApi')
 
 const baseExperiment: ExperimentDetail = {
   experiment_id: 'exp-1',
+  evaluation_source: 'benchmark',
   scenario_id: 'scenario-a',
   scenario_name: 'Scenario A',
   seed: 1,
