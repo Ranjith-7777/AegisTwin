@@ -19,7 +19,7 @@ There is a single FastAPI process that holds:
 - evaluation (MCI and ARS);
 - the SHA-256 hash-chained audit trail.
 
-Persistence uses SQLAlchemy 2 with Alembic (head `20261018_0020`), on SQLite
+Persistence uses SQLAlchemy 2 with Alembic (head `20261019_0022`), on SQLite
 or PostgreSQL. The React 19 SPA talks REST and a run-scoped WebSocket. In
 containers, nginx serves the SPA and proxies `/api/` and `/api/v1/ws/`. Azure
 runs both containers as sidecars in one Container App, with:
@@ -81,6 +81,10 @@ runs both containers as sidecars in one Container App, with:
 - **Migration** `20261018_0020` distinguishes independent benchmark
   experiments from completed-workflow evaluations. Workflow-derived reports
   are excluded from benchmark lists, exports, aggregates and paired comparisons.
+- **Migration** `20261019_0021` removes a redundant PostgreSQL-only uniqueness
+  constraint so a freshly migrated PostgreSQL schema matches the ORM exactly.
+- **Migration** `20261019_0022` widens the response playbook catalogue version
+  field so the committed catalogue identifier persists correctly on PostgreSQL.
 - **Completed-workflow evaluation:**
   `POST /api/v1/evaluation/workflows/{orchestration_id}/evaluate` validates the
   persisted run/incident/model/orchestration/execution evidence, reuses the

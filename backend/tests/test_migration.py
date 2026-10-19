@@ -135,4 +135,4 @@ def test_system_status_reports_the_applied_revision(
     )
     with TestClient(create_app(settings)) as client:
         body = client.get("/api/system/status").json()
-    assert body["database_revision"] == "20261018_0020"
+    assert body["database_revision"] == "20261019_0022"

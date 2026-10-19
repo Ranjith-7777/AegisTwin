@@ -405,7 +405,7 @@ class ResponsePlaybookRecord(Base):
     __tablename__ = "response_playbook_catalogue"
     playbook_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     playbook_version: Mapped[str] = mapped_column(String(30), nullable=False)
-    catalogue_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    catalogue_version: Mapped[str] = mapped_column(String(60), nullable=False)
     definition_json: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
