@@ -79,8 +79,11 @@ one-time manual action in the GitHub web UI:**
    `deploy-azure.yml`).
 3. Under **Deployment protection rules**, add a required reviewer (and/or
    a wait timer, restricted branches, etc., as desired).
-4. Optionally, move `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` /
-   `AZURE_SUBSCRIPTION_ID` / `ACR_NAME` (variables) to be Environment-scoped
+4. Store `TRUST_EASYAUTH_HEADERS` and `ADMIN_PRINCIPAL_IDS_JSON` as protected
+   `production` Environment variables after completing the Easy Auth checks in
+   `docs/deployment/AZURE_DEPLOYMENT.md`. Optionally, also move
+   `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` / `ACR_NAME`
+   to be Environment-scoped
    instead of repository-scoped, if you want them to only be readable within
    this specific protected Environment. There is no `PGADMIN_PASSWORD` (or
    any other secret) for this workflow to move — normal releases via

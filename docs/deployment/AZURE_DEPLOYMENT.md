@@ -218,6 +218,8 @@ Settings → Secrets and variables → Actions → Variables:
 | `AZURE_TENANT_ID` | Entra tenant ID |
 | `AZURE_SUBSCRIPTION_ID` | Target subscription ID |
 | `ACR_NAME` | The **actual deployed** registry name — read it from PASS 1's `acrLoginServer` output (it is `acraegisarenadev` plus a short generated suffix, e.g. `acraegisarenadevab12`, stripped of the trailing `.azurecr.io`), not the bare `acraegisarenadev` base name |
+| `TRUST_EASYAUTH_HEADERS` | `false` until Easy Auth is configured and verified; then `true` so later releases preserve the verified trust boundary |
+| `ADMIN_PRINCIPAL_IDS_JSON` | JSON array of verified Entra principal object IDs granted ADMIN, for example `["00000000-0000-0000-0000-000000000000"]`; use `[]` before configuration |
 
 These are identifiers, not credentials — there is no secret material in any
 of them, which is why they are GitHub *variables* rather than *secrets*
@@ -270,8 +272,9 @@ if left blank). It will:
    against `infra/azure/app.bicep`, passing `acrName` (from the `ACR_NAME`
    variable) and `imageTag` — **not** `infra/azure/main.bicep`, and no
    `PGADMIN_PASSWORD`/Postgres involvement at all (see above). This only
-   ever updates the Container App; `trustEasyAuthHeaders` is left at its
-   default `false` in the workflow.
+   ever updates the Container App. It also passes the validated
+   `TRUST_EASYAUTH_HEADERS` and `ADMIN_PRINCIPAL_IDS_JSON` Environment
+   variables, whose secure fallbacks are `false` and `[]`.
 5. Poll `/api/health/live` and `/api/health/ready` on the resulting
    Container App FQDN, retrying for cold starts, and fail the job if either
    check does not return 200 within the retry budget.
@@ -284,10 +287,15 @@ every Azure deployment is an explicit, manual action.
 Once Easy Auth has been configured and verified (steps 5–9 of the ordered
 sequence above), subsequent releases should keep granting real ANALYST/ADMIN
 access, which requires `TRUST_EASYAUTH_HEADERS=true` on the Container App.
-`deploy-azure.yml` never sets this itself (its default stays `false`, by
-design — the workflow has no way to know Easy Auth has actually been
-verified). To supply it explicitly on a manual run, invoke the same
-resource-group-scoped deployment directly with the extra parameter:
+The workflow cannot determine whether Easy Auth has been verified, so its
+secure fallback remains `false`. After verification, set these two variables
+on the protected GitHub `production` Environment:
+
+- `TRUST_EASYAUTH_HEADERS=true`
+- `ADMIN_PRINCIPAL_IDS_JSON` to the JSON array of approved admin object IDs
+
+Every subsequent manual workflow release then supplies both values to Bicep.
+For a direct operator-run release, pass the same values explicitly:
 
 ```bash
 az deployment group create \
@@ -295,15 +303,13 @@ az deployment group create \
   --template-file infra/azure/app.bicep \
   --parameters acrName=<the deployed ACR name> \
   --parameters imageTag=<git-sha> \
-  --parameters trustEasyAuthHeaders=true
+  --parameters trustEasyAuthHeaders=true \
+  --parameters adminPrincipalIds='["<verified-admin-object-id>"]'
 ```
 
-This does not need to be repeated on every future release once Easy Auth is
-confirmed working — but it does need `trustEasyAuthHeaders=true` passed
-explicitly each time `app.bicep` is deployed (declarative infrastructure has
-no persistent "remembered" state of its own; the value must come from the
-caller every time, which is exactly why this parameter exists rather than
-being hardcoded — see `infra/azure/modules/containerapp.bicep`).
+Declarative infrastructure has no remembered parameter state: both values
+must be supplied every time `app.bicep` is deployed. The protected Environment
+variables make that persistence explicit while retaining safe defaults.
 
 ## Changes from the final hardening pass (2026-10-07)
 
